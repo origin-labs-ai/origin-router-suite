@@ -7,6 +7,7 @@ import {
   extractApiKey,
   isValidApiKey,
 } from "../services/auth.js";
+import { withDefaultSystemPrompt } from "@/lib/defaultSystemPrompt";
 import { handleAntigravityQuotaError, clearAntigravityStrikes } from "../services/antigravityQuota.js";
 import { getSettings } from "@/lib/localDb";
 import { getModelInfo, getComboModels } from "../services/model.js";
@@ -48,6 +49,9 @@ export async function handleChat(request, clientRawRequest = null, options = {})
     log.warn("CHAT", "Invalid JSON body");
     return errorResponse(HTTP_STATUS.BAD_REQUEST, "Invalid JSON body");
   }
+
+  // Requests without a system message get the Claude by Origin default.
+  body = withDefaultSystemPrompt(body);
 
   // Build clientRawRequest for logging (if not provided)
   if (!clientRawRequest) {

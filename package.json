@@ -4,6 +4,7 @@
   "description": "OriginRouter web dashboard",
   "private": true,
   "scripts": {
+    "brand:audit": "node scripts/brand-audit.mjs",
     "dev": "next dev --port 20127",
     "dev:webpack": "next dev --webpack --port 20127",
     "build": "next build --webpack",

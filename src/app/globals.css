@@ -201,27 +201,44 @@ select {
   --font-mono: 'Anthropic Mono', 'anthropicMono', ui-monospace, SFMono-Regular, Menlo, monospace;
 }
 
-/* Anthropic families: a locally dropped woff2 wins, then an installed font,
+/* Anthropic families: a locally installed woff2 wins, then an installed font,
    then the fallback stack. Files live in the gitignored public/fonts/claude/. */
 @font-face {
   font-family: 'Anthropic Sans';
-  src: url('/fonts/claude/anthropic-sans.woff2') format('woff2'),
-       local('Anthropic Sans'), local('anthropicSans'), local('AnthropicSans-Regular');
-  font-weight: 100 900;
+  src: url('/fonts/claude/anthropic-sans.woff2') format('woff2-variations'),
+       local('Anthropic Sans'), local('anthropicSans');
+  font-weight: 300 800;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Anthropic Sans';
+  src: url('/fonts/claude/anthropic-sans-italic.woff2') format('woff2-variations');
+  font-weight: 300 800;
+  font-style: italic;
   font-display: swap;
 }
 @font-face {
   font-family: 'Anthropic Serif';
-  src: url('/fonts/claude/anthropic-serif.woff2') format('woff2'),
-       local('Anthropic Serif'), local('anthropicSerif'), local('AnthropicSerif-Regular');
-  font-weight: 100 900;
+  src: url('/fonts/claude/anthropic-serif.woff2') format('woff2-variations'),
+       local('Anthropic Serif'), local('anthropicSerif');
+  font-weight: 300 800;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Anthropic Serif';
+  src: url('/fonts/claude/anthropic-serif-italic.woff2') format('woff2-variations');
+  font-weight: 300 800;
+  font-style: italic;
   font-display: swap;
 }
 @font-face {
   font-family: 'Anthropic Mono';
-  src: url('/fonts/claude/anthropic-mono.woff2') format('woff2'),
-       local('Anthropic Mono'), local('anthropicMono'), local('AnthropicMono-Regular');
-  font-weight: 100 900;
+  src: url('/fonts/claude/anthropic-mono.woff2') format('woff2-variations'),
+       local('Anthropic Mono'), local('anthropicMono');
+  font-weight: 300 800;
+  font-style: normal;
   font-display: swap;
 }
 

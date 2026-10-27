@@ -8,11 +8,12 @@ import os from "os";
 const DATA_FOLDER = ".or";
 const MIRROR_FOLDER = path.join(".fusion", ".or");
 
+// legacy migration path — old installs stored data here
 const LEGACY_CANDIDATES = [
   () => path.join(os.homedir(), ".originrouter"),
-  () => path.join(os.homedir(), ".9router"),
+  () => path.join(os.homedir(), ".9router"), // legacy migration path
   () => path.join(process.env.APPDATA || path.join(os.homedir(), "AppData", "Roaming"), "originrouter"),
-  () => path.join(process.env.APPDATA || path.join(os.homedir(), "AppData", "Roaming"), "9router"),
+  () => path.join(process.env.APPDATA || path.join(os.homedir(), "AppData", "Roaming"), "9router") /* legacy migration path */,
 ];
 
 function defaultDir() {

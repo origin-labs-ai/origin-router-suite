@@ -14,7 +14,7 @@
 // ponytail: only numeric-suffix collision is handled. A user who manually
 // types an exact existing non-numbered custom name (no index) will still hit
 // the backend upsert — but bulk auto-naming always appends " <n>", so this
-// path is unreachable from the bulk modal. Upgrade path: a backend
+// path is unreachable from the bulk modal. Follow-up: a backend
 // "skip-if-exists" flag on POST /api/providers if single-add ever needs it.
 
 /**

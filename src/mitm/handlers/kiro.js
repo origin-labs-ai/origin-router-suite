@@ -191,7 +191,7 @@ const INLINE_IMAGE_MIME_BY_FORMAT = new Map([
 /**
  * Safely stringify a tool-call input value.
  * OpenAI expects `function.arguments` to be a JSON string, never an object.
- * If originrouter's Anthropic→OpenAI conversion passes the input as a pre-parsed object,
+ * If the Messages-to-OpenAI conversion passes the input as a pre-parsed object,
  * this prevents the "" + object → "[object Object]" corruption.
  */
 function safeArgsString(value) {

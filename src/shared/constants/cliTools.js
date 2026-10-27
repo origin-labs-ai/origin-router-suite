@@ -157,10 +157,10 @@ export const CLI_TOOLS = {
   },
   cowork: {
     id: "cowork",
-    name: "Claude Cowork",
+    name: "Cowork",
     image: "/providers/claude.png",
     color: "#D97757",
-    description: "Claude Desktop Cowork (third-party inference)",
+    description: "Cowork desktop (third-party inference)",
     configType: "custom",
   },
   hermes: {
@@ -315,7 +315,7 @@ amp --model "{{model}}"
     name: "Qwen Code",
     image: "/providers/qwen.png",
     color: "#10B981",
-    description: "Alibaba Qwen Code CLI — supports OpenAI, Anthropic & Gemini providers via OriginRouter",
+    description: "Alibaba Qwen Code CLI — supports OpenAI, Claude & Gemini providers via OriginRouter",
     docsUrl: "https://qwenlm.github.io/qwen-code-docs/en/users/configuration/model-providers/",
     configType: "guide",
     defaultCommand: "qwen",

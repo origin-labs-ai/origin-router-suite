@@ -103,7 +103,7 @@ function sortData(dataMap, pendingMap = {}, sortBy, sortOrder) {
       const totalCost = data.cost || 0;
       // ponytail: cost split is a token-share allocation of the (rate-accurate)
       // server total, not a per-rate recompute. cached is a subset of prompt, so
-      // peel it out of the input share. Upgrade to a stored per-component cost
+      // peel it out of the input share. Move to a stored per-component cost
       // breakdown if exact cached-rate cost display is needed.
       const cachedTokens = data.cachedTokens || 0;
       const nonCachedInput = Math.max(0, (data.promptTokens || 0) - cachedTokens);

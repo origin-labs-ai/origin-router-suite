@@ -8,7 +8,7 @@ export const DEFAULT_SYSTEM_PROMPT =
 
 /**
  * Apply the default prompt only when the caller sent none.
- * Understands both OpenAI (`messages[].role === "system"`) and Anthropic
+ * Understands both OpenAI (`messages[].role === "system"`) and Messages
  * (`system` as string or content blocks).
  */
 export function withDefaultSystemPrompt(body) {

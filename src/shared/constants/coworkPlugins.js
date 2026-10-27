@@ -1,4 +1,4 @@
-// Default remote plugins for Claude Cowork (3p managedMcpServers, HTTPS only).
+// Default remote plugins for Cowork (3p managedMcpServers, HTTPS only).
 const DEFAULT_PLUGINS = [
   {
     name: "exa",

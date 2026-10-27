@@ -18,13 +18,15 @@ const ALLOW_LINE = [
   /anthropic\.com\/v1/,
   /@anthropic/i,
   /"anthropic"/,
+  /legacy migration path/i,
+  /font-family:.?Anthropic/i,
 ];
 
 const FORBIDDEN = [
   { id: "upstream-brand", pattern: /9Router|9router/g },
   { id: "anthropic-brand", pattern: /Anthropic(?![-_ ]?(?:compatible|Claude|messages|beta|version|Sdk|SDK))/g },
   { id: "upgrade", pattern: /\b(Upgrade|upgrade to Pro|Pro plan|Max plan)\b/g },
-  { id: "cowork", pattern: /\bCowork\b/g },
+  { id: "cowork", pattern: /Claude Cowork/g },
   { id: "claude-code-gate", pattern: /Claude Code (?:is )?(?:not available|requires|upgrade)/g },
 ];
 

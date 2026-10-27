@@ -21,7 +21,7 @@ export const SKILLS = [
   {
     id: "originrouter-chat",
     name: "Chat",
-    description: "Chat / code-gen via OpenAI or Anthropic format with streaming.",
+    description: "Chat / code-gen via OpenAI or Claude format with streaming.",
     endpoint: "/v1/chat/completions",
     icon: "chat",
   },

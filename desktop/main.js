@@ -11,7 +11,7 @@ fs.mkdirSync(ORIGIN_HOME, { recursive: true });
 app.setPath("userData", ORIGIN_HOME);
 app.setPath("sessionData", path.join(ORIGIN_HOME, "session"));
 
-const APP_URL = process.env.ORIGIN_APP_URL || "http://localhost:20128/playground";
+const APP_URL = process.env.ORIGIN_APP_URL || "http://localhost:20128/claude";
 const ORIGIN_ROUTER = process.env.ORIGIN_ROUTER_BIN || "originrouter";
 const BOUNDS_FILE = path.join(ORIGIN_HOME, "window.json");
 

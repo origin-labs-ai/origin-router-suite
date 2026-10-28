@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { comboDisplayLabel } from "@/shared/utils/modelDisplayName";
+import { ORIGIN_CHAT_ENDPOINT, isClaudeCombo, thinkingPayload } from "@/lib/claudeOriginConfig";
 
 // Native Claude by Origin surface. Every chat lives in ~/.claude/origin through
 // /api/origin/*, and every completion goes to the local OriginRouter.
@@ -67,7 +68,7 @@ export default function ClaudeApp() {
         const combosData = combosRes.ok ? await combosRes.json() : { combos: [] };
 
         const claudeModels = (combosData.combos || [])
-          .filter((combo) => String(combo.name || "").startsWith("claude-"))
+          .filter((combo) => isClaudeCombo(combo.name))
           .map((combo) => ({ id: combo.name, label: comboDisplayLabel(combo) }));
 
         if (!alive) return;
@@ -199,17 +200,14 @@ export default function ClaudeApp() {
     abortRef.current = new AbortController();
 
     try {
-      const response = await fetch("/api/dashboard/chat/completions", {
+      const response = await fetch(ORIGIN_CHAT_ENDPOINT, {
         method: "POST",
         headers: { "Content-Type": "application/json", Accept: "text/event-stream" },
         body: JSON.stringify({
           model,
           messages: history,
           stream: true,
-          ...(thinking ? {
-            reasoning_effort: effort,
-            thinking: { type: "enabled", budget_tokens: effort === "max" ? 32000 : 8000 },
-          } : {}),
+          ...thinkingPayload({ thinking, effort }),
         }),
         signal: abortRef.current.signal,
       });

@@ -6,7 +6,7 @@ import { CONSOLE_LOG_CONFIG } from "@/shared/constants/config";
 
 const LOG_LEVEL_COLORS = {
   LOG: "text-green-400",
-  INFO: "text-blue-400",
+  INFO: "text-[#2B7FFF]",
   WARN: "text-yellow-400",
   ERROR: "text-red-400",
   DEBUG: "text-purple-400",

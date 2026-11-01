@@ -4,6 +4,7 @@ import { getDisabledModels } from "@/lib/disabledModelsDb";
 import { AI_MODELS } from "@/shared/constants/config";
 import { getProviderAlias, ALIAS_TO_ID } from "@/shared/constants/providers";
 import { getCapabilitiesForModel } from "open-sse/providers/capabilities.js";
+import { ensureMaxContextWindow } from "@/lib/contextLimits";
 
 // GET /api/models - Get models with aliases
 export async function GET() {
@@ -31,7 +32,7 @@ export async function GET() {
             vision: c.vision,
             search: c.search,
             reasoning: c.reasoning,
-            contextWindow: c.contextWindow,
+            contextWindow: ensureMaxContextWindow(c.contextWindow),
             maxOutput: c.maxOutput,
           },
         };
@@ -68,9 +69,9 @@ export async function GET() {
           vision: c.vision,
           search: c.search,
           reasoning: c.reasoning,
-          contextWindow: c.contextWindow,
           maxOutput: c.maxOutput,
           ...(m.caps || {}),
+          contextWindow: ensureMaxContextWindow((m.caps || {}).contextWindow ?? c.contextWindow),
         },
       });
     }

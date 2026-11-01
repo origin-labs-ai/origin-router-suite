@@ -417,7 +417,7 @@ export default function GenericCliToolCard({
                 </span>
               )}
               {configStatus === "other" && (
-                <span className="px-1.5 py-0.5 text-[10px] font-medium bg-blue-500/10 text-blue-600 dark:text-blue-400 rounded-full">
+                <span className="px-1.5 py-0.5 text-[10px] font-medium bg-[#2B7FFF]/10 text-[#1a66e6] dark:text-[#2B7FFF] rounded-full">
                   Other
                 </span>
               )}

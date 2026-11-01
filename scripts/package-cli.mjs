@@ -25,13 +25,22 @@ fs.rmSync(outDir, { recursive: true, force: true });
 fs.mkdirSync(outDir, { recursive: true });
 fs.cpSync(cliApp, path.join(outDir, "app"), { recursive: true });
 fs.cpSync(path.resolve("cli", "cli.js"), path.join(outDir, "cli.js"));
+fs.cpSync(path.resolve("cli", "src"), path.join(outDir, "src"), { recursive: true });
 fs.cpSync(path.resolve("cli", "hooks"), path.join(outDir, "hooks"), { recursive: true });
+fs.cpSync(path.resolve("cli", "node_modules"), path.join(outDir, "node_modules"), { recursive: true });
 
 const pkg = JSON.parse(fs.readFileSync(path.resolve("cli", "package.json"), "utf8"));
-fs.writeFileSync(path.join(outDir, "package.json"), JSON.stringify({ ...pkg, bin: { originrouter: "./cli.js" } }, null, 2));
+fs.writeFileSync(path.join(outDir, "package.json"), JSON.stringify({ ...pkg, bin: { originrouter: "./cli.js", or: "./cli.js" } }, null, 2));
+fs.writeFileSync(path.join(outDir, "install.json"), JSON.stringify({
+  mode: "installer",
+  name: pkg.name,
+  version: pkg.version,
+  updateRepo: "origin-labs-ai/originrouter",
+}, null, 2));
 
 if (platform === "win") {
   fs.writeFileSync(path.join(outDir, "originrouter.cmd"), "@echo off\r\nnode \"%~dp0cli.js\" %*\r\n");
+  fs.writeFileSync(path.join(outDir, "or.cmd"), "@echo off\r\nnode \"%~dp0cli.js\" %*\r\n");
 } else {
   const shim = "#!/bin/sh\nexec node \"$(dirname \"$0\")/cli.js\" \"$@\"\n";
   fs.writeFileSync(path.join(outDir, "originrouter"), shim, { mode: 0o755 });

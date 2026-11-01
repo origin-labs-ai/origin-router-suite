@@ -7,6 +7,12 @@ import Drawer from "@/shared/components/Drawer";
 import Pagination from "@/shared/components/Pagination";
 import { cn } from "@/shared/utils/cn";
 import { AI_PROVIDERS, getProviderByAlias } from "@/shared/constants/providers";
+import { isHiddenModelName, prettyModelName } from "@/shared/utils/modelDisplayName";
+
+function displayModelName(raw) {
+  if (!raw || isHiddenModelName(raw)) return "—";
+  return prettyModelName(raw);
+}
 
 let providerNameCache = null;
 let providerNodesCache = null;
@@ -289,7 +295,7 @@ export default function RequestDetailsTab() {
                       {new Date(detail.timestamp).toLocaleString()}
                     </td>
                     <td className="max-w-[260px] truncate p-4 font-mono text-sm text-text-main">
-                      {detail.model}
+                      {displayModelName(detail.model)}
                     </td>
                     <td className="max-w-[180px] truncate p-4 text-sm text-text-main">
                        <span className="font-medium">
@@ -366,7 +372,7 @@ export default function RequestDetailsTab() {
                </div>
               <div>
                 <span className="text-text-muted">Model:</span>{" "}
-                <span className="text-text-main font-mono">{selectedDetail.model}</span>
+                <span className="text-text-main font-mono">{displayModelName(selectedDetail.model)}</span>
               </div>
               <div>
                 <span className="text-text-muted">Status:</span>{" "}

@@ -778,7 +778,7 @@ function ComboCard({ combo, getCaps, comboByName = {}, activeProviders = [], cop
               ) : (
                 combo.models.slice(0, 3).map((model, index) => (
                   <code key={index} className="inline-flex items-center gap-1 rounded bg-black/5 px-1.5 py-0.5 font-mono text-xs text-text-muted dark:bg-white/5">
-                    <span>{model}</span>
+                    <span>{prettyModelName(model)}</span>
                     <CapacityBadges caps={
                       comboByName[model]
                         ? aggregateComboCapabilities(comboByName[model], comboByName, getCaps)
@@ -1097,7 +1097,7 @@ function CapacityAdapterCap({ cap, entry, onChange, activeProviders, getCaps }) 
                   </td>
                   <td className="px-3 py-2 text-text-main">
                     <div className="flex items-center gap-1.5 flex-wrap">
-                      <span className="truncate">{model}</span>
+                      <span className="truncate">{prettyModelName(model)}</span>
                       <CapacityBadges caps={getCaps?.(model)} />
                       {model === DEFAULT_FALLBACK_MODEL && (
                         <span className="rounded bg-emerald-500/10 px-1.5 py-0.5 font-sans text-[10px] font-medium text-emerald-600 dark:text-emerald-400">
@@ -1237,7 +1237,7 @@ function ModelItem({ id, index, model, isFirst, isLast, onEdit, onMoveUp, onMove
           onClick={() => setEditing(true)}
           title="Click to edit"
         >
-          {model}
+          {prettyModelName(model)}
         </div>
       )}
 
@@ -1460,7 +1460,7 @@ function ComboFormModal({ isOpen, combo, onClose, onSave, activeProviders, kindF
                 <ul className="mt-1 space-y-0.5">
                   {contextViolations.map(({ seat, contextWindow }) => (
                     <li key={seat} className="flex items-center justify-between gap-2 text-[11px]">
-                      <code className="min-w-0 flex-1 truncate font-mono text-text-muted">{seat}</code>
+                      <code className="min-w-0 flex-1 truncate font-mono text-text-muted">{prettyModelName(seat)}</code>
                       <span className="shrink-0 text-red-500">{fmtK(contextWindow)}</span>
                       <button
                         type="button"

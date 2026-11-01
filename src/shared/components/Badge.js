@@ -8,7 +8,7 @@ const variants = {
   success: "bg-green-500/10 text-green-600 dark:text-green-400",
   warning: "bg-yellow-500/10 text-yellow-600 dark:text-yellow-400",
   error: "bg-red-500/10 text-red-600 dark:text-red-400",
-  info: "bg-blue-500/10 text-blue-600 dark:text-blue-400",
+  info: "bg-[#2B7FFF]/10 text-[#1a66e6] dark:text-[#2B7FFF]",
 };
 
 const sizes = {
@@ -41,7 +41,7 @@ export default function Badge({
             variant === "success" && "bg-green-500",
             variant === "warning" && "bg-yellow-500",
             variant === "error" && "bg-red-500",
-            variant === "info" && "bg-blue-500",
+            variant === "info" && "bg-[#2B7FFF]",
             variant === "primary" && "bg-brand-500",
             variant === "default" && "bg-gray-500"
           )}

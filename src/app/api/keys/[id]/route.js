@@ -22,7 +22,7 @@ export async function PUT(request, { params }) {
   try {
     const { id } = await params;
     const body = await request.json();
-    const { isActive, access } = body;
+    const { isActive, access, name } = body;
 
     const existing = await getApiKeyById(id);
     if (!existing) {
@@ -31,6 +31,13 @@ export async function PUT(request, { params }) {
 
     const updateData = {};
     if (isActive !== undefined) updateData.isActive = isActive;
+    if (name !== undefined) {
+      const trimmed = typeof name === "string" ? name.trim() : "";
+      if (!trimmed) {
+        return NextResponse.json({ error: "Key name is required" }, { status: 400 });
+      }
+      updateData.name = trimmed.slice(0, 80);
+    }
     if (access !== undefined) {
       const checked = validateKeyAccessInput(access);
       if (!checked.ok) return NextResponse.json({ error: checked.error }, { status: 400 });

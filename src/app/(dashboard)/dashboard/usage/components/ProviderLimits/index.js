@@ -1176,7 +1176,7 @@ export default function ProviderLimits() {
                             {kiroMethodLabel(conn)}
                           </span>
                           {kiroRegion(conn) && (
-                            <span className="rounded-full bg-blue-500/10 px-2 py-0.5 text-[10px] font-semibold text-blue-600 dark:text-blue-400">
+                            <span className="rounded-full bg-[#2B7FFF]/10 px-2 py-0.5 text-[10px] font-semibold text-[#1a66e6] dark:text-[#2B7FFF]">
                               {kiroRegion(conn)}
                             </span>
                           )}

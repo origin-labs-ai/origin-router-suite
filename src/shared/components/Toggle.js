@@ -2,21 +2,17 @@
 
 import { cn } from "@/shared/utils/cn";
 
+// Matches the playground switch exactly: 36×20 track, 16px thumb, brand blue
+// rgb(43, 127, 255) when on and a grey track when off.
 export default function Toggle({
   checked = false,
   onChange,
   label,
   description,
   disabled = false,
-  size = "md",
   className,
+  title,
 }) {
-  const sizes = {
-    sm: { track: "w-8 h-4", thumb: "size-3", translate: "translate-x-4" },
-    md: { track: "w-11 h-6", thumb: "size-5", translate: "translate-x-5" },
-    lg: { track: "w-14 h-7", thumb: "size-6", translate: "translate-x-7" },
-  };
-
   const handleClick = () => {
     if (!disabled && onChange) onChange(!checked);
   };
@@ -33,24 +29,23 @@ export default function Toggle({
         type="button"
         role="switch"
         aria-checked={checked}
+        aria-label={label || title}
+        title={title}
         disabled={disabled}
         onClick={handleClick}
         className={cn(
-          "relative inline-flex shrink-0 cursor-pointer rounded-full",
+          "relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full",
           "transition-colors duration-200 ease-in-out",
-          "focus:outline-none focus:ring-2 focus:ring-brand-500/30",
-          checked ? "bg-brand-500" : "bg-surface-3",
-          sizes[size].track,
+          "focus:outline-none focus:ring-2 focus:ring-[#2B7FFF]/30",
+          checked ? "bg-[#2B7FFF]" : "bg-black/15 dark:bg-white/15",
           disabled && "cursor-not-allowed"
         )}
       >
         <span
           className={cn(
-            "pointer-events-none inline-block rounded-full bg-white shadow-sm",
+            "pointer-events-none absolute top-0.5 inline-block size-4 rounded-full bg-white shadow-sm",
             "transform transition duration-200 ease-in-out",
-            checked ? sizes[size].translate : "translate-x-0.5",
-            sizes[size].thumb,
-            "mt-0.5"
+            checked ? "left-[18px]" : "left-0.5"
           )}
         />
       </button>

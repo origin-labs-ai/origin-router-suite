@@ -1,6 +1,7 @@
 import { getCapabilitiesForModel } from "open-sse/providers/capabilities.js";
 import { PROVIDER_ID_TO_ALIAS } from "@/shared/constants/models";
 import { ALIAS_TO_ID } from "@/shared/constants/providers";
+import { ensureMaxContextWindow } from "@/lib/contextLimits";
 
 // Combo seats are written with UI aliases (cc, oc, kr, …) while the capability
 // tables are keyed by provider id (claude, opencode, kiro, …). Same mapping the
@@ -58,13 +59,13 @@ export function resolveSeatContextWindow(seat, combosByName, visiting = new Set(
       return Number.isFinite(smallest) ? smallest : null;
     }
     const caps = getCapabilitiesForModel(null, seat);
-    return Number.isFinite(caps?.contextWindow) ? caps.contextWindow : null;
+    return Number.isFinite(caps?.contextWindow) ? ensureMaxContextWindow(caps.contextWindow) : null;
   }
 
   const alias = seat.slice(0, slash);
   const providerId = ALIAS_TO_PROVIDER_ID[alias] || alias;
   const caps = getCapabilitiesForModel(providerId, seat.slice(slash + 1));
-  return Number.isFinite(caps?.contextWindow) ? caps.contextWindow : null;
+  return Number.isFinite(caps?.contextWindow) ? ensureMaxContextWindow(caps.contextWindow) : null;
 }
 
 /**

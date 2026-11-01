@@ -44,7 +44,7 @@ export default function KeyAccessControls({ apiKey, onChange, onRequestRestrict 
       {access.restricted && (
         <div className="mt-2 flex flex-wrap items-center gap-1.5">
           {access.allow.length === 0 && (
-            <span className="text-xs text-orange-500">No combos or models allowed — this key can call nothing.</span>
+            <span className="text-xs text-[#2B7FFF]">No combos or models allowed — this key can call nothing.</span>
           )}
           {access.allow.map((entry) => (
             <span key={entry} className="flex items-center gap-1 rounded-xl border border-primary/30 bg-primary/10 px-2 py-0.5 font-mono text-xs text-text-main">

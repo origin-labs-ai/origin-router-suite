@@ -281,7 +281,7 @@ export default function ProvidersPage() {
     .map((node) => ({
       id: node.id,
       name: node.name || "Anthropic Compatible",
-      color: "#D97757",
+      color: "#2B7FFF",
       textIcon: "AC",
     }))
     .filter(
@@ -706,9 +706,9 @@ function ProviderCard({ providerId, provider, stats, authType, onToggle }) {
 
   const dotColors = {
     free: "bg-green-500",
-    oauth: "bg-blue-500",
+    oauth: "bg-[#2B7FFF]",
     apikey: "bg-amber-500",
-    compatible: "bg-orange-500",
+    compatible: "bg-[#2B7FFF]",
   };
   const dotLabels = {
     free: "Free",
@@ -825,9 +825,9 @@ function ApiKeyProviderCard({
 
   const dotColors = {
     free: "bg-green-500",
-    oauth: "bg-blue-500",
+    oauth: "bg-[#2B7FFF]",
     apikey: "bg-amber-500",
-    compatible: "bg-orange-500",
+    compatible: "bg-[#2B7FFF]",
   };
   const dotLabels = {
     free: "Free",
@@ -845,8 +845,14 @@ function ApiKeyProviderCard({
     return getProviderIconSrc(provider.id);
   };
 
+  // Custom providers are addressed by the name the owner gave them, not by
+  // their generated node id. Built-ins keep their stable id.
+  const routeKey = isCompatible || isAnthropicCompatible
+    ? encodeURIComponent(provider.name || providerId)
+    : providerId;
+
   return (
-    <Link href={`/dashboard/providers/${providerId}`} className="group min-w-0">
+    <Link href={`/dashboard/providers/${routeKey}`} className="group min-w-0">
       <Card
         padding="xs"
         className={`h-full hover:bg-black/[0.01] dark:hover:bg-white/[0.01] transition-colors cursor-pointer ${allDisabled ? "opacity-50" : ""}`}

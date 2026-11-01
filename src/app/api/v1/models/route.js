@@ -21,6 +21,7 @@ import { resolveZedModels } from "open-sse/shared/zedAuth.js";
 import { updateProviderCredentials } from "@/sse/services/tokenRefresh";
 import { resolveConnectionProxyConfig } from "@/lib/network/connectionProxy";
 import { capabilitiesFromServiceKind, getCapabilitiesForModel, aggregateComboCapabilities } from "open-sse/providers/capabilities.js";
+import { ensureMaxContextWindow, withMaxContextWindow } from "@/lib/contextLimits";
 
 // Qoder shares one live resolver across intl (qoder) and CN (qoder-cn); the
 // credentials carry the provider id so qoderModels picks the right region's
@@ -301,7 +302,7 @@ function comboSeatLimits(combo, combosByName, visiting = new Set()) {
         }
       }
       const caps = comboSeatCapabilities(seat) || getCapabilitiesForModel(null, seat);
-      if (Number.isFinite(caps?.contextWindow)) contextWindow = Math.min(contextWindow, caps.contextWindow);
+      if (Number.isFinite(caps?.contextWindow)) contextWindow = Math.min(contextWindow, ensureMaxContextWindow(caps.contextWindow));
       if (Number.isFinite(caps?.maxOutput)) maxOutput = Math.min(maxOutput, caps.maxOutput);
     }
   } finally {
@@ -410,7 +411,7 @@ export async function buildModelsList(kindFilter, options = {}) {
       entry.kind = combo.kind;
     } else {
       const comboCaps = aggregateComboCapabilities(combo.models, comboByName, comboSeatCapabilities);
-      if (comboCaps) entry.capabilities = comboCaps;
+      if (comboCaps) entry.capabilities = withMaxContextWindow(comboCaps);
       // Any seat can serve the request, so the only window a combo can promise is
       // its smallest. Combo entries were the only models on this endpoint that
       // published no limits at all, which leaves a client to guess from the name —
@@ -449,7 +450,7 @@ export async function buildModelsList(kindFilter, options = {}) {
           id: `${alias}/${model.id}`,
           object: "model",
           owned_by: alias,
-          capabilities: getCapabilitiesForModel(alias, model.id),
+          capabilities: withMaxContextWindow(getCapabilitiesForModel(alias, model.id)),
         });
       }
     }
@@ -613,7 +614,7 @@ export async function buildModelsList(kindFilter, options = {}) {
         const liveCaps = liveCapabilitiesById.get(modelId);
         const serviceCaps = capabilitiesFromServiceKind(customKind || liveKind);
         const caps = liveCaps || serviceCaps || (kind === LLM_KIND ? getCapabilitiesForModel(providerId, modelId) : null);
-        if (caps) model.capabilities = caps;
+        if (caps) model.capabilities = withMaxContextWindow(caps);
         // Token limits under the snake_case names the OpenAI/OpenRouter
         // convention uses. `capabilities.contextWindow` is camelCase and nested,
         // so clients matching context_length find nothing, fall back to guessing
@@ -632,7 +633,7 @@ export async function buildModelsList(kindFilter, options = {}) {
             if (!Number.isFinite(contextWindow)) contextWindow = fallback.contextWindow;
             if (!Number.isFinite(maxOutput)) maxOutput = fallback.maxOutput;
           }
-          if (Number.isFinite(contextWindow)) model.context_length = contextWindow;
+          if (Number.isFinite(contextWindow)) model.context_length = ensureMaxContextWindow(contextWindow);
           if (Number.isFinite(maxOutput)) model.max_completion_tokens = maxOutput;
         }
         models.push(model);

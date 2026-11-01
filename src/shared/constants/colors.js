@@ -5,7 +5,7 @@
 export const COLORS = {
   // Primary - Warm Coral/Terracotta (Claude-like)
   primary: {
-    DEFAULT: "#D97757",
+    DEFAULT: "#2B7FFF",
     hover: "#C56243",
     light: "#E8A58C",
     dark: "#B0664D",

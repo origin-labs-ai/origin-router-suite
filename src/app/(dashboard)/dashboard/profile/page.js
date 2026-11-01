@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import { Card, Button, Toggle, Input } from "@/shared/components";
 import Modal, { ConfirmModal } from "@/shared/components/Modal";
 import LanguageSwitcher from "@/shared/components/LanguageSwitcher";
+import RoutingResilienceCard from "@/shared/components/RoutingResilienceCard";
 import { useTheme } from "@/shared/hooks/useTheme";
 import { cn } from "@/shared/utils/cn";
 import { APP_CONFIG } from "@/shared/constants/config";
@@ -844,7 +845,7 @@ export default function ProfilePage() {
         {/* Language */}
         <Card>
           <div className="flex items-center gap-3 mb-4">
-            <div className="size-10 rounded-lg bg-blue-500/10 text-blue-500 flex items-center justify-center shrink-0">
+            <div className="size-10 rounded-lg bg-[#2B7FFF]/10 text-[#2B7FFF] flex items-center justify-center shrink-0">
               <span className="material-symbols-outlined text-[20px]">language</span>
             </div>
             <h3 className="text-base sm:text-lg font-semibold">Language</h3>
@@ -896,9 +897,9 @@ export default function ProfilePage() {
                   </div>
                 )}
                 {/* {!settings.hasPassword && (
-                  <div className="p-3 rounded-lg bg-blue-500/10 border border-blue-500/20">
-                    <p className="text-sm text-blue-600 dark:text-blue-400">
-                      Setting password for the first time. Leave current password empty or use default: <code className="bg-blue-500/20 px-1 rounded">123456</code>
+                  <div className="p-3 rounded-lg bg-[#2B7FFF]/10 border border-[#2B7FFF]/20">
+                    <p className="text-sm text-[#1a66e6] dark:text-[#2B7FFF]">
+                      Setting password for the first time. Leave current password empty or use default: <code className="bg-[#2B7FFF]/20 px-1 rounded">123456</code>
                     </p>
                   </div>
                 )} */}
@@ -1438,7 +1439,7 @@ export default function ProfilePage() {
         {/* Routing Preferences */}
         <Card>
           <div className="flex items-center gap-3 mb-4">
-            <div className="p-2 rounded-lg bg-blue-500/10 text-blue-500 shrink-0">
+            <div className="p-2 rounded-lg bg-[#2B7FFF]/10 text-[#2B7FFF] shrink-0">
               <span className="material-symbols-outlined text-[20px]">route</span>
             </div>
             <h3 className="text-base sm:text-lg font-semibold">Routing Strategy</h3>
@@ -1601,7 +1602,7 @@ export default function ProfilePage() {
         {/* Observability Settings */}
         <Card>
           <div className="flex items-center gap-3 mb-4">
-            <div className="p-2 rounded-lg bg-orange-500/10 text-orange-500 shrink-0">
+            <div className="p-2 rounded-lg bg-[#2B7FFF]/10 text-[#2B7FFF] shrink-0">
               <span className="material-symbols-outlined text-[20px]">monitoring</span>
             </div>
             <h3 className="text-base sm:text-lg font-semibold">Observability</h3>
@@ -1620,6 +1621,9 @@ export default function ProfilePage() {
             />
           </div>
         </Card>
+
+        {/* Routing resilience (concurrency, failover, error suppression) */}
+        <RoutingResilienceCard />
 
         {/* Account actions */}
         <div className="flex flex-col sm:flex-row gap-2">

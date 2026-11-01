@@ -120,6 +120,69 @@ function isLoopbackPeer(request) {
   return false;
 }
 
+// LAN gate: the Endpoint page toggles whether other devices on the same
+// private network may reach this machine. Loopback is always allowed; public
+// peers (tunnels) keep using the existing tunnelDashboardAccess setting.
+function normalizeAddress(value) {
+  let address = String(value || "").trim().toLowerCase();
+  if (address.startsWith("[")) {
+    const end = address.indexOf("]");
+    if (end !== -1) address = address.slice(1, end);
+  }
+  if (address.startsWith("::ffff:")) address = address.slice(7);
+  if (/^\d+\.\d+\.\d+\.\d+:\d+$/.test(address)) address = address.slice(0, address.indexOf(":"));
+  return address;
+}
+
+function isPrivateAddress(value) {
+  const address = normalizeAddress(value);
+  if (!address) return false;
+  if (address === "::1") return true;
+  const ipv4 = address.match(/^(\d+)\.(\d+)\.(\d+)\.(\d+)$/);
+  if (ipv4) {
+    const a = Number(ipv4[1]);
+    const b = Number(ipv4[2]);
+    return a === 10
+      || a === 127
+      || (a === 169 && b === 254)
+      || (a === 172 && b >= 16 && b <= 31)
+      || (a === 192 && b === 168);
+  }
+  return address.startsWith("fc") || address.startsWith("fd") || address.startsWith("fe8") || address.startsWith("fe9") || address.startsWith("fea") || address.startsWith("feb");
+}
+
+function getPeerAddress(request) {
+  if (hasTrustedPeerHeaders(request)) return request.headers.get("x-9r-real-ip") || "";
+  return request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "";
+}
+
+function looksLikeLanRequest(request) {
+  const peer = getPeerAddress(request);
+  if (peer) return !isLoopbackHostname(peer);
+  const host = request.headers.get("host") || "";
+  return !isLoopbackHostname(host);
+}
+
+function isLanAccessBlocked(request, settings) {
+  if (settings?.lanAccessEnabled === true) return false;
+  const peer = getPeerAddress(request);
+  if (peer) return isPrivateAddress(peer) && !isLoopbackHostname(peer);
+  const host = (request.headers.get("host") || "").split(":")[0].toLowerCase();
+  if (isLoopbackHostname(host)) return false;
+  return isPrivateAddress(host) || host.endsWith(".local") || !host.includes(".");
+}
+
+function lanAccessResponse(request) {
+  const message = "LAN access is disabled. Enable it on the Endpoint page from the host computer.";
+  if (request.nextUrl.pathname.startsWith("/api/")) {
+    return NextResponse.json({ error: message }, { status: 403 });
+  }
+  return new NextResponse(
+    `<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><title>LAN access disabled</title></head><body style="font-family:system-ui;background:#1a1a1a;color:#ededed;display:flex;min-height:100vh;align-items:center;justify-content:center;margin:0"><div style="max-width:32rem;padding:2rem;text-align:center"><h1 style="font-size:1.25rem">LAN access is disabled</h1><p style="color:#9ca3af;line-height:1.6">Enable <strong>Allow access from this network</strong> on the Endpoint page of the host computer, then reload this page.</p></div></body></html>`,
+    { status: 403, headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" } },
+  );
+}
+
 export function isLocalRequest(request) {
   // Stamped by custom-server.js when forwarding headers exist: request came through
   // a reverse proxy, so the loopback socket is the proxy hop, not the end-user.
@@ -207,6 +270,12 @@ export const __test__ = {
 export async function proxy(request) {
   const { pathname } = request.nextUrl;
 
+  // Private-network devices are blocked unless the host opted in.
+  if (looksLikeLanRequest(request)) {
+    const lanSettings = await loadSettings();
+    if (isLanAccessBlocked(request, lanSettings)) return lanAccessResponse(request);
+  }
+
   // Local-only gate for spawn-capable / host-secret routes.
   if (LOCAL_ONLY_PATHS.some((p) => pathname.startsWith(p))) {
     if (!(await canAccessLocalOnlyRoute(request))) {
@@ -234,8 +303,8 @@ export async function proxy(request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  // Protect all dashboard routes + the native Claude surface
-  if (pathname.startsWith("/dashboard") || pathname === "/claude") {
+  // Protect all dashboard routes
+  if (pathname.startsWith("/dashboard")) {
     let requireLogin = true;
     let tunnelDashboardAccess = true;
 

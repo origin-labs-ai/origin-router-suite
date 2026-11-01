@@ -31,7 +31,20 @@ const nextConfig = {
   },
   outputFileTracingRoot: tracingRoot,
   outputFileTracingExcludes: {
-    "*": ["./gitbook/**/*"]
+    // The CLI build uses the project root as tracing root. Without these
+    // excludes Next copies unrelated project folders (old installers, the CLI
+    // bundle itself, local data) into every standalone build.
+    "*": [
+      "./gitbook/**/*",
+      "./dist/**/*",
+      "./cli/**/*",
+      "./.devdata/**/*",
+      "./installer/**/*",
+      "./docs/**/*",
+      "./scripts/**/*",
+      "./.git/**/*",
+      "./.github/**/*",
+    ]
   },
   images: {
     unoptimized: true

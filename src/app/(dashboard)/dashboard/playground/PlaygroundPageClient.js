@@ -1,12 +1,28 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
-import { Badge, Button } from "@/shared/components";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
+import { Button } from "@/shared/components";
 import { getModelsByProviderId } from "@/shared/constants/models";
-import { AI_PROVIDERS, isAnthropicCompatibleProvider, isOpenAICompatibleProvider } from "@/shared/constants/providers";
+import {
+  ALIAS_TO_ID,
+  getProviderAlias,
+  isAnthropicCompatibleProvider,
+  isOpenAICompatibleProvider,
+} from "@/shared/constants/providers";
 import { useModelCaps } from "@/shared/hooks/useModelCaps";
 import { buildProviderNameMap, resolveProviderLabel } from "@/shared/utils/providerLabel";
-import { comboDisplayLabel } from "@/shared/utils/modelDisplayName";
+import {
+  comboDisplayLabel,
+  isHiddenModelName,
+  prettyModelName as formatModelName,
+} from "@/shared/utils/modelDisplayName";
+import { parseModelIdentity } from "@/shared/utils/modelIdentity";
+import {
+  DEFAULT_CONTEXT_WINDOW,
+  contextWindowOptions,
+  defaultContextWindow,
+  ensureMaxContextWindow,
+} from "@/lib/contextLimits";
 
 const EFFORT_LEVELS = [
   { value: "low", label: "Low" },
@@ -16,12 +32,33 @@ const EFFORT_LEVELS = [
   { value: "max", label: "Max" },
 ];
 
+const CONTEXT_FILTERS = [
+  { value: "0", label: "Any context" },
+  { value: "32000", label: "32K and up" },
+  { value: "64000", label: "64K and up" },
+  { value: "128000", label: "128K and up" },
+  { value: "200000", label: "200K and up" },
+  { value: "256000", label: "256K and up" },
+  { value: "512000", label: "512K and up" },
+  { value: "1000000", label: "1M" },
+];
+
+const MODEL_PAGE_SIZE = 80;
+
+// Kept outside the component so the React purity lint does not treat event-time
+// randomness as render-time work.
+function pickRandomVariant(variants) {
+  if (!Array.isArray(variants) || variants.length === 0) return null;
+  return variants[Math.floor(Math.random() * variants.length)];
+}
+
 // Legacy "basic-chat.*" prefixes are kept on purpose: renaming them would drop
 // the sessions people already have in localStorage.
 const STORAGE_KEYS = {
   sessions: "basic-chat.sessions",
   activeSessionId: "basic-chat.activeSessionId",
   activeProviderId: "basic-chat.activeProviderId",
+  activeContextWindow: "basic-chat.activeContextWindow",
   draft: "basic-chat.draft",
 };
 
@@ -59,6 +96,30 @@ function humanize(value = "") {
     .replace(/[-_]/g, " ")
     .replace(/\b\w/g, (char) => char.toUpperCase())
     .trim() || "Unknown";
+}
+
+// Playground-facing model name: the shared humanizer turns ids such as
+// `claude-fable-5-1` into "Claude Fable 5.1". The provider page keeps raw ids.
+function prettyModelName(value = "") {
+  return formatModelName(value) || "Unknown model";
+}
+
+// Grey-on/grey-off switch used by the reasoning controls inside the model menu.
+function ToggleSwitch({ checked, onChange, label }) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      aria-label={label}
+      onClick={() => onChange(!checked)}
+      className={`relative h-5 w-9 shrink-0 rounded-full transition-colors ${checked ? "bg-[#2B7FFF]" : "bg-white/15"}`}
+    >
+      <span
+        className={`absolute top-0.5 size-4 rounded-full bg-white shadow transition-all ${checked ? "left-[18px]" : "left-0.5"}`}
+      />
+    </button>
+  );
 }
 
 function formatContext(tokens) {
@@ -139,40 +200,98 @@ function getProviderLabel(connection, nodeNames) {
   return resolveProviderLabel(providerId, { nodeNames, connection });
 }
 
+// Routed ids are `<provider-alias>/<model>`. A model id may itself contain a
+// vendor namespace (`ag/Anthropic/claude-...`); the prefix is the connection,
+// never the vendor. normaliseModel keeps those layers apart for display while
+// preserving the exact routed id used on the wire.
+function routedModelId(provider, rawId) {
+  const alias = getProviderAlias(provider) || provider;
+  const value = String(rawId || "").trim();
+  if (!value) return "";
+  const first = value.split("/")[0]?.toLowerCase();
+  if (first && (first === alias.toLowerCase() || first === String(provider).toLowerCase())) return value;
+  // Live Gemini lists use resource names (`models/gemini-...`) which are not
+  // part of the model id the router forwards.
+  const cleaned = /^(models|publishers\/[^/]+\/models)\//.test(value)
+    ? value.split("/").pop()
+    : value;
+  return `${alias}/${cleaned}`;
+}
+
+function normaliseModel({ rawId, providedName, providerId, providerName, connectionId, source, contextHint, caps }) {
+  if (!rawId || isHiddenModelName(rawId) || isHiddenModelName(providedName)) return null;
+  const requestModel = routedModelId(providerId, rawId);
+  const identity = parseModelIdentity(rawId, providerId, providerName);
+  const named = providedName && providedName !== rawId && !providedName.includes("/")
+    ? providedName
+    : identity.displayName;
+  return {
+    id: requestModel,
+    requestModel,
+    name: named || prettyModelName(identity.model) || rawId,
+    providerId,
+    providerName: providerName || identity.providerName,
+    connectionId: connectionId || "",
+    identity,
+    source,
+    contextHint: Number(contextHint) || 0,
+    caps: caps || null,
+  };
+}
+
 function normalizeStaticModel(model, connection, nodeNames) {
   if (!model?.id) return null;
-  return {
-    id: `${connection.provider}/${model.id}`,
-    requestModel: `${connection.provider}/${model.id}`,
-    name: model.name || model.id,
+  return normaliseModel({
+    rawId: model.id,
+    providedName: model.name,
     providerId: connection.provider,
     providerName: getProviderLabel(connection, nodeNames),
+    connectionId: connection.id,
     source: "static",
-  };
+    contextHint: model.contextLength || model.contextWindow,
+  });
 }
 
 function normalizeLiveModel(model, connection, nodeNames) {
   const rawId = typeof model === "string" ? model : model?.id || model?.name || model?.model || "";
   if (!rawId) return null;
-
-  const displayName = typeof model === "string"
-    ? model
-    : model?.name || model?.displayName || rawId;
-
-  let requestModel = rawId;
-  const isCompatible = isOpenAICompatibleProvider(connection.provider) || isAnthropicCompatibleProvider(connection.provider);
-  if (isCompatible && !rawId.includes("/")) {
-    requestModel = `${connection.provider}/${rawId}`;
-  }
-
-  return {
-    id: requestModel,
-    requestModel,
-    name: displayName,
+  const providedName = typeof model === "string" ? null : model?.name || model?.displayName || null;
+  return normaliseModel({
+    rawId,
+    providedName,
     providerId: connection.provider,
     providerName: getProviderLabel(connection, nodeNames),
+    connectionId: connection.id,
     source: "live",
-  };
+    contextHint: model?.contextLength || model?.context_length || model?.contextWindow,
+  });
+}
+
+function normalizeCustomModel(model, connection, nodeNames) {
+  if (!model?.id) return null;
+  return normaliseModel({
+    rawId: model.id,
+    providedName: model.name,
+    providerId: connection.provider,
+    providerName: getProviderLabel(connection, nodeNames),
+    connectionId: connection.id,
+    source: "custom",
+    contextHint: model.caps?.contextWindow,
+    caps: model.caps || null,
+  });
+}
+
+function modelContextWindow(model, getCaps) {
+  if (!model) return DEFAULT_CONTEXT_WINDOW;
+  if (model.source === "combo") return ensureMaxContextWindow(model.contextWindow);
+  const identity = model.identity || parseModelIdentity(model.requestModel || model.id, model.providerId, model.providerName);
+  const capsKey = `${model.providerId}/${identity.model}`;
+  const caps = getCaps(capsKey) || getCaps(model.requestModel || model.id) || getCaps(model.id);
+  const value = model.contextHint
+    || model.caps?.contextWindow
+    || caps?.contextWindow
+    || model.contextWindow;
+  return ensureMaxContextWindow(value);
 }
 
 function parseProviderModelsPayload(data) {
@@ -192,6 +311,11 @@ function dedupeModels(models) {
   return Array.from(map.values());
 }
 
+function variantKey(model) {
+  return `${model?.providerId || ""}|${model?.requestModel || model?.id || ""}|${model?.connectionId || ""}`;
+}
+
+
 export default function PlaygroundPageClient({ variant = "full" }) {
   const isClaude = variant === "claude";
   // Claude by Origin keeps its own chat store so the two playgrounds never mix.
@@ -200,6 +324,7 @@ export default function PlaygroundPageClient({ variant = "full" }) {
       sessions: "claude-origin.sessions",
       activeSessionId: "claude-origin.activeSessionId",
       activeProviderId: "claude-origin.activeProviderId",
+      activeContextWindow: "claude-origin.activeContextWindow",
       draft: "claude-origin.draft",
     }
     : STORAGE_KEYS;
@@ -222,6 +347,14 @@ export default function PlaygroundPageClient({ variant = "full" }) {
   const [isHydrated, setIsHydrated] = useState(false);
   const [modelMenuOpen, setModelMenuOpen] = useState(false);
   const [modelSearch, setModelSearch] = useState("");
+  const [contextFilter, setContextFilter] = useState("0");
+  // Manual picker: Models -> Providers (Random / Select yourself) -> Context.
+  const [pickerStep, setPickerStep] = useState("models");
+  const [pickerModelKey, setPickerModelKey] = useState("");
+  const [pickerVariantKey, setPickerVariantKey] = useState("");
+  const [pickerContext, setPickerContext] = useState(DEFAULT_CONTEXT_WINDOW);
+  const [visibleModelCount, setVisibleModelCount] = useState(MODEL_PAGE_SIZE);
+  const [selectionContextWindow, setSelectionContextWindow] = useState(0);
   const [historyOpen, setHistoryOpen] = useState(false);
   // Inline rename / edit state: id of the row being edited plus its draft text.
   const [renamingSessionId, setRenamingSessionId] = useState("");
@@ -258,6 +391,8 @@ export default function PlaygroundPageClient({ variant = "full" }) {
       if (savedSessionId) setActiveSessionId(savedSessionId);
       const savedProviderId = globalThis.localStorage.getItem(storageKeys.activeProviderId);
       if (savedProviderId) setActiveProviderId(savedProviderId);
+      const savedContext = Number(globalThis.localStorage.getItem(storageKeys.activeContextWindow));
+      if (Number.isFinite(savedContext) && savedContext > 0) setSelectionContextWindow(savedContext);
       const savedDraft = globalThis.localStorage.getItem(storageKeys.draft);
       if (savedDraft) setDraft(savedDraft);
     } catch {
@@ -273,12 +408,16 @@ export default function PlaygroundPageClient({ variant = "full" }) {
       setLoadError("");
 
       try {
-        const [providersRes, combosRes, nodesRes] = await Promise.all([
+        const [providersRes, combosRes, nodesRes, customModelsRes] = await Promise.all([
           fetch("/api/providers", { cache: "no-store" }),
           fetch("/api/combos", { cache: "no-store" }).catch(() => null),
           fetch("/api/provider-nodes", { cache: "no-store" }).catch(() => null),
+          fetch("/api/models/custom", { cache: "no-store" }).catch(() => null),
         ]);
         const providersData = await providersRes.json().catch(() => ({}));
+        const customModelsData = customModelsRes?.ok
+          ? await customModelsRes.json().catch(() => ({}))
+          : {};
         const nodesData = nodesRes?.ok ? await nodesRes.json().catch(() => ({})) : {};
         // Custom compatible providers only carry their user-given name here.
         const nodeNames = buildProviderNameMap(nodesData.nodes);
@@ -337,7 +476,7 @@ export default function PlaygroundPageClient({ variant = "full" }) {
 
         for (const connection of connections) {
           const providerId = connection.provider || connection.id;
-          const providerName = getProviderLabel(connection);
+          const providerName = getProviderLabel(connection, nodeNames);
           const providerType = isOpenAICompatibleProvider(providerId)
             ? "openai-compatible"
             : isAnthropicCompatibleProvider(providerId)
@@ -365,10 +504,29 @@ export default function PlaygroundPageClient({ variant = "full" }) {
           group.models.push(...staticModels);
         }
 
+        // Custom/imported models live in their own KV store, not in the static
+        // registry. They are the bulk of a real install (this one has 1,284),
+        // so omitting them made the playground look like it only had ~260.
+        for (const custom of Array.isArray(customModelsData.models) ? customModelsData.models : []) {
+          if (!custom?.id || (custom.kind || custom.type || "llm") !== "llm") continue;
+          const providerId = ALIAS_TO_ID[custom.providerAlias] || custom.providerAlias;
+          const group = providerMap.get(providerId);
+          if (!group) continue;
+          const connection = group.connections[0];
+          const model = normalizeCustomModel(custom, connection, nodeNames);
+          if (model) group.models.push(model);
+        }
+
         const liveResults = await Promise.all(
           connections.map(async (connection) => {
             try {
-              const response = await fetch(`/api/providers/${connection.id}/models`, { cache: "no-store" });
+              // A dead compatible endpoint must not hold the whole picker
+              // hostage: one hung request used to keep providerGroups empty,
+              // so the page showed "Select model" with no models at all.
+              const response = await fetch(`/api/providers/${connection.id}/models`, {
+                cache: "no-store",
+                signal: AbortSignal.timeout(12000),
+              });
               const data = await response.json().catch(() => ({}));
               if (!response.ok) return { connection, models: [] };
               const models = parseProviderModelsPayload(data)
@@ -443,44 +601,151 @@ export default function PlaygroundPageClient({ variant = "full" }) {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // Search across every connected model + combo. Group headers survive only
-  // when they still have a match, so the list stays scrollable.
-  const visibleGroups = useMemo(() => {
-    const query = modelSearch.trim().toLowerCase();
-    const matches = query
-      ? providerGroups
-        .map((group) => ({
-          ...group,
-          models: group.models.filter((model) =>
-            `${model.name} ${model.requestModel}`.toLowerCase().includes(query)
-          ),
-        }))
-        .filter((group) => group.models.length > 0)
-      : providerGroups;
+  // One entry per exact model. Each entry carries every provider connection
+  // that serves it, so the picker can offer Random or "select yourself" without
+  // duplicating the same model once per provider (which is what the old
+  // provider-grouped list did).
+  const modelGroups = useMemo(() => {
+    const map = new Map();
+    for (const group of providerGroups) {
+      for (const model of group.models) {
+        const isCombo = group.providerId === "combos";
+        const identity = model.identity
+          || parseModelIdentity(model.requestModel || model.id, group.providerId, group.providerName);
+        // Combos are routing targets, not vendor models; keep them out of the
+        // exact-model namespace so a combo named after a model cannot merge.
+        const key = isCombo ? `combo:${model.id}` : identity.groupKey;
+        let entry = map.get(key);
+        if (!entry) {
+          entry = {
+            key,
+            name: isCombo ? model.name : identity.categoryName || identity.displayName || model.name,
+            vendor: isCombo ? "" : identity.vendor,
+            modelId: isCombo ? model.id : identity.model,
+            variants: [],
+            seen: new Set(),
+            providerMap: new Map(),
+            isCombo,
+          };
+          map.set(key, entry);
+        } else if (!entry.vendor && identity.vendor) {
+          // The first route may lack a vendor namespace; a later one can still
+          // provide the category vendor for the subtitle.
+          entry.vendor = identity.vendor;
+        }
 
-    // A full account can carry 3000+ models; painting them all freezes the tab.
-    // Cap the initial paint, then let the search box narrow the rest into view.
-    let budget = query ? 400 : 240;
-    const capped = [];
-    for (const group of matches) {
-      if (budget <= 0) break;
-      const models = group.models.slice(0, budget);
-      budget -= models.length;
-      capped.push({ ...group, models, hiddenCount: group.models.length - models.length });
+        // Same request id can be listed by the static catalog and a live
+        // endpoint; show it once per connection.
+        const variantKey = `${group.providerId}|${model.requestModel || model.id}|${model.connectionId || ""}`;
+        if (entry.seen.has(variantKey)) continue;
+        entry.seen.add(variantKey);
+
+        const contextWindow = modelContextWindow(model, getCaps);
+        const variant = {
+          ...model,
+          // The picker groups by exact model id; the button and session should
+          // keep that id's label even when a provider ships a longer alias.
+          name: entry.name,
+          providerModelName: model.name,
+          modelKey: key,
+          providerId: group.providerId,
+          providerName: group.providerName,
+          contextWindow,
+        };
+        entry.variants.push(variant);
+
+        let provider = entry.providerMap.get(group.providerId);
+        if (!provider) {
+          provider = {
+            providerId: group.providerId,
+            providerName: group.providerName,
+            variants: [],
+          };
+          entry.providerMap.set(group.providerId, provider);
+        }
+        provider.variants.push(variant);
+      }
     }
-    return capped;
-  }, [providerGroups, modelSearch]);
 
-  // Count of everything that matches the query, used for the header line.
-  const totalMatchingModels = useMemo(() => {
+    return Array.from(map.values()).map((entry) => {
+      const providers = Array.from(entry.providerMap.values()).map((provider) => ({
+        ...provider,
+        contextWindow: provider.variants.reduce(
+          (max, variant) => Math.max(max, variant.contextWindow),
+          0,
+        ) || DEFAULT_CONTEXT_WINDOW,
+      }));
+      const contextWindow = entry.variants.reduce(
+        (max, variant) => Math.max(max, variant.contextWindow),
+        0,
+      ) || DEFAULT_CONTEXT_WINDOW;
+      return {
+        key: entry.key,
+        name: entry.name,
+        vendor: entry.vendor,
+        modelId: entry.modelId,
+        isCombo: entry.isCombo,
+        variants: entry.variants,
+        providers,
+        providerNames: providers.map((provider) => provider.providerName),
+        contextWindow,
+      };
+    }).sort((a, b) => {
+      // Combos are the first section; exact models follow alphabetically.
+      if (a.isCombo !== b.isCombo) return a.isCombo ? -1 : 1;
+      return a.name.localeCompare(b.name);
+    });
+  }, [providerGroups, getCaps]);
+
+  // Search + context are applied to categories, never to a capped slice. The
+  // selected window also prunes the provider list: a provider that cannot serve
+  // that window must not be offered for the model.
+  const matchingModelGroups = useMemo(() => {
     const query = modelSearch.trim().toLowerCase();
-    return providerGroups.reduce((total, group) => {
-      if (!query) return total + group.models.length;
-      return total + group.models.filter((model) =>
-        `${model.name} ${model.requestModel}`.toLowerCase().includes(query)
-      ).length;
-    }, 0);
-  }, [providerGroups, modelSearch]);
+    const threshold = Number(contextFilter) || 0;
+    return modelGroups
+      .map((group) => {
+        if (!threshold) return group;
+        const variants = group.variants.filter((variant) => variant.contextWindow >= threshold);
+        if (variants.length === 0) return null;
+        const providers = group.providers
+          .map((provider) => {
+            const supported = provider.variants.filter((variant) => variant.contextWindow >= threshold);
+            if (supported.length === 0) return null;
+            return {
+              ...provider,
+              variants: supported,
+              contextWindow: supported.reduce((max, variant) => Math.max(max, variant.contextWindow), 0),
+            };
+          })
+          .filter(Boolean);
+        return {
+          ...group,
+          variants,
+          providers,
+          providerNames: providers.map((provider) => provider.providerName),
+          contextWindow: variants.reduce((max, variant) => Math.max(max, variant.contextWindow), 0),
+        };
+      })
+      .filter(Boolean)
+      .filter((group) => {
+        if (!query) return true;
+        return `${group.name} ${group.vendor} ${group.modelId} ${group.providerNames.join(" ")}`
+          .toLowerCase()
+          .includes(query);
+      });
+  }, [modelGroups, modelSearch, contextFilter]);
+
+  const visibleModelGroups = useMemo(
+    () => matchingModelGroups.slice(0, visibleModelCount),
+    [matchingModelGroups, visibleModelCount],
+  );
+
+  const totalMatchingModels = matchingModelGroups.length;
+  const totalMatchingRoutes = useMemo(
+    () => matchingModelGroups.reduce((total, group) => total + group.variants.length, 0),
+    [matchingModelGroups],
+  );
 
   useEffect(() => {
     // Auto-grow composer: height follows content up to a cap, animated in CSS.
@@ -492,17 +757,17 @@ export default function PlaygroundPageClient({ variant = "full" }) {
 
   const modelIndex = useMemo(() => {
     const map = new Map();
-    for (const group of providerGroups) {
-      for (const model of group.models) {
-        map.set(model.id, {
-          ...model,
-          providerId: group.providerId,
-          providerName: group.providerName,
-        });
+    for (const group of modelGroups) {
+      for (const model of group.variants) {
+        map.set(model.requestModel || model.id, model);
+        // Sessions created before the provider-prefix cleanup stored
+        // `antigravity/claude-...` instead of `ag/claude-...`.
+        const legacyKey = `${model.providerId}/${model.identity?.model || model.id}`;
+        if (!map.has(legacyKey)) map.set(legacyKey, model);
       }
     }
     return map;
-  }, [providerGroups]);
+  }, [modelGroups]);
 
   const activeProviderGroup = useMemo(() => {
     return providerGroups.find((group) => group.providerId === activeProviderId) || providerGroups[0] || null;
@@ -514,8 +779,8 @@ export default function PlaygroundPageClient({ variant = "full" }) {
       const session = sessions.find((item) => item.id === activeSessionId);
       if (session?.modelId && modelIndex.has(session.modelId)) return modelIndex.get(session.modelId);
     }
-    return activeProviderGroup?.models?.[0] || null;
-  }, [activeModelId, modelIndex, activeProviderGroup, sessions, activeSessionId]);
+    return modelGroups[0]?.variants?.[0] || activeProviderGroup?.models?.[0] || null;
+  }, [activeModelId, modelIndex, modelGroups, activeProviderGroup, sessions, activeSessionId]);
 
   const currentSession = useMemo(() => sessions.find((session) => session.id === activeSessionId) || null, [sessions, activeSessionId]);
   const currentMessages = currentSession?.messages || [];
@@ -528,11 +793,14 @@ export default function PlaygroundPageClient({ variant = "full" }) {
       globalThis.localStorage.setItem(storageKeys.sessions, JSON.stringify(sessions));
       globalThis.localStorage.setItem(storageKeys.activeSessionId, activeSessionId);
       globalThis.localStorage.setItem(storageKeys.activeProviderId, activeProviderId);
+      if (selectionContextWindow > 0) {
+        globalThis.localStorage.setItem(storageKeys.activeContextWindow, String(selectionContextWindow));
+      }
       globalThis.localStorage.setItem(storageKeys.draft, draft);
     } catch {
       // Ignore storage errors.
     }
-  }, [isHydrated, sessions, activeSessionId, activeProviderId, draft]);
+  }, [isHydrated, sessions, activeSessionId, activeProviderId, selectionContextWindow, draft]);
 
   useEffect(() => {
     if (!isHydrated || loadingData || initializedRef.current) return;
@@ -552,6 +820,11 @@ export default function PlaygroundPageClient({ variant = "full" }) {
       setActiveSessionId(session.id);
       setActiveProviderId(sessionModel?.providerId || savedProvider.providerId);
       setActiveModelId(sessionModel?.id || savedModel.id);
+      setSelectionContextWindow(
+        Number(session.contextWindow) > 0
+          ? ensureMaxContextWindow(session.contextWindow)
+          : defaultContextWindow(sessionModel ? modelContextWindow(sessionModel, getCaps) : DEFAULT_CONTEXT_WINDOW),
+      );
       return;
     }
 
@@ -562,6 +835,7 @@ export default function PlaygroundPageClient({ variant = "full" }) {
       providerName: savedProvider.providerName,
       modelId: savedModel.id,
       modelName: savedModel.name,
+      contextWindow: defaultContextWindow(modelContextWindow(savedModel, getCaps)),
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       messages: [],
@@ -583,6 +857,9 @@ export default function PlaygroundPageClient({ variant = "full" }) {
         setActiveSessionId(restoredActive.id);
         setActiveProviderId(restoredActive.providerId || savedProvider.providerId);
         setActiveModelId(restoredActive.modelId || savedModel.id);
+        if (Number(restoredActive.contextWindow) > 0) {
+          setSelectionContextWindow(ensureMaxContextWindow(restoredActive.contextWindow));
+        }
         return;
       }
     } catch {
@@ -594,21 +871,25 @@ export default function PlaygroundPageClient({ variant = "full" }) {
     setActiveSessionId(session.id);
     setActiveProviderId(savedProvider.providerId);
     setActiveModelId(savedModel.id);
-  }, [isHydrated, loadingData, providerGroups, modelIndex, sessions, activeSessionId, activeProviderId, activeModelId]);
+    setSelectionContextWindow(session.contextWindow);
+  }, [isHydrated, loadingData, providerGroups, modelIndex, sessions, activeSessionId, activeProviderId, activeModelId, getCaps]);
 
   const updateSession = (sessionId, updater) => {
     setSessions((prev) => prev.map((session) => (session.id === sessionId ? updater(cloneSession(session)) : session)));
   };
 
-  const ensureSessionForModel = (model) => {
+  const ensureSessionForModel = (model, contextWindow = 0) => {
     if (!model) return null;
     return {
       id: createId(),
       title: "New chat",
       providerId: model.providerId,
       providerName: model.providerName,
-      modelId: model.id,
+      modelId: model.requestModel || model.id,
       modelName: model.name,
+      contextWindow: ensureMaxContextWindow(
+        contextWindow || defaultContextWindow(modelContextWindow(model, getCaps)),
+      ),
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       messages: [],
@@ -619,7 +900,7 @@ export default function PlaygroundPageClient({ variant = "full" }) {
     // No model picked yet: still create an empty session so the sidebar entry
     // appears, the model gets attached on the first send.
     const session = activeModel
-      ? ensureSessionForModel(activeModel)
+      ? ensureSessionForModel(activeModel, selectionContextWindow)
       : {
         id: createId(),
         title: "New chat",
@@ -627,6 +908,7 @@ export default function PlaygroundPageClient({ variant = "full" }) {
         providerName: "",
         modelId: "",
         modelName: "",
+        contextWindow: 0,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
         messages: [],
@@ -648,22 +930,55 @@ export default function PlaygroundPageClient({ variant = "full" }) {
     setActiveSessionId(sessionId);
     setActiveProviderId(session.providerId || activeProviderId);
     setActiveModelId(session.modelId || activeModelId);
+    if (Number(session.contextWindow) > 0) {
+      setSelectionContextWindow(ensureMaxContextWindow(session.contextWindow));
+    }
     setHistoryOpen(false);
   };
 
-  const handleDeleteCurrentChat = () => {
-    if (!activeSessionId) return;
-    const nextSessions = sessions.filter((session) => session.id !== activeSessionId);
-    const fallback = nextSessions[0] || null;
+  const handleDeleteSession = (sessionId) => {
+    if (!window.confirm("Delete this chat?")) return;
+    const nextSessions = sessions.filter((session) => session.id !== sessionId);
     setSessions(nextSessions);
-    if (fallback) {
-      setActiveSessionId(fallback.id);
-      setActiveProviderId(fallback.providerId);
-      setActiveModelId(fallback.modelId);
-    } else {
-      setActiveSessionId("");
-      setActiveProviderId("");
-      setActiveModelId("");
+    if (activeSessionId === sessionId) {
+      const fallback = nextSessions[0] || null;
+      if (fallback) {
+        setActiveSessionId(fallback.id);
+        setActiveProviderId(fallback.providerId);
+        setActiveModelId(fallback.modelId);
+        if (Number(fallback.contextWindow) > 0) {
+          setSelectionContextWindow(ensureMaxContextWindow(fallback.contextWindow));
+        }
+      } else {
+        setActiveSessionId("");
+        setActiveProviderId("");
+        setActiveModelId("");
+        setSelectionContextWindow(0);
+      }
+    }
+  };
+
+  // "Clear" next to History removes every stored chat, not just the open one.
+  const handleClearAllChats = () => {
+    if (sessions.length === 0) return;
+    if (!window.confirm(`Delete all ${sessions.length} chats? This cannot be undone.`)) return;
+    setSessions([]);
+    setActiveSessionId("");
+    setActiveProviderId("");
+    setActiveModelId("");
+    setDraft("");
+    setAttachments([]);
+    setStreamingMessageId("");
+    setStreamingText("");
+    setHistoryOpen(false);
+    try {
+      globalThis.localStorage.removeItem(storageKeys.sessions);
+      globalThis.localStorage.removeItem(storageKeys.activeSessionId);
+      globalThis.localStorage.removeItem(storageKeys.activeProviderId);
+      globalThis.localStorage.removeItem(storageKeys.activeContextWindow);
+      globalThis.localStorage.removeItem(storageKeys.draft);
+    } catch {
+      // Storage may be disabled.
     }
   };
 
@@ -760,40 +1075,16 @@ export default function PlaygroundPageClient({ variant = "full" }) {
     });
   };
 
-  const handleSelectProvider = (providerId) => {
-    const group = providerGroups.find((item) => item.providerId === providerId);
-    if (!group || group.models.length === 0) return;
-    const nextModel = group.models[0];
-
-    const current = sessions.find((session) => session.id === activeSessionId);
-    if (current && current.messages.length > 0) {
-      const session = ensureSessionForModel(nextModel);
-      if (!session) return;
-      setSessions((prev) => [session, ...prev]);
-      setActiveSessionId(session.id);
-    } else if (current) {
-      setSessions((prev) => prev.map((item) => (item.id === current.id ? {
-        ...item,
-        providerId: group.providerId,
-        providerName: group.providerName,
-        modelId: nextModel.id,
-        modelName: nextModel.name,
-      } : item)));
-      setActiveSessionId(current.id);
-    }
-
-    setActiveProviderId(group.providerId);
-    setActiveModelId(nextModel.id);
-    setModelMenuOpen(false);
-  };
-
-  const handleSelectModel = (modelId) => {
-    const model = modelIndex.get(modelId);
+  const applyModelSelection = (model, contextWindow) => {
     if (!model) return;
+    const window = ensureMaxContextWindow(
+      contextWindow || defaultContextWindow(modelContextWindow(model, getCaps)),
+    );
+    const modelId = model.requestModel || model.id;
 
     const current = sessions.find((session) => session.id === activeSessionId);
     if (current && current.messages.length > 0) {
-      const session = ensureSessionForModel(model);
+      const session = ensureSessionForModel(model, window);
       if (!session) return;
       setSessions((prev) => [session, ...prev]);
       setActiveSessionId(session.id);
@@ -802,20 +1093,65 @@ export default function PlaygroundPageClient({ variant = "full" }) {
         ...item,
         providerId: model.providerId,
         providerName: model.providerName,
-        modelId: model.id,
+        modelId,
         modelName: model.name,
+        contextWindow: window,
+        updatedAt: new Date().toISOString(),
       } : item)));
       setActiveSessionId(current.id);
     } else {
-      const session = ensureSessionForModel(model);
+      const session = ensureSessionForModel(model, window);
       if (!session) return;
       setSessions((prev) => [session, ...prev]);
       setActiveSessionId(session.id);
     }
 
     setActiveProviderId(model.providerId);
-    setActiveModelId(model.id);
+    setActiveModelId(modelId);
+    setSelectionContextWindow(window);
     setModelMenuOpen(false);
+    setPickerStep("models");
+    setPickerModelKey("");
+    setPickerVariantKey("");
+  };
+
+  const openPicker = () => {
+    setPickerStep("models");
+    setPickerModelKey("");
+    setPickerVariantKey("");
+    setVisibleModelCount(MODEL_PAGE_SIZE);
+    setModelMenuOpen((value) => !value);
+  };
+
+  const handlePickModelGroup = (group) => {
+    if (!group) return;
+    setPickerModelKey(group.key);
+    setPickerVariantKey("");
+    if (group.variants.length === 1) {
+      const only = group.variants[0];
+      setPickerVariantKey(variantKey(only));
+      setPickerContext(defaultContextWindow(modelContextWindow(only, getCaps)));
+      setPickerStep("context");
+      return;
+    }
+    setPickerStep("providers");
+  };
+
+  const handleRandomProvider = (group = null) => {
+    const target = group || modelGroups.find((item) => item.key === pickerModelKey);
+    if (!target || target.variants.length === 0) return;
+    const picked = pickRandomVariant(target.variants);
+    setPickerModelKey(target.key);
+    setPickerVariantKey(variantKey(picked));
+    setPickerContext(defaultContextWindow(modelContextWindow(picked, getCaps)));
+    setPickerStep("context");
+  };
+
+  const handlePickVariant = (variant) => {
+    if (!variant) return;
+    setPickerVariantKey(variantKey(variant));
+    setPickerContext(defaultContextWindow(modelContextWindow(variant, getCaps)));
+    setPickerStep("context");
   };
 
   const handleAttachFiles = async (event) => {
@@ -909,8 +1245,9 @@ export default function PlaygroundPageClient({ variant = "full" }) {
       ...item,
       providerId: model.providerId,
       providerName: model.providerName,
-      modelId: model.id,
+      modelId: model.requestModel || model.id,
       modelName: model.name,
+      contextWindow: selectionContextWindow || item.contextWindow || 0,
       messages: nextMessages,
       updatedAt: new Date().toISOString(),
       title: item.title === "New chat" && userText ? makeSessionTitle(userText) : item.title,
@@ -1051,6 +1388,43 @@ export default function PlaygroundPageClient({ variant = "full" }) {
   };
 
   const modelLabel = activeModel ? `${activeModel.name}` : "Select model";
+  const activeMaxContextWindow = activeModel
+    ? modelContextWindow(activeModel, getCaps)
+    : DEFAULT_CONTEXT_WINDOW;
+  const activeContextWindow = selectionContextWindow > 0
+    ? Math.min(selectionContextWindow, activeMaxContextWindow)
+    : defaultContextWindow(activeMaxContextWindow);
+  const modelSubLabel = activeModel
+    ? `${activeModel.providerName} · ${formatContext(activeContextWindow)}`
+    : "Choose an exact model";
+
+  const pickerModel = pickerModelKey
+    ? (Number(contextFilter)
+      ? matchingModelGroups.find((group) => group.key === pickerModelKey)
+      : modelGroups.find((group) => group.key === pickerModelKey)) || null
+    : null;
+  const pickerVariant = pickerModel && pickerVariantKey
+    ? pickerModel.variants.find((variant) => variantKey(variant) === pickerVariantKey) || null
+    : null;
+  const pickerMaxWindow = pickerVariant
+    ? modelContextWindow(pickerVariant, getCaps)
+    : pickerModel
+      ? pickerModel.contextWindow
+      : DEFAULT_CONTEXT_WINDOW;
+  const pickerOptions = contextWindowOptions(pickerMaxWindow);
+  const pickerDefaultWindow = defaultContextWindow(pickerMaxWindow);
+  const pickerSelectedWindow = pickerOptions.includes(pickerContext)
+    ? pickerContext
+    : pickerDefaultWindow;
+
+  const pickerBack = () => {
+    if (pickerStep === "context") {
+      setPickerStep(pickerModel && pickerModel.variants.length > 1 ? "providers" : "models");
+      return;
+    }
+    setPickerStep("models");
+    setPickerVariantKey("");
+  };
 
   return (
     <div className="flex h-full min-h-0 w-full">
@@ -1117,143 +1491,337 @@ export default function PlaygroundPageClient({ variant = "full" }) {
           <div ref={modelMenuRef} className="relative">
             <button
               type="button"
-              onClick={() => setModelMenuOpen((value) => !value)}
-              className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-left transition hover:bg-white/8"
+              onClick={openPicker}
+              data-testid="model-picker-trigger"
+              className="flex max-w-full items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-left transition hover:bg-white/8"
             >
               <div className="min-w-0">
                 <div className="flex items-center gap-2">
-                  <span className="text-sm font-semibold text-white">{modelLabel}</span>
-                  <span className="material-symbols-outlined text-[18px] text-white/70">expand_more</span>
+                  <span className="truncate text-xs font-semibold text-white">{modelLabel}</span>
+                  <span className="material-symbols-outlined shrink-0 text-[18px] text-white/70">expand_more</span>
                 </div>
+                <p className="mt-0.5 truncate text-[10px] text-white/45">{modelSubLabel}</p>
               </div>
             </button>
 
             {modelMenuOpen ? (
-              <div className="absolute left-0 top-[calc(100%+10px)] z-30 w-[min(520px,calc(100vw-2rem))] overflow-hidden rounded-[20px] border border-white/10 bg-[#262626] shadow-2xl shadow-black/50">
-                <div className="border-b border-white/10 px-4 py-3">
+              <div data-testid="model-picker-menu" className="absolute left-0 top-[calc(100%+8px)] z-30 w-[min(560px,calc(100vw-2rem))] overflow-hidden rounded-xl border border-white/10 bg-[#262626] shadow-2xl shadow-black/50">
+                <div className="border-b border-white/10 px-3 py-2.5">
                   <div className="flex items-center justify-between gap-2">
-                    <p className="text-xs uppercase tracking-[0.22em] text-white/45">Models</p>
-                    <p className="text-[11px] text-white/45">
-                      {visibleGroups.reduce((total, group) => total + group.models.length, 0)} available
-                    </p>
-                  </div>
-                  <div className="relative mt-2">
-                    <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[16px] text-white/40">search</span>
-                    <input
-                      value={modelSearch}
-                      onChange={(event) => setModelSearch(event.target.value)}
-                      placeholder="Search models or combos…"
-                      className="w-full rounded-xl border border-white/10 bg-black/30 py-2 pl-9 pr-8 text-sm text-white placeholder-white/35 outline-none transition focus:border-blue-400/40"
-                    />
-                    {modelSearch ? (
-                      <button
-                        type="button"
-                        onClick={() => setModelSearch("")}
-                        className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1 text-white/50 hover:text-white"
-                        title="Clear search"
-                      >
-                        <span className="material-symbols-outlined text-[16px]">close</span>
-                      </button>
-                    ) : null}
-                  </div>
-                </div>
-                <div className="max-h-[60vh] overflow-y-auto p-2 custom-scrollbar">
-                  {visibleGroups.length === 0 ? (
-                    <p className="px-3 py-6 text-center text-sm text-white/50">
-                      {loadingData
-                        ? "Loading models…"
-                        : modelSearch
-                          ? <>No models match &ldquo;{modelSearch}&rdquo;.</>
-                          : "No models available yet."}
-                    </p>
-                  ) : visibleGroups.map((group) => (
-                    <div key={group.providerId} className="mb-2 rounded-[16px] border border-white/10 bg-black/20 p-2">
-                      <div className="flex items-center justify-between px-2 py-2">
-                        <p className="flex items-center gap-1.5 text-sm font-semibold text-white">
-                          {group.providerId === "combos" ? (
-                            <span className="material-symbols-outlined text-[15px] text-blue-300">layers</span>
-                          ) : null}
-                          {group.providerName}
-                          {group.connections?.length > 1 ? (
-                            <span className="text-[10px] font-normal text-white/40">
-                              {group.connections.length} accounts
-                            </span>
-                          ) : null}
+                    <div className="flex min-w-0 items-center gap-2">
+                      {pickerStep !== "models" ? (
+                        <button
+                          type="button"
+                          onClick={pickerBack}
+                          className="rounded-lg border border-white/10 p-1 text-white/60 transition hover:bg-white/10 hover:text-white"
+                          title="Back"
+                        >
+                          <span className="material-symbols-outlined text-[16px]">arrow_back</span>
+                        </button>
+                      ) : null}
+                      <div className="min-w-0">
+                        <p className="text-xs uppercase tracking-[0.22em] text-white/45">
+                          {pickerStep === "models" ? "Exact models" : pickerStep === "providers" ? "Choose provider" : "Context window"}
                         </p>
-                        <Badge size="sm" variant="default">{group.models.length}</Badge>
-                      </div>
-                      <div className="grid gap-2 sm:grid-cols-2">
-                        {group.models.map((model) => {
-                          const isActive = model.id === activeModelId;
-                          const contextWindow = model.source === "combo"
-                            ? model.contextWindow
-                            : getCaps(model.id)?.contextWindow;
-                          const contextText = Number.isFinite(contextWindow) && contextWindow > 0
-                            ? formatContext(contextWindow)
-                            : "";
-                          return (
-                            <button
-                              key={model.id}
-                              type="button"
-                              onClick={() => handleSelectModel(model.id)}
-                              className={`rounded-[14px] border px-3 py-3 text-left transition ${isActive ? "border-blue-400/40 bg-blue-500/15" : "border-white/10 bg-white/5 hover:bg-white/8"}`}
-                            >
-                              <div className="flex items-start justify-between gap-3">
-                                <div className="min-w-0">
-                                  <p className="truncate text-sm font-medium text-white">{model.name}</p>
-                                  <p className="truncate text-[11px] text-white/45">
-                                    {model.source === "combo"
-                                      ? `${model.modelCount ?? 0} models${contextText ? ` · ${contextText}` : ""}`
-                                      : (
-                                        <>
-                                          {model.requestModel}
-                                          {contextText ? <span className="text-white/30"> · {contextText}</span> : null}
-                                        </>
-                                      )}
-                                  </p>
-                                </div>
-                                {isActive ? <span className="material-symbols-outlined text-[18px] text-blue-300">check_circle</span> : null}
-                              </div>
-                            </button>
-                          );
-                        })}
+                        <p className="truncate text-[11px] text-white/45">
+                          {pickerStep === "models"
+                            ? `Total ${totalMatchingRoutes.toLocaleString()} models · ${totalMatchingModels.toLocaleString()} categories`
+                            : pickerModel?.name || ""}
+                        </p>
                       </div>
                     </div>
-                  ))}
+                    {pickerStep === "models" ? (
+                      <span className="shrink-0 text-[10px] text-white/35">{totalMatchingModels.toLocaleString()} shown</span>
+                    ) : null}
+                  </div>
+
+                  {pickerStep === "models" ? (
+                    <>
+                      <div className="relative mt-2">
+                        <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[16px] text-white/40">search</span>
+                        <input
+                          data-testid="model-search"
+                          value={modelSearch}
+                          onChange={(event) => {
+                            setModelSearch(event.target.value);
+                            setVisibleModelCount(MODEL_PAGE_SIZE);
+                          }}
+                          placeholder="Search exact models, vendors or providers…"
+                          className="w-full rounded-xl border border-white/10 bg-black/30 py-2 pl-9 pr-8 text-sm text-white placeholder-white/35 outline-none transition focus:border-[#2B7FFF]/40"
+                        />
+                        {modelSearch ? (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setModelSearch("");
+                              setVisibleModelCount(MODEL_PAGE_SIZE);
+                            }}
+                            className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1 text-white/50 hover:text-white"
+                            title="Clear search"
+                          >
+                            <span className="material-symbols-outlined text-[16px]">close</span>
+                          </button>
+                        ) : null}
+                      </div>
+                      <div className="mt-2 flex items-center justify-between gap-2">
+                        <span className="text-[11px] text-white/45">Context window</span>
+                        <select
+                          data-testid="context-filter"
+                          value={contextFilter}
+                          onChange={(event) => {
+                            setContextFilter(event.target.value);
+                            setVisibleModelCount(MODEL_PAGE_SIZE);
+                          }}
+                          className="rounded-lg border border-white/10 bg-black/30 px-2 py-1 text-[11px] text-white outline-none focus:border-[#2B7FFF]/40"
+                          aria-label="Context window filter"
+                        >
+                          {CONTEXT_FILTERS.map((option) => (
+                            <option key={option.value} value={option.value} className="text-black">
+                              {option.label}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    </>
+                  ) : null}
+                </div>
+                <div className="max-h-[60vh] overflow-y-auto p-2 custom-scrollbar">
+                  {pickerStep === "models" ? (
+                    matchingModelGroups.length === 0 ? (
+                      <p className="px-3 py-6 text-center text-sm text-white/50">
+                        {loadingData
+                          ? "Loading models…"
+                          : modelSearch
+                            ? <>No models match &ldquo;{modelSearch}&rdquo;.</>
+                            : "No models available yet."}
+                      </p>
+                    ) : (
+                      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                        {visibleModelGroups.map((group, index) => {
+                          const previous = visibleModelGroups[index - 1];
+                          const showComboHeader = group.isCombo && !previous?.isCombo;
+                          const showModelHeader = !group.isCombo && (!previous || previous.isCombo);
+                          const isActive = !!activeModel
+                            && group.variants.some((variant) => (variant.requestModel || variant.id) === (activeModel.requestModel || activeModel.id));
+                          const providerSummary = group.providerNames.join(", ");
+                          const vendorDiffers = group.vendor
+                            && !group.providerNames.some((name) => name.toLowerCase().includes(group.vendor.toLowerCase()));
+                          return (
+                            <Fragment key={group.key}>
+                              {showComboHeader ? (
+                                <div className="col-span-full flex items-center gap-2 px-1 pt-1 pb-0.5 text-[10px] uppercase tracking-[0.2em] text-white/35">
+                                  <span className="material-symbols-outlined text-[14px] text-[#5a9eff]">layers</span>
+                                  Combos
+                                </div>
+                              ) : null}
+                              {showModelHeader ? (
+                                <div className="col-span-full flex items-center gap-2 px-1 pt-1 pb-0.5 text-[10px] uppercase tracking-[0.2em] text-white/35">
+                                  <span className="h-px flex-1 bg-white/10" />
+                                  Model categories
+                                  <span className="h-px flex-1 bg-white/10" />
+                                </div>
+                              ) : null}
+                              <button
+                                type="button"
+                                data-testid="model-group"
+                                data-model={group.name}
+                                data-vendor={group.vendor}
+                                data-provider-count={group.providers.length}
+                                data-context={group.contextWindow}
+                                onClick={() => handlePickModelGroup(group)}
+                                className={`min-h-[58px] w-full rounded-xl border px-3 py-2.5 text-left transition ${isActive ? "border-[#2B7FFF]/40 bg-[#2B7FFF]/15" : "border-white/10 bg-white/5 hover:bg-white/8"}`}
+                              >
+                                <div className="flex items-start justify-between gap-3">
+                                  <div className="min-w-0">
+                                    <p className="truncate text-[13px] font-medium text-white">
+                                      {group.isCombo ? (
+                                        <span className="material-symbols-outlined mr-1 align-[-3px] text-[15px] text-[#5a9eff]">layers</span>
+                                      ) : null}
+                                      {group.name}
+                                    </p>
+                                    <p className="truncate text-[11px] text-white/45">
+                                      {vendorDiffers ? `${group.vendor} · ` : ""}{providerSummary}
+                                    </p>
+                                  </div>
+                                  <div className="shrink-0 text-right">
+                                    <p className="text-[10px] font-medium text-white/60">{formatContext(group.contextWindow)}</p>
+                                    <p className="text-[10px] text-white/35">
+                                      {group.providers.length} provider{group.providers.length === 1 ? "" : "s"}
+                                    </p>
+                                  </div>
+                                </div>
+                              </button>
+                            </Fragment>
+                          );
+                        })}
+                        {matchingModelGroups.length > visibleModelGroups.length ? (
+                          <button
+                            type="button"
+                            onClick={() => setVisibleModelCount((count) => count + MODEL_PAGE_SIZE)}
+                            className="col-span-full mt-1 w-full rounded-lg border border-white/10 py-1.5 text-[11px] text-white/55 transition hover:bg-white/5 hover:text-white"
+                          >
+                            Show {Math.min(MODEL_PAGE_SIZE, matchingModelGroups.length - visibleModelGroups.length)} more · {matchingModelGroups.length - visibleModelGroups.length} left
+                          </button>
+                        ) : null}
+                      </div>
+                    )
+                  ) : pickerStep === "providers" && pickerModel ? (
+                    <div>
+                      <div className="mb-2 rounded-xl border border-white/10 bg-black/20 p-3">
+                        <p className="truncate text-sm font-semibold text-white">{pickerModel.name}</p>
+                        <p className="mt-0.5 truncate text-[11px] text-white/45">
+                          {pickerModel.vendor ? `${pickerModel.vendor} · ` : ""}{pickerModel.variants.length} route{pickerModel.variants.length === 1 ? "" : "s"} · up to {formatContext(pickerModel.contextWindow)}
+                        </p>
+                      </div>
+
+                      <button
+                        type="button"
+                        data-testid="random-provider"
+                        onClick={() => handleRandomProvider(pickerModel)}
+                        className="mb-3 flex w-full items-center gap-3 rounded-xl border border-[#2B7FFF]/40 bg-[#2B7FFF]/15 px-3 py-2.5 text-left transition hover:bg-[#2B7FFF]/25"
+                      >
+                        <span className="material-symbols-outlined text-[18px] text-[#5a9eff]">shuffle</span>
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium text-white">Random provider</p>
+                          <p className="text-[11px] text-white/45">Picks any connected provider and account for this model</p>
+                        </div>
+                      </button>
+
+                      <p className="px-1 pb-1 text-[10px] uppercase tracking-[0.18em] text-white/35">Select yourself</p>
+                      {pickerModel.providers.map((provider) => (
+                        <button
+                          key={provider.providerId}
+                          type="button"
+                          data-testid="provider-option"
+                          data-provider={provider.providerName}
+                          onClick={() => handlePickVariant(provider.variants[0])}
+                          className="mb-1.5 flex w-full items-center justify-between gap-3 rounded-xl border border-white/10 bg-white/5 px-3 py-2.5 text-left transition hover:bg-white/8"
+                        >
+                          <div className="min-w-0">
+                            <p className="truncate text-sm font-medium text-white">{provider.providerName}</p>
+                            <p className="text-[11px] text-white/45">
+                              {provider.variants.length} route{provider.variants.length === 1 ? "" : "s"} · {formatContext(provider.contextWindow)}
+                            </p>
+                          </div>
+                          <span className="material-symbols-outlined shrink-0 text-[18px] text-white/35">chevron_right</span>
+                        </button>
+                      ))}
+                    </div>
+                  ) : pickerStep === "context" && pickerVariant ? (
+                    <div>
+                      <div className="mb-2 rounded-xl border border-white/10 bg-black/20 p-3">
+                        <p className="truncate text-sm font-semibold text-white">{pickerModel?.name || pickerVariant.name}</p>
+                        <p className="mt-0.5 truncate text-[11px] text-white/45">
+                          {pickerVariant.providerName} · max {formatContext(pickerMaxWindow)}
+                        </p>
+                      </div>
+
+                      <p className="px-1 pb-1 text-[10px] uppercase tracking-[0.18em] text-white/35">Context window</p>
+                      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                        {pickerOptions.map((value) => (
+                          <button
+                            key={value}
+                            type="button"
+                            data-testid="context-option"
+                            data-value={value}
+                            onClick={() => setPickerContext(value)}
+                            className={`rounded-xl border px-2 py-2 text-center text-xs transition ${pickerSelectedWindow === value ? "border-[#2B7FFF]/60 bg-[#2B7FFF]/20 text-white" : "border-white/10 bg-white/5 text-white/70 hover:bg-white/10"}`}
+                          >
+                            {formatContext(value)}
+                            {value === pickerDefaultWindow ? (
+                              <span className="mt-0.5 block text-[9px] font-normal text-white/40">default</span>
+                            ) : null}
+                          </button>
+                        ))}
+                      </div>
+                      <p className="mt-2 px-1 text-[10px] leading-4 text-white/40">
+                        Default {formatContext(pickerDefaultWindow)}. Skip keeps the default.
+                      </p>
+
+                      <div className="mt-3 flex flex-wrap items-center justify-end gap-2">
+                        <button
+                          type="button"
+                          data-testid="skip-context"
+                          onClick={() => applyModelSelection(pickerVariant, pickerDefaultWindow)}
+                          className="rounded-lg border border-white/10 px-3 py-1.5 text-[11px] text-white/55 transition hover:bg-white/5 hover:text-white"
+                        >
+                          Skip · keep {formatContext(pickerDefaultWindow)}
+                        </button>
+                        <button
+                          type="button"
+                          data-testid="apply-context"
+                          onClick={() => applyModelSelection(pickerVariant, pickerSelectedWindow)}
+                          className="rounded-lg bg-[#2B7FFF] px-3 py-1.5 text-[11px] font-semibold text-white transition hover:bg-[#1f6fe8]"
+                        >
+                          Use {formatContext(pickerSelectedWindow)}
+                        </button>
+                      </div>
+                    </div>
+                  ) : null}
+                </div>
+                <div className="border-t border-white/10 px-4 py-3">
+                  <p className="text-xs uppercase tracking-[0.22em] text-white/45">Reasoning</p>
+                  <div className="mt-2 space-y-2">
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="text-sm text-white">Thinking</p>
+                        <p className="text-[11px] text-white/40">Send the effort level and a 4K thinking budget</p>
+                      </div>
+                      <ToggleSwitch
+                        checked={thinking}
+                        label="Thinking"
+                        onChange={(next) => {
+                          setThinking(next);
+                          if (!next) setExtendedThinking(false);
+                        }}
+                      />
+                    </div>
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="text-sm text-white">Extended thinking</p>
+                        <p className="text-[11px] text-white/40">Raise the thinking budget to 16K</p>
+                      </div>
+                      <ToggleSwitch
+                        checked={extendedThinking}
+                        label="Extended thinking"
+                        onChange={(next) => {
+                          setExtendedThinking(next);
+                          if (next) setThinking(true);
+                        }}
+                      />
+                    </div>
+                  </div>
                 </div>
               </div>
             ) : null}
           </div>
 
-          {/* Reasoning controls live in the composer, not the header */}
+          {/* Header actions */}
           <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => window.open(
-                isClaude ? "/dashboard/playground" : "/playground",
-                "originrouter-playground",
-                "width=1180,height=820",
-              )}
-              className="rounded-2xl border border-white/10 bg-white/5 px-3 py-3 text-white/70 transition hover:bg-white/10 hover:text-white"
-              title={isClaude ? "Open the full playground" : "Open Claude by Origin"}
+            <a
+              href={isClaude ? "/dashboard/playground" : "/playground"}
+              target="_blank"
+              rel="noreferrer"
+              className="flex size-9 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-white/70 transition hover:bg-white/10 hover:text-white"
+              title="Open playground in a new window"
             >
-              <span className="material-symbols-outlined text-[18px]">{isClaude ? "dashboard" : "auto_awesome"}</span>
-            </button>
+              <span className="material-symbols-outlined text-[18px]">open_in_new</span>
+            </a>
             <button
               type="button"
               onClick={() => setHistoryOpen((value) => !value)}
-              className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white/80 transition hover:bg-white/8"
+              className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-white/80 transition hover:bg-white/8"
             >
               History
             </button>
-            <Button variant="ghost" size="sm" icon="delete" onClick={handleDeleteCurrentChat} disabled={!activeSessionId || sessions.length === 0}>
-              Clear
+            <Button variant="ghost" size="sm" icon="delete" onClick={handleClearAllChats} disabled={sessions.length === 0}>
+              Clear all
             </Button>
           </div>
         </div>
 
         {historyOpen ? (
-          <div ref={historyMenuRef} className="absolute right-4 top-[72px] z-20 w-[min(360px,calc(100vw-2rem))] rounded-[20px] border border-white/10 bg-[#262626] p-2 shadow-2xl shadow-black/50 lg:right-6">
+          <div ref={historyMenuRef} className="absolute right-4 top-[64px] z-20 w-[min(360px,calc(100vw-2rem))] rounded-xl border border-white/10 bg-[#262626] p-2 shadow-2xl shadow-black/50 lg:right-6">
             <div className="px-3 py-2">
               <p className="text-xs uppercase tracking-[0.22em] text-white/45">Recent chats</p>
             </div>
@@ -1269,7 +1837,7 @@ export default function PlaygroundPageClient({ variant = "full" }) {
                 return (
                   <div
                     key={session.id}
-                    className={`group w-full rounded-[16px] border px-3 py-3 transition ${isActive ? "border-blue-400/40 bg-blue-500/15" : "border-white/10 bg-white/5 hover:bg-white/8"}`}
+                    className={`group w-full rounded-xl border px-3 py-2 transition ${isActive ? "border-[#2B7FFF]/40 bg-[#2B7FFF]/15" : "border-white/10 bg-white/5 hover:bg-white/8"}`}
                   >
                     <div className="flex items-start justify-between gap-2">
                       <div
@@ -1296,7 +1864,7 @@ export default function PlaygroundPageClient({ variant = "full" }) {
                             }}
                             onBlur={handleCommitRename}
                             maxLength={120}
-                            className="w-full rounded-lg border border-white/20 bg-black/30 px-2 py-1 text-sm text-white outline-none focus:border-blue-400/60"
+                            className="w-full rounded-lg border border-white/20 bg-black/30 px-2 py-1 text-sm text-white outline-none focus:border-[#2B7FFF]/60"
                           />
                         ) : (
                           <p className="truncate text-sm font-medium text-white">{session.title}</p>
@@ -1307,13 +1875,21 @@ export default function PlaygroundPageClient({ variant = "full" }) {
                         <span className="text-[10px] text-white/40">{formatRelativeTime(session.updatedAt)}</span>
                         <button
                           type="button"
-                          // Keep focus on the input so the blur-commit does not race the click.
                           onMouseDown={(event) => event.preventDefault()}
                           onClick={() => (isRenaming ? handleCommitRename() : handleStartRename(session))}
                           className="rounded p-1 text-white/40 opacity-0 transition hover:bg-white/10 hover:text-white group-hover:opacity-100"
                           title={isRenaming ? "Save name" : "Rename chat"}
                         >
                           <span className="material-symbols-outlined text-[15px]">{isRenaming ? "check" : "edit"}</span>
+                        </button>
+                        <button
+                          type="button"
+                          onMouseDown={(event) => event.preventDefault()}
+                          onClick={() => handleDeleteSession(session.id)}
+                          className="rounded p-1 text-white/40 opacity-0 transition hover:bg-rose-500/15 hover:text-rose-300 group-hover:opacity-100"
+                          title="Delete chat"
+                        >
+                          <span className="material-symbols-outlined text-[15px]">delete</span>
                         </button>
                       </div>
                     </div>
@@ -1362,12 +1938,10 @@ export default function PlaygroundPageClient({ variant = "full" }) {
                 return (
                   <div key={message.id} className={`group flex w-full ${isUser ? "justify-end" : "justify-start"} mb-6`}>
                     <div className="flex max-w-[min(88%,42rem)] flex-col items-stretch">
-                      <div className={`${isUser ? "rounded-3xl bg-[#173E76] px-5 py-3.5 text-white" : "text-white/90"}`}>
-                        <div className="mb-1 flex items-center justify-between gap-3">
-                          {message.editedAt && isUser ? (
-                            <span className="text-[10px] font-medium text-white/40">edited</span>
-                          ) : null}
-                        </div>
+                      <div className={`${isUser ? "rounded-xl bg-[#173E76] px-4 py-2.5 text-white" : "text-white/90"}`}>
+                        {message.editedAt && isUser ? (
+                          <span className="mb-1 block text-[10px] font-medium text-white/40">edited</span>
+                        ) : null}
 
                         {message.attachments?.length ? (
                           <div className="mb-3 grid grid-cols-2 gap-2 sm:grid-cols-3 mt-2">
@@ -1390,7 +1964,7 @@ export default function PlaygroundPageClient({ variant = "full" }) {
                                 if (event.key === "Escape") setEditingMessageId("");
                               }}
                               rows={Math.min(12, Math.max(2, editDraft.split("\n").length + 1))}
-                              className="w-full resize-none rounded-xl border border-white/20 bg-black/30 px-3 py-2 text-[15px] leading-7 text-white outline-none focus:border-blue-400/60"
+                              className="w-full resize-none rounded-xl border border-white/20 bg-black/30 px-3 py-2 text-[15px] leading-7 text-white outline-none focus:border-[#2B7FFF]/60"
                             />
                             <div className="flex items-center justify-end gap-2">
                               <button
@@ -1501,7 +2075,7 @@ export default function PlaygroundPageClient({ variant = "full" }) {
                     </button>
                     <input ref={fileInputRef} type="file" accept="image/*" multiple className="hidden" onChange={handleAttachFiles} />
 
-                    {/* Effort + thinking, attached to the composer as requested */}
+                    {/* Effort stays in the composer; thinking toggles live in the model selector */}
                     <div className="flex items-center rounded-full border border-white/10 bg-white/[0.04] p-0.5">
                       {EFFORT_LEVELS.map((level) => (
                         <button
@@ -1519,34 +2093,6 @@ export default function PlaygroundPageClient({ variant = "full" }) {
                         </button>
                       ))}
                     </div>
-
-                    <button
-                      type="button"
-                      onClick={() => setThinking((value) => !value)}
-                      className={`rounded-full border p-1.5 transition ${
-                        thinking
-                          ? "border-blue-400/50 bg-blue-500/20 text-blue-200"
-                          : "border-white/10 bg-white/[0.04] text-white/50 hover:bg-white/10 hover:text-white"
-                      }`}
-                      title={thinking ? "Thinking on" : "Thinking off"}
-                    >
-                      <span className="material-symbols-outlined text-[15px]">psychology</span>
-                    </button>
-
-                    {thinking ? (
-                      <button
-                        type="button"
-                        onClick={() => setExtendedThinking((value) => !value)}
-                        className={`rounded-full border p-1.5 transition ${
-                          extendedThinking
-                            ? "border-amber-400/50 bg-amber-500/20 text-amber-200"
-                            : "border-white/10 bg-white/[0.04] text-white/50 hover:bg-white/10 hover:text-white"
-                        }`}
-                        title={extendedThinking ? "Extended thinking on" : "Extended thinking off"}
-                      >
-                        <span className="material-symbols-outlined text-[15px]">auto_awesome</span>
-                      </button>
-                    ) : null}
                   </div>
 
                   <div className="flex items-center gap-2">

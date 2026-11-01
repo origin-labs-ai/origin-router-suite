@@ -1,8 +1,13 @@
 import PropTypes from "prop-types";
 import { CapacityBadges } from "@/shared/components";
+import { prettyModelName } from "@/shared/utils/modelDisplayName";
 
 export default function ModelRow({ model, fullModel, alias, copied, onCopy, testStatus, isCustom, isFree, onDeleteAlias, onTest, isTesting, onDisable, caps, thinkingSuffix }) {
-  const displayModel = thinkingSuffix ? `${fullModel}(${thinkingSuffix})` : fullModel;
+  // The routed id is for copying; the visible label is the model's own name,
+  // without the provider alias or the vendor/org namespace.
+  const displayModel = thinkingSuffix
+    ? `${prettyModelName(model.name || model.id)} (${thinkingSuffix})`
+    : prettyModelName(model.name || model.id);
   const borderColor = testStatus === "ok"
     ? "border-green-500/40"
     : testStatus === "error"

@@ -7,6 +7,7 @@ import "@/lib/network/initOutboundProxy"; // Auto-initialize outbound proxy env
 import "@/shared/services/bootstrap"; // Auto-run initializeApp (watchdog, auto-resume tunnel)
 import { initConsoleLogCapture } from "@/lib/consoleLogBuffer";
 import { RuntimeI18nProvider } from "@/i18n/RuntimeI18nProvider";
+import DesktopTitleBar from "@/shared/components/DesktopTitleBar";
 
 // Hook console immediately at module load time (server-side only, runs once)
 initConsoleLogCapture();
@@ -17,10 +18,15 @@ const inter = Inter({
 });
 
 export const metadata = {
-  title: "OriginRouter - AI Infrastructure Management",
+  title: "OriginRouter",
   description: "One endpoint for every AI provider. Route, fall back, and monitor usage from a single local dashboard.",
   icons: {
-    icon: "/favicon.svg",
+    icon: [
+      { url: "/brand/origin-mark-256.png", type: "image/png", sizes: "256x256" },
+      { url: "/favicon.ico", type: "image/x-icon", sizes: "any" },
+    ],
+    shortcut: "/favicon.ico",
+    apple: "/brand/origin-mark-256.png",
   },
 };
 
@@ -47,6 +53,7 @@ export default function RootLayout({ children }) {
         />
       </head>
       <body className={`${inter.variable} font-sans antialiased`}>
+        <DesktopTitleBar />
         <ThemeProvider>
           <RuntimeI18nProvider>
             {children}

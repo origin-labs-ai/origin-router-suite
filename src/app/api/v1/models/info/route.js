@@ -1,6 +1,7 @@
 import { PROVIDER_MODELS } from "open-sse/config/providerModels.js";
 import { AI_PROVIDERS, ALIAS_TO_ID } from "@/shared/constants/providers";
 import { getModelKind } from "@/shared/constants/models";
+import { ensureMaxContextWindow, withMaxContextWindow } from "@/lib/contextLimits";
 
 const KIND_ENDPOINT = {
   llm: "/v1/chat/completions",
@@ -24,10 +25,10 @@ function buildInfo({ alias, providerId, model, kind, providerInfo }) {
     endpoint: KIND_ENDPOINT[kind] || null,
   };
   if (model.params) out.params = model.params;
-  if (model.capabilities) out.capabilities = model.capabilities;
+  if (model.capabilities) out.capabilities = withMaxContextWindow(model.capabilities);
   if (model.options) out.options = model.options;
   if (model.dimensions) out.dimensions = model.dimensions;
-  if (model.contextWindow) out.contextWindow = model.contextWindow;
+  if (model.contextWindow) out.contextWindow = ensureMaxContextWindow(model.contextWindow);
   if (kind === "tts" && TTS_VOICES_API.has(providerId)) {
     out.voicesUrl = `/v1/audio/voices?provider=${providerId}`;
   }

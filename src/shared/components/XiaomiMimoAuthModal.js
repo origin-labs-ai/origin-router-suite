@@ -262,7 +262,7 @@ export default function XiaomiMimoAuthModal({ isOpen, onSuccess, onClose }) {
             {existingConnection ? (
               <div className="bg-blue-50 dark:bg-blue-900/20 p-3 rounded-lg border border-blue-200 dark:border-blue-800">
                 <div className="flex gap-2.5 items-start">
-                  <span className="material-symbols-outlined text-blue-600 dark:text-blue-400 text-lg mt-0.5">
+                  <span className="material-symbols-outlined text-[#1a66e6] dark:text-[#2B7FFF] text-lg mt-0.5">
                     check_circle
                   </span>
                   <div className="text-sm text-blue-800 dark:text-blue-200">

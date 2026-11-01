@@ -46,7 +46,7 @@ export default function ProviderLimitCard({
       kiro: "#FF9900",
       qoder: "#EC4899",
       "qoder-cn": "#EC4899",
-      claude: "#D97757",
+      claude: "#2B7FFF",
     };
     return colors[provider?.toLowerCase()] || "#6B7280";
   };
@@ -134,12 +134,12 @@ export default function ProviderLimitCard({
 
       {/* Info Message (for providers without API) */}
       {!loading && !error && message && (
-        <div className="p-4 rounded-lg bg-blue-500/10 border border-blue-500/20">
+        <div className="p-4 rounded-lg bg-[#2B7FFF]/10 border border-[#2B7FFF]/20">
           <div className="flex items-start gap-2">
-            <span className="material-symbols-outlined text-blue-500 text-[20px]">
+            <span className="material-symbols-outlined text-[#2B7FFF] text-[20px]">
               info
             </span>
-            <p className="text-sm text-blue-600 dark:text-blue-400">
+            <p className="text-sm text-[#1a66e6] dark:text-[#2B7FFF]">
               {message}
             </p>
           </div>

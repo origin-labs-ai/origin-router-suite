@@ -7,7 +7,6 @@ import {
   extractApiKey,
   isValidApiKey,
 } from "../services/auth.js";
-import { withDefaultSystemPrompt } from "@/lib/defaultSystemPrompt";
 import { handleAntigravityQuotaError, clearAntigravityStrikes } from "../services/antigravityQuota.js";
 import { getSettings } from "@/lib/localDb";
 import { getModelInfo, getComboModels } from "../services/model.js";
@@ -19,8 +18,13 @@ import { errorResponse, unavailableResponse } from "open-sse/utils/error.js";
 import { upstreamResponseHeaders } from "open-sse/utils/upstreamHeaders.js";
 import { handleComboChat, handleFusionChat, detectRequiredCapabilities } from "open-sse/services/combo.js";
 import { augmentModelsWithCapacityAdapter, withCapacityAdapterStripping, getActiveAdapterStrategy } from "open-sse/services/capacityAdapter.js";
-import { handleBypassRequest } from "open-sse/utils/bypassHandler.js";
+import { handleBypassRequest, synthesizeResponse } from "open-sse/utils/bypassHandler.js";
 import { HTTP_STATUS } from "open-sse/config/runtimeConfig.js";
+import { resolveRoutingPolicy } from "@/lib/routingPolicy";
+import { acquireSlot, beginConnection } from "../services/inflight.js";
+import { findAlternateRoutes } from "../services/alternateRoutes.js";
+import { orderRoutes, markDegraded, clearRoute } from "../services/routeHealth.js";
+import { rankRoutes, rankStrings, recordOutcome } from "../services/pandaRouter.js";
 import { detectFormatByEndpoint } from "open-sse/translator/formats.js";
 import { resolveSessionIdentity } from "open-sse/utils/sessionManager.js";
 import * as log from "../utils/logger.js";
@@ -49,9 +53,6 @@ export async function handleChat(request, clientRawRequest = null, options = {})
     log.warn("CHAT", "Invalid JSON body");
     return errorResponse(HTTP_STATUS.BAD_REQUEST, "Invalid JSON body");
   }
-
-  // Requests without a system message get the Claude by Origin default.
-  body = withDefaultSystemPrompt(body);
 
   // Build clientRawRequest for logging (if not provided)
   if (!clientRawRequest) {
@@ -85,6 +86,24 @@ export async function handleChat(request, clientRawRequest = null, options = {})
 
   // Enforce API key if enabled in settings
   const settings = await getSettings();
+  // Resilience policy: how hard the router keeps looking, and the one thing it
+  // must never do — answer a client with an upstream API error.
+  const policy = resolveRoutingPolicy(settings);
+  const resilience = {
+    policy,
+    settings,
+    body,
+    modelStr,
+    request,
+    clientRawRequest,
+    apiKey,
+    // The endpoint is the authority on wire format (/v1/messages ⇒ Claude).
+    sourceFormat: request?.url ? detectFormatByEndpoint(new URL(request.url).pathname, body) : null,
+    tried: new Set([modelStr]),
+  };
+  // Wrappers so every exit of this handler passes through the same guard.
+  const comboChat = (args) => serve(handleComboChat(args), resilience);
+  const fusionChat = (args) => serve(handleFusionChat(args), resilience);
   if (settings.requireApiKey && options.internal !== true) {
     if (!apiKey) {
       log.warn("AUTH", "Missing API key (requireApiKey=true)");
@@ -128,7 +147,7 @@ export async function handleChat(request, clientRawRequest = null, options = {})
 
     if (comboStrategy === "fusion") {
       log.info("CHAT", `Combo "${modelStr}" with ${comboModels.length} models (strategy: fusion)`);
-      return handleFusionChat({
+      return fusionChat({
         body,
         models: comboModels,
         handleSingleModel: (b, m, isPanel) => {
@@ -137,7 +156,7 @@ export async function handleChat(request, clientRawRequest = null, options = {})
             const { tools, tool_choice, ...cleanBody } = clientRawRequest.body || {};
             cleanRawReq = { ...clientRawRequest, body: cleanBody };
           }
-          return handleSingleModelChat(b, m, cleanRawReq, request, apiKey);
+          return handleSingleModelChat(b, m, cleanRawReq, request, apiKey, null, policy);
         },
         log,
         comboName: modelStr,
@@ -148,12 +167,24 @@ export async function handleChat(request, clientRawRequest = null, options = {})
 
     const comboStickyLimit = settings.comboStickyRoundRobinLimit;
     const comboCfg = comboStrategies[modelStr] || {};
+    // PandaOrchestrator decides which member of this combo carries the task:
+    // it profiles the actual request text and ranks the members by calibrated
+    // P(success) / expected cost / latency. Unrankable members stay in order.
+    let comboOrder = augmentedModels;
+    if (policy.panda.enabled && augmentedModels.length > 1) {
+      const ranked = await rankStrings({ items: augmentedModels, body, policy, log });
+      if (ranked?.items?.length) {
+        comboOrder = ranked.items;
+        resilience.panda = { traceId: ranked.traceId, request: ranked.request, response: ranked.response };
+        log.info("PANDA", `combo "${modelStr}" order → ${comboOrder.slice(0, 3).join(", ")}`);
+      }
+    }
     log.info("CHAT", `Combo "${modelStr}" with ${augmentedModels.length} models (strategy: ${comboStrategy}, sticky: ${comboStickyLimit})`);
-    return handleComboChat({
+    return comboChat({
       body,
-      models: augmentedModels,
+      models: comboOrder,
       handleSingleModel: withCapacityAdapterStripping(
-        (b, m) => handleSingleModelChat(b, m, clientRawRequest, request, apiKey),
+        (b, m) => handleSingleModelChat(b, m, clientRawRequest, request, apiKey, null, policy),
         adapterAdded
       ),
       log,
@@ -181,11 +212,11 @@ export async function handleChat(request, clientRawRequest = null, options = {})
   if (soloAugmented.length > 1) {
     const adapterAdded = soloAugmented.filter((m) => m !== modelStr);
     log.info("CHAT", `Capacity adapter for [${[...requiredCapabilities].join(",")}] on "${modelStr}" → trying ${soloAugmented.join(", ")}`);
-    return handleComboChat({
+    return comboChat({
       body,
       models: soloAugmented,
       handleSingleModel: withCapacityAdapterStripping(
-        (b, m) => handleSingleModelChat(b, m, clientRawRequest, request, apiKey),
+        (b, m) => handleSingleModelChat(b, m, clientRawRequest, request, apiKey, null, policy),
         adapterAdded
       ),
       log,
@@ -194,13 +225,19 @@ export async function handleChat(request, clientRawRequest = null, options = {})
     });
   }
 
-  return handleSingleModelChat(body, modelStr, clientRawRequest, request, apiKey, contextMarker ? `${modelStr.slice(modelStr.indexOf("/") + 1)}[${contextMarker}]` : null);
+  const requestedModel = contextMarker
+    ? `${modelStr.slice(modelStr.indexOf("/") + 1)}[${contextMarker}]`
+    : null;
+  const primary = handleSingleModelChat(body, modelStr, clientRawRequest, request, apiKey, requestedModel, policy);
+  resilience.requestedModel = requestedModel;
+  return serve(hedgedSingle(resilience, primary), resilience);
 }
 
 /**
  * Handle single model chat request
  */
-async function handleSingleModelChat(body, modelStr, clientRawRequest = null, request = null, apiKey = null, requestedModel = null) {
+async function handleSingleModelChat(body, modelStr, clientRawRequest = null, request = null, apiKey = null, requestedModel = null, policy = null) {
+  const activePolicy = policy || resolveRoutingPolicy(await getSettings());
   const modelInfo = await getModelInfo(modelStr);
 
   // If provider is null, this might be a combo name - check and handle
@@ -230,7 +267,7 @@ async function handleSingleModelChat(body, modelStr, clientRawRequest = null, re
               const { tools, tool_choice, ...cleanBody } = clientRawRequest.body || {};
               cleanRawReq = { ...clientRawRequest, body: cleanBody };
             }
-            return handleSingleModelChat(b, m, cleanRawReq, request, apiKey);
+            return handleSingleModelChat(b, m, cleanRawReq, request, apiKey, null, policy);
           },
           log,
           comboName: modelStr,
@@ -248,7 +285,7 @@ async function handleSingleModelChat(body, modelStr, clientRawRequest = null, re
         body,
         models: augmentedModels,
         handleSingleModel: withCapacityAdapterStripping(
-          (b, m) => handleSingleModelChat(b, m, clientRawRequest, request, apiKey),
+          (b, m) => handleSingleModelChat(b, m, clientRawRequest, request, apiKey, null, policy),
           adapterAdded
         ),
         log,
@@ -321,7 +358,13 @@ async function handleSingleModelChat(body, modelStr, clientRawRequest = null, re
     // Use shared chatCore
     const chatSettings = await getSettings();
     const providerThinking = (chatSettings.providerThinking || {})[provider] || null;
-    const result = await handleChatCore({
+    // Admission control + per-connection load, held for the dispatch window
+    // (until upstream answers with headers). This is what lets several agents
+    // run at once instead of stampeding one credential.
+    // Resolved before the dispatch wrapper: the arrow below is not async, and
+    // the lazy module warm-up must not delay holding the slot.
+    const pxpipeTransform = chatSettings.pxpipeEnabled ? await getPxpipeTransform() : null;
+    const result = await withDispatchSlot(activePolicy, credentials.connectionId, () => handleChatCore({
       body: { ...body, model: `${provider}/${model}` },
       modelInfo: { provider, model },
       credentials: refreshedCredentials,
@@ -346,7 +389,7 @@ async function handleSingleModelChat(body, modelStr, clientRawRequest = null, re
       pxpipeMinChars: chatSettings.pxpipeMinChars,
       pxpipeTimeoutMs: chatSettings.pxpipeTimeoutMs,
       // Lazily warms the in-process module on first use; null when not installed (fail-open)
-      pxpipeTransform: chatSettings.pxpipeEnabled ? await getPxpipeTransform() : null,
+      pxpipeTransform,
       onPxpipeEvent: appendPxpipeEvent,
       providerThinking,
       // Per-provider user overrides (custom headers / connect timeout) from settings
@@ -365,7 +408,7 @@ async function handleSingleModelChat(body, modelStr, clientRawRequest = null, re
         // "Consecutive" strikes: a success clears the breaker for this pair.
         clearAntigravityStrikes(credentials.connectionId, model);
       }
-    });
+    }));
 
     if (result.success) return result.response;
 
@@ -396,5 +439,275 @@ async function handleSingleModelChat(body, modelStr, clientRawRequest = null, re
     }
 
     return result.response;
+  }
+}
+
+// Text of the last-resort completion. Deliberately plain prose, not an error
+// string: a CLI that parses an error envelope aborts its own run, while a short
+// answer keeps the session alive so the next turn can be served.
+const LAST_RESORT_TEXT =
+  "OriginRouter could not reach any provider for this request just now. " +
+  "Send it again and it will be routed to whichever seat is free.";
+
+/**
+ * Hold an upstream slot and a connection's load counter for one dispatch.
+ * Released as soon as the provider answers with headers — the window in which a
+ * fleet of agents would otherwise collide on the same credential.
+ */
+async function withDispatchSlot(policy, connectionId, run) {
+  const releaseSlot = await acquireSlot(policy);
+  const releaseConnection = beginConnection(connectionId);
+  try {
+    return await run();
+  } finally {
+    releaseConnection();
+    releaseSlot();
+  }
+}
+
+/**
+ * Answer a short request from a second seat if the first one stays silent.
+ *
+ * This is what keeps an agent's own timeout from ever firing: Claude Code's
+ * permission/safety classifier asks for a quick yes-no, and when the seat that
+ * got it was busy the client gave up and reported the model as unavailable.
+ * After policy.hedgeMs the same prompt is dispatched to another provider in
+ * parallel and whichever answers first is returned. Large payloads are not
+ * hedged — duplicating a full reasoning turn costs quota for nothing.
+ */
+async function hedgedSingle(ctx, primary) {
+  const { policy, body } = ctx;
+  if (!policy.enabled || !policy.failoverEnabled || policy.hedgeMs <= 0) return primary;
+
+  let bytes = 0;
+  try {
+    bytes = JSON.stringify(body).length;
+  } catch {
+    return primary;
+  }
+  if (bytes > policy.hedgeMaxBytes) return primary;
+
+  const resolved = await getModelInfo(ctx.modelStr).catch(() => null);
+  if (!resolved?.provider || !resolved?.model) return primary;
+  const alternates = (await findAlternateRoutes({
+    model: resolved.model,
+    providerId: resolved.provider,
+  })).slice(0, 2);
+  if (alternates.length === 0) return primary;
+
+  const backup = (async () => {
+    await sleep(policy.hedgeMs);
+    const route = alternates[0].route;
+    ctx.tried.add(route);
+    log.info("HEDGE", `⏱ ${ctx.modelStr} silent for ${policy.hedgeMs}ms → racing ${route}`);
+    return handleSingleModelChat(body, route, ctx.clientRawRequest, ctx.request, ctx.apiKey, null, policy);
+  })();
+
+  return firstSuccessful([primary, backup]);
+}
+
+/**
+ * Resolve with the first successful Response among concurrent attempts.
+ * Losers are drained so their streams do not linger; if none succeeds the
+ * first failure is returned and serve() takes over the rotation.
+ */
+function firstSuccessful(promises) {
+  return new Promise((resolve) => {
+    let remaining = promises.length;
+    let firstFailure = null;
+    let settled = false;
+
+    promises.forEach((promise) => {
+      Promise.resolve(promise).then((response) => {
+        if (settled) {
+          if (!response?.ok) response?.body?.cancel?.().catch(() => { });
+          return;
+        }
+        if (response?.ok) {
+          settled = true;
+          resolve(response);
+          return;
+        }
+        if (!firstFailure) firstFailure = response;
+        remaining -= 1;
+        if (remaining === 0) {
+          settled = true;
+          resolve(firstFailure);
+        }
+      }).catch(() => {
+        remaining -= 1;
+        if (!settled && remaining === 0) {
+          settled = true;
+          resolve(firstFailure);
+        }
+      });
+    });
+  });
+}
+
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+/**
+ * The guard every exit of handleChat passes through.
+ *
+ * A non-2xx here means some provider could not serve the request. That answer
+ * must never reach the caller: keep walking the other providers that serve the
+ * same model, trim the prompt when the block is a prompt-size/quota cap, and if
+ * truly nothing served it, answer with a valid completion in the client's own
+ * format. The upstream error stays in the router's log as a failover note.
+ */
+async function serve(responseOrPromise, ctx) {
+  const { policy } = ctx;
+  const response = await responseOrPromise;
+  if (!policy?.enabled) return response;
+  if (response?.ok) {
+    // The seat that answered is healthy for every agent, and the orchestrator
+    // gets a real outcome to learn from.
+    clearRoute(ctx.modelStr);
+    reportPandaOutcome(ctx, ctx.modelStr, true);
+    return response;
+  }
+
+  const errorText = await readErrorText(response);
+  log.warn("RESILIENT", `⚠ ${ctx.modelStr} unserved (${response?.status || "ERR"}) → rotating; client sees no error`, {
+    internal: errorText,
+  });
+
+  if (policy.failoverEnabled) {
+    const recovered = await failoverAcrossProviders({ ...ctx, errorText });
+    if (recovered) return recovered;
+  }
+
+  if (policy.lastResort === "passthrough") return response;
+
+  log.warn("RESILIENT", `⛑ no route served ${ctx.modelStr}; answering with a valid completion`);
+  return synthesizeResponse({
+    body: ctx.body,
+    model: ctx.body?.model || ctx.modelStr,
+    text: LAST_RESORT_TEXT,
+    format: ctx.sourceFormat,
+  });
+}
+
+/**
+ * Walk every other provider that serves the same model until one answers.
+ * @returns {Promise<Response|null>} a successful response, or null if nothing served it
+ */
+async function failoverAcrossProviders(ctx) {
+  const { policy, body, tried, clientRawRequest, request, apiKey } = ctx;
+  const deadline = Date.now() + policy.failoverDeadlineMs;
+  const targets = await resolveFailoverTargets(ctx);
+  const triedProviders = new Set();
+  let attempts = 0;
+
+  for (const target of targets) {
+    if (Date.now() > deadline) break;
+    const resolved = await getModelInfo(target).catch(() => null);
+    if (!resolved?.provider || !resolved?.model) continue;
+    triedProviders.add(resolved.provider);
+
+    const alternates = await findAlternateRoutes({
+      model: resolved.model,
+      providerId: resolved.provider,
+      excludeProviders: triedProviders,
+    });
+    if (alternates.length === 0) continue;
+
+    // Order the seats: Panda's judgement when it recognises these models (it
+    // scores P(success), expected cost and latency for THIS task text), then the
+    // shared breaker — rotating start, seats that just refused any concurrent
+    // agent pushed to the back. Neither the herd nor a repeated full sweep.
+    let queue = orderRoutes(alternates, (item) => item.route, policy.degradeCooldownMs);
+    if (policy.panda.enabled && policy.panda.decideProvider && alternates.length > 1) {
+      const plan = await rankRoutes({ routes: alternates, body, policy, log });
+      if (plan?.routes?.length) {
+        ctx.panda = ctx.panda || { traceId: plan.traceId };
+        queue = orderRoutes(plan.routes, (item) => item.route, policy.degradeCooldownMs);
+      }
+    }
+    queue = queue.slice(0, Math.max(0, policy.maxFailoverRoutes));
+    log.info("RESILIENT", `↪ ${resolved.model} also on ${queue.length} seat(s): ${queue.map((r) => r.route).join(", ")}`);
+
+    for (const candidate of queue) {
+      if (Date.now() > deadline || tried.has(candidate.route)) continue;
+      tried.add(candidate.route);
+      attempts += 1;
+
+      let response = null;
+      let candidateError = "";
+      try {
+        response = await handleSingleModelChat(
+          body,
+          candidate.route,
+          clientRawRequest,
+          request,
+          apiKey,
+          null,
+          policy,
+        );
+      } catch (error) {
+        candidateError = error?.message || String(error);
+      }
+
+      if (response?.ok) {
+        clearRoute(candidate.route);
+        reportPandaOutcome(ctx, candidate.route, true);
+        log.info("RESILIENT", `✓ recovered via ${candidate.route}`);
+        return response;
+      }
+
+      // A seat that refused is evidence for every other agent too, so it is
+      // parked globally with a growing cooldown instead of being re-tried by the
+      // next request in the same second. The prompt is never trimmed: the wrong
+      // seat is replaced, the conversation is not.
+      if (!candidateError) candidateError = await readErrorText(response);
+      markDegraded(candidate.route, {
+        status: response?.status,
+        error: candidateError,
+        cooldownMs: policy.degradeCooldownMs,
+      });
+      reportPandaOutcome(ctx, candidate.route, false);
+      log.warn("RESILIENT", `↪ ${candidate.route} unserved (${response?.status || "THREW"}); next seat`);
+    }
+  }
+
+  if (attempts === 0) log.info("RESILIENT", `no alternate provider route for ${ctx.modelStr}`);
+  return null;
+}
+
+// Feed the result back to the orchestrator (route → run → verify → escalate).
+function reportPandaOutcome(ctx, modelId, success) {
+  const traceId = ctx?.panda?.traceId;
+  if (!traceId || !ctx?.policy?.panda?.enabled) return;
+  recordOutcome({ traceId, modelId, success, policy: ctx.policy }).catch(() => { });
+}
+
+/**
+ * What the walk should start from. A combo already rotated over its members and
+ * still failed, so its members' other-provider seats are the next best guess;
+ * a plain model gets its own id.
+ */
+async function resolveFailoverTargets(ctx) {
+  if (ctx.failoverTargets?.length) return ctx.failoverTargets;
+  const { modelStr } = ctx;
+  if (modelStr?.includes("/")) return [modelStr];
+  const members = await getComboModels(modelStr).catch(() => null);
+  return members?.length ? members.slice(0, 3) : [modelStr];
+}
+
+// Upstream error text, kept inside the router for rotation decisions and logs.
+async function readErrorText(response) {
+  if (!response) return "";
+  try {
+    const text = await response.clone().text();
+    if (!text) return response.statusText || "";
+    try {
+      const parsed = JSON.parse(text);
+      return parsed?.error?.message || parsed?.error || parsed?.message || text;
+    } catch {
+      return text;
+    }
+  } catch {
+    return "";
   }
 }

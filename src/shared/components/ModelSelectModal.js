@@ -10,6 +10,8 @@ import { getModelsByProviderId, getModelKind } from "@/shared/constants/models";
 import { OAUTH_PROVIDERS, APIKEY_PROVIDERS, FREE_PROVIDERS, FREE_TIER_PROVIDERS, AI_PROVIDERS, isOpenAICompatibleProvider, isAnthropicCompatibleProvider, getProviderAlias } from "@/shared/constants/providers";
 import { parseSearchQuery, matchesSearch } from "@/shared/utils/modelSearchFilter";
 import { getDeactivatedProviderIds } from "@/shared/utils/connectionStatus";
+import { isHiddenModelName, prettyModelName } from "@/shared/utils/modelDisplayName";
+import { parseModelIdentity } from "@/shared/utils/modelIdentity";
 
 // Provider order: OAuth first, then Free Tier, then API Key (matches dashboard/providers)
 const PROVIDER_ORDER = [
@@ -552,7 +554,9 @@ export default function ModelSelectModal({
   const filteredGroups = useMemo(() => {
     const filtered = {};
     Object.entries(groupedModels).forEach(([providerId, group]) => {
-      let models = group.models;
+      // Models carrying an `@` routing prefix are code, not a name; the owner
+      // asked for them to be hidden entirely.
+      let models = group.models.filter((m) => !isHiddenModelName(m.id) && !isHiddenModelName(m.value));
       // Filter by input-modality capability (vision/pdf/audioInput/videoInput).
       if (capFilter) {
         models = models.filter((m) => getCaps(m.value)?.[capFilter] === true);
@@ -597,6 +601,61 @@ export default function ModelSelectModal({
 
     return filtered;
   }, [groupedModels, parsedQuery, addedModelValues, allowProviderWildcard, capFilter, minContextWindow, getCaps]);
+
+  // LLM picker: one card per exact model category, with the providers that
+  // serve it as the choices inside. Media pickers keep provider grouping.
+  const categoryGroups = useMemo(() => {
+    if (kindFilter || capFilter || allowProviderWildcard) return null;
+    const map = new Map();
+    for (const [providerId, group] of Object.entries(filteredGroups)) {
+      for (const model of group.models) {
+        if (!model || model.isPlaceholder) continue;
+        const identity = parseModelIdentity(model.value || model.id, providerId, group.name);
+        const key = identity.groupKey;
+        let entry = map.get(key);
+        if (!entry) {
+          entry = {
+            key,
+            name: identity.categoryName || prettyModelName(model.name || model.id),
+            color: group.color || "#666",
+            providerId,
+            isCategory: true,
+            models: [],
+            seen: new Set(),
+          };
+          map.set(key, entry);
+        }
+        const value = model.value || model.id;
+        if (entry.seen.has(value)) continue;
+        // One chip per provider: high/low/thinking variants of the same model
+        // are routes inside that provider, not separate providers.
+        if (entry.models.some((existing) => existing.providerId === providerId)) continue;
+        entry.seen.add(value);
+        entry.models.push({
+          ...model,
+          providerId,
+          providerName: group.name,
+          categoryName: entry.name,
+        });
+      }
+    }
+    return [...map.values()]
+      .map((entry) => ({
+        ...entry,
+        models: entry.models.sort((a, b) => {
+          const addedA = addedModelValues.includes(a.value) ? 0 : 1;
+          const addedB = addedModelValues.includes(b.value) ? 0 : 1;
+          if (addedA !== addedB) return addedA - addedB;
+          return a.providerName.localeCompare(b.providerName);
+        }),
+      }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [filteredGroups, kindFilter, capFilter, allowProviderWildcard, addedModelValues]);
+
+  const renderGroups = useMemo(() => {
+    if (!categoryGroups) return filteredGroups;
+    return Object.fromEntries(categoryGroups.map((group) => [group.key, group]));
+  }, [categoryGroups, filteredGroups]);
 
   // Visible models available for batch actions (excluding placeholders)
   const visibleModels = useMemo(() => {
@@ -790,7 +849,7 @@ export default function ModelSelectModal({
                     {addedModelValues.includes(combo.name) && (
                       <span className="material-symbols-outlined leading-none" style={{ fontSize: "10px" }}>check</span>
                     )}
-                    {combo.name}
+                    {prettyModelName(combo.name)}
                     {/* A declared ceiling is the combo's promise; show it so a
                         nested combo is not picked blindly under a floor. */}
                     <ContextLabel tokens={Number(combo.maxContextWindow) || getCaps(combo.name)?.contextWindow} />
@@ -801,8 +860,8 @@ export default function ModelSelectModal({
           </div>
         )}
 
-        {/* Provider models */}
-        {Object.entries(filteredGroups).map(([providerId, group]) => {
+        {/* Model categories; each chip inside is a provider that serves it. */}
+        {Object.entries(renderGroups).map(([providerId, group]) => {
           const wildcardValue = `${group.alias || providerId}/*`;
           const isWildcardAdded = allowProviderWildcard && addedModelValues.includes(wildcardValue);
 
@@ -811,7 +870,7 @@ export default function ModelSelectModal({
               {/* Provider header */}
               <div className="flex items-center gap-1.5 mb-1.5 sticky top-0 bg-surface py-0.5 z-10">
                 <ProviderIcon
-                  src={`/providers/${providerId}.png`}
+                  src={`/providers/${group.isCategory ? group.models[0]?.providerId : providerId}.png`}
                   alt={group.name}
                   size={14}
                   fallbackText={(group.name || providerId).slice(0, 2).toUpperCase()}
@@ -842,8 +901,15 @@ export default function ModelSelectModal({
                   </span>
                 )}
                 <span className="text-[10px] text-text-muted">
-                  ({group.models.length})
+                  {group.isCategory
+                    ? `${group.models.length} provider${group.models.length === 1 ? "" : "s"}`
+                    : `(${group.models.length})`}
                 </span>
+                {group.isCategory ? (
+                  <span className="rounded-md border border-border px-1.5 py-0.5 text-[9px] uppercase tracking-wide text-text-muted">
+                    Category
+                  </span>
+                ) : null}
               </div>
 
             <div className="flex flex-wrap gap-1.5">
@@ -855,7 +921,11 @@ export default function ModelSelectModal({
                   <button
                     key={model.value}
                     onClick={() => handleSelect(model)}
-                    title={isPlaceholder ? "Select to pre-fill, then edit model ID in the input" : undefined}
+                    title={isPlaceholder
+                      ? "Select to pre-fill, then edit model ID in the input"
+                      : group.isCategory
+                        ? `${model.providerName} · ${prettyModelName(model.name || model.id)}`
+                        : undefined}
                     className={`
                       px-2 py-1 rounded-xl text-xs font-medium transition-all border hover:cursor-pointer
                       ${isPlaceholder
@@ -877,16 +947,14 @@ export default function ModelSelectModal({
                           <span className="material-symbols-outlined text-[11px]">edit</span>
                           {model.name}
                         </>
-                      ) : model.isCustom ? (
-                        <>
-                          {model.name}
-                          <span className="text-[9px] opacity-60 font-normal">custom</span>
-                          <CapacityBadges caps={caps} />
-                          <ContextLabel tokens={caps?.contextWindow} />
-                        </>
                       ) : (
                         <>
-                          {model.name}
+                          {group.isCategory
+                            ? model.providerName
+                            : prettyModelName(model.name || model.id)}
+                          {!group.isCategory && model.isCustom ? (
+                            <span className="text-[9px] opacity-60 font-normal">custom</span>
+                          ) : null}
                           <CapacityBadges caps={caps} />
                           <ContextLabel tokens={caps?.contextWindow} />
                         </>
@@ -900,7 +968,7 @@ export default function ModelSelectModal({
         );
       })}
 
-      {Object.keys(filteredGroups).length === 0 && filteredCombos.length === 0 && (
+      {Object.keys(renderGroups).length === 0 && filteredCombos.length === 0 && (
         <div className="text-center py-4 text-text-muted">
           <span className="material-symbols-outlined text-2xl mb-1 block">
             search_off

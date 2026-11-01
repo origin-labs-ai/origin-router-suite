@@ -56,8 +56,13 @@ jobs:
         shell: pwsh
         run: |
           choco install innosetup --no-progress -y
-          & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" "installer\originrouter.iss" "/DAppVersion=${{ github.ref_name }}".TrimStart('v')
-          Copy-Item dist\installer\*.exe dist\ -ErrorAction SilentlyContinue
+          $version = "${{ github.ref_name }}".TrimStart('v')
+          & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" "installer\originrouter.iss" "/DAppVersion=$version"
+          $installer = Get-ChildItem dist\installer\OriginRouter-Setup-*.exe | Select-Object -First 1
+          $hash = (Get-FileHash $installer.FullName -Algorithm SHA256).Hash.ToLower()
+          "$hash  $($installer.Name)" | Set-Content "$($installer.FullName).sha256"
+          Copy-Item $installer.FullName dist\ -Force
+          Copy-Item "$($installer.FullName).sha256" dist\ -Force
 
       - uses: actions/upload-artifact@v4
         with:

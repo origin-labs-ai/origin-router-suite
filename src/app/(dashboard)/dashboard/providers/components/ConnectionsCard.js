@@ -25,7 +25,7 @@ function CooldownTimer({ until }) {
   }, [until]);
 
   if (!remaining) return null;
-  return <span className="text-xs text-orange-500 font-mono">⏱ {remaining}</span>;
+  return <span className="text-xs text-[#2B7FFF] font-mono">⏱ {remaining}</span>;
 }
 
 CooldownTimer.propTypes = { until: PropTypes.string.isRequired };

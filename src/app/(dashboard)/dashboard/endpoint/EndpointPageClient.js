@@ -25,12 +25,17 @@ export default function APIPageClient({ machineId }) {
   const [showAddModal, setShowAddModal] = useState(false);
   const [newKeyName, setNewKeyName] = useState("");
   const [createdKey, setCreatedKey] = useState(null);
+  const [editingKey, setEditingKey] = useState(null);
+  const [editKeyName, setEditKeyName] = useState("");
+  const [savingKeyName, setSavingKeyName] = useState(false);
   const [confirmState, setConfirmState] = useState(null);
 
   const [requireApiKey, setRequireApiKey] = useState(false);
   const [requireLogin, setRequireLogin] = useState(true);
   const [hasPassword, setHasPassword] = useState(true);
  const [tunnelDashboardAccess, setTunnelDashboardAccess] = useState(false);
+ const [lanAccessEnabled, setLanAccessEnabled] = useState(false);
+ const [lanPreferred, setLanPreferred] = useState(null);
 
  // Cloudflare Tunnel state
   const [tunnelChecking, setTunnelChecking] = useState(true);
@@ -49,6 +54,7 @@ export default function APIPageClient({ machineId }) {
   const [tsReachable, setTsReachable] = useState(false);
   const [tsUrl, setTsUrl] = useState("");
   const [tsLoading, setTsLoading] = useState(false);
+  const [tsOffline, setTsOffline] = useState(false);
   const [tsProgress, setTsProgress] = useState("");
   const [tsStatus, setTsStatus] = useState(null);
   const [tsAuthUrl, setTsAuthUrl] = useState("");
@@ -139,10 +145,11 @@ export default function APIPageClient({ machineId }) {
       if (tsEnabled && tsUrl) {
         const ok = await clientPingUrl(tsUrl);
         tsClientReachableRef.current = ok;
-        if (ok) { tsMissRef.current = 0; setTsReachable(true); if (!tsEverReachableRef.current) { tsEverReachableRef.current = true; setTsEverReachable(true); } }
-        else { tsMissRef.current += 1; if (tsMissRef.current >= REACHABLE_MISS_THRESHOLD) setTsReachable(false); }
+        if (ok) { tsMissRef.current = 0; setTsReachable(true); setTsOffline(false); if (!tsEverReachableRef.current) { tsEverReachableRef.current = true; setTsEverReachable(true); } }
+        else { tsMissRef.current += 1; if (tsMissRef.current >= REACHABLE_MISS_THRESHOLD) { setTsReachable(false); setTsOffline(true); } }
       } else {
         tsClientReachableRef.current = false;
+        setTsOffline(false);
       }
     };
     const anyEnabled = (tunnelEnabled && (tunnelUrl || tunnelPublicUrl)) || (tsEnabled && tsUrl);
@@ -196,15 +203,21 @@ export default function APIPageClient({ machineId }) {
   const loadSettings = async () => {
     setTunnelChecking(true);
     try {
-      const [settingsData, statusRes] = await Promise.all([
+      const [settingsData, statusRes, networkRes] = await Promise.all([
         useSettingsStore.getState().fetchSettings(),
-        fetch("/api/tunnel/status", { cache: "no-store" })
+        fetch("/api/tunnel/status", { cache: "no-store" }),
+        fetch("/api/network-info", { cache: "no-store" }).catch(() => null),
       ]);
       if (settingsData) {
         setRequireApiKey(settingsData.requireApiKey || false);
         setRequireLogin(settingsData.requireLogin !== false);
         setHasPassword(settingsData.hasPassword || false);
         setTunnelDashboardAccess(settingsData.tunnelDashboardAccess || false);
+        setLanAccessEnabled(settingsData.lanAccessEnabled === true);
+      }
+      if (networkRes?.ok) {
+        const networkData = await networkRes.json().catch(() => ({}));
+        setLanPreferred(networkData.preferred || null);
       }
       if (statusRes.ok) {
         const data = await statusRes.json();
@@ -234,6 +247,24 @@ export default function APIPageClient({ machineId }) {
       if (updated) setTunnelDashboardAccess(value);
     } catch (error) {
       console.log("Error updating tunnelDashboardAccess:", error);
+    }
+  };
+
+  const handleLanAccess = async (value) => {
+    try {
+      const updated = await useSettingsStore.getState().patchSettings({ lanAccessEnabled: value });
+      if (updated) {
+        setLanAccessEnabled(value);
+        if (value) {
+          const res = await fetch("/api/network-info", { cache: "no-store" }).catch(() => null);
+          if (res?.ok) {
+            const data = await res.json().catch(() => ({}));
+            setLanPreferred(data.preferred || null);
+          }
+        }
+      }
+    } catch (error) {
+      console.log("Error updating lanAccessEnabled:", error);
     }
   };
 
@@ -637,6 +668,29 @@ export default function APIPageClient({ machineId }) {
     }
   };
 
+  const handleRenameKey = async () => {
+    const name = editKeyName.trim();
+    if (!editingKey || !name) return;
+    setSavingKeyName(true);
+    try {
+      const res = await fetch(`/api/keys/${editingKey.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.key) {
+        setKeys((prev) => prev.map((item) => (item.id === data.key.id ? data.key : item)));
+        setEditingKey(null);
+        setEditKeyName("");
+      }
+    } catch (error) {
+      console.log("Error renaming key:", error);
+    } finally {
+      setSavingKeyName(false);
+    }
+  };
+
   const handleDeleteKey = async (id) => {
     setConfirmState({
       title: "Delete API Key",
@@ -861,7 +915,28 @@ export default function APIPageClient({ machineId }) {
                   <span className="material-symbols-outlined text-[18px]">power_settings_new</span>
                 </button>
               </>
-            ) : tsEnabled && !tsLoading && !tsReachable ? (
+            ) : tsEnabled && !tsLoading && tsOffline ? (
+                          <>
+                            <div className="flex-1 flex items-center gap-2 px-3 py-1.5 rounded border border-amber-300 dark:border-amber-800 bg-amber-500/5 text-sm text-amber-600 dark:text-amber-400">
+                              <span className="material-symbols-outlined text-sm">wifi_off</span>
+                              Tailscale offline — this device is not reachable
+                            </div>
+                            <button
+                              onClick={() => { tsMissRef.current = 0; setTsOffline(false); setTsReachable(false); syncTunnelStatus(); }}
+                              className="p-2 hover:bg-black/5 dark:hover:bg-white/5 rounded text-text-muted hover:text-primary transition-colors shrink-0"
+                              title="Retry Tailscale"
+                            >
+                              <span className="material-symbols-outlined text-[18px]">refresh</span>
+                            </button>
+                            <button
+                              onClick={() => setShowDisableTsModal(true)}
+                              className="p-2 hover:bg-red-500/10 rounded text-red-500 transition-colors shrink-0"
+                              title="Disable Tailscale"
+                            >
+                              <span className="material-symbols-outlined text-[18px]">power_settings_new</span>
+                            </button>
+                          </>
+                        ) : tsEnabled && !tsLoading && !tsReachable ? (
               <>
                 <div className="flex-1 flex items-center gap-2 px-3 py-1.5 rounded border border-amber-300 dark:border-amber-800 bg-amber-500/5 text-sm text-amber-600 dark:text-amber-400">
                   <span className="material-symbols-outlined animate-spin text-sm">progress_activity</span>
@@ -975,6 +1050,55 @@ export default function APIPageClient({ machineId }) {
         )}
       </Card>
 
+      {/* LAN access */}
+      <Card>
+        <div className="flex items-start justify-between gap-4">
+          <div className="min-w-0">
+            <h2 className="text-lg font-semibold flex items-center gap-2">
+              <span className="material-symbols-outlined text-primary">lan</span>
+              Allow access from this network
+            </h2>
+            <p className="text-sm text-text-muted mt-1">
+              Phones and other PCs on the same Wi-Fi/LAN can open this dashboard through this PC&apos;s network address. Login is still required. Tunnel access is separate.
+            </p>
+          </div>
+          <Toggle
+            checked={lanAccessEnabled}
+            onChange={() => handleLanAccess(!lanAccessEnabled)}
+            title="Allow access from this network"
+          />
+        </div>
+
+        {lanAccessEnabled ? (
+          <div className="mt-4 rounded-lg border border-border bg-surface-2 p-3">
+            {lanPreferred ? (
+              <div className="flex items-center gap-2 min-w-0">
+                <code className="min-w-0 flex-1 truncate font-mono text-sm text-text-main">{lanPreferred.url}</code>
+                <button
+                  type="button"
+                  onClick={() => copy(lanPreferred.url, "lan_url")}
+                  className="p-1.5 hover:bg-black/5 dark:hover:bg-white/5 rounded text-text-muted hover:text-primary transition-colors shrink-0"
+                  title="Copy LAN URL"
+                >
+                  <span className="material-symbols-outlined text-[16px]">
+                    {copied === "lan_url" ? "check" : "content_copy"}
+                  </span>
+                </button>
+              </div>
+            ) : (
+              <p className="text-sm text-text-muted">No private LAN address detected. Connect this PC to Wi-Fi or Ethernet, then reload.</p>
+            )}
+            <p className="mt-2 text-xs leading-5 text-text-muted">
+              Only devices on this private network can reach this URL. If the server was started with <code className="font-mono">--host 127.0.0.1</code>, restart it without that flag. Keep the dashboard password set.
+            </p>
+          </div>
+        ) : (
+          <p className="mt-3 text-xs text-text-muted">
+            LAN requests are blocked. Only this computer can open the dashboard and API.
+          </p>
+        )}
+      </Card>
+
       {/* API Keys */}
       <Card id="require-api-key">
         <div className="flex items-center justify-between mb-4">
@@ -1054,7 +1178,7 @@ export default function APIPageClient({ machineId }) {
                     Created {new Date(key.createdAt).toLocaleDateString()}
                   </p>
                   {key.isActive === false && (
-                    <p className="text-xs text-orange-500 mt-1">Paused</p>
+                    <p className="text-xs text-[#2B7FFF] mt-1">Paused</p>
                   )}
                   <KeyAccessControls
                     apiKey={key}
@@ -1089,6 +1213,13 @@ export default function APIPageClient({ machineId }) {
                     }}
                     title={key.isActive ? "Pause key" : "Resume key"}
                   />
+                  <button
+                    onClick={() => { setEditingKey(key); setEditKeyName(key.name || ""); }}
+                    className="p-2 hover:bg-black/5 dark:hover:bg-white/5 rounded text-text-muted hover:text-primary transition-all"
+                    title="Rename key"
+                  >
+                    <span className="material-symbols-outlined text-[18px]">edit</span>
+                  </button>
                   <button
                     onClick={() => handleDeleteKey(key.id)}
                     className="p-2 hover:bg-red-500/10 rounded text-red-500 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-all"
@@ -1127,6 +1258,38 @@ export default function APIPageClient({ machineId }) {
                 setShowAddModal(false);
                 setNewKeyName("");
               }}
+              variant="ghost"
+              fullWidth
+            >
+              Cancel
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Rename Key Modal */}
+      <Modal
+        isOpen={!!editingKey}
+        title="Rename API Key"
+        onClose={() => { setEditingKey(null); setEditKeyName(""); }}
+      >
+        <div className="flex flex-col gap-4">
+          <Input
+            label="Key Name"
+            value={editKeyName}
+            onChange={(e) => setEditKeyName(e.target.value)}
+            placeholder="Local"
+            onKeyDown={(e) => { if (e.key === "Enter") handleRenameKey(); }}
+          />
+          <p className="text-xs text-text-muted">
+            This name is shown in request logs and usage reports. The key value does not change.
+          </p>
+          <div className="flex gap-2">
+            <Button onClick={handleRenameKey} fullWidth disabled={!editKeyName.trim() || savingKeyName}>
+              {savingKeyName ? "Saving…" : "Save"}
+            </Button>
+            <Button
+              onClick={() => { setEditingKey(null); setEditKeyName(""); }}
               variant="ghost"
               fullWidth
             >

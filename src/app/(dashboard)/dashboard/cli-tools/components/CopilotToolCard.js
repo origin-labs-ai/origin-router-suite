@@ -195,7 +195,7 @@ export default function CopilotToolCard({ tool, isExpanded, onToggle, baseUrl, a
               <h3 className="font-medium text-sm">{tool.name}</h3>
               {configStatus === "configured" && <span className="px-1.5 py-0.5 text-[10px] font-medium bg-green-500/10 text-green-600 dark:text-green-400 rounded-full">Connected</span>}
               {configStatus === "not_configured" && <span className="px-1.5 py-0.5 text-[10px] font-medium bg-yellow-500/10 text-yellow-600 dark:text-yellow-400 rounded-full">Not configured</span>}
-              {configStatus === "other" && <span className="px-1.5 py-0.5 text-[10px] font-medium bg-blue-500/10 text-blue-600 dark:text-blue-400 rounded-full">Other</span>}
+              {configStatus === "other" && <span className="px-1.5 py-0.5 text-[10px] font-medium bg-[#2B7FFF]/10 text-[#1a66e6] dark:text-[#2B7FFF] rounded-full">Other</span>}
             </div>
             <p className="text-xs text-text-muted truncate">{tool.description}</p>
           </div>
@@ -214,9 +214,9 @@ export default function CopilotToolCard({ tool, isExpanded, onToggle, baseUrl, a
 
           {!checking && (
             <>
-              <div className="flex items-start gap-3 p-3 bg-blue-500/10 border border-blue-500/30 rounded-lg">
-                <span className="material-symbols-outlined text-blue-500 text-lg">info</span>
-                <div className="text-xs text-blue-700 dark:text-blue-300">
+              <div className="flex items-start gap-3 p-3 bg-[#2B7FFF]/10 border border-[#2B7FFF]/30 rounded-lg">
+                <span className="material-symbols-outlined text-[#2B7FFF] text-lg">info</span>
+                <div className="text-xs text-blue-700 dark:text-[#5a9eff]">
                   <p className="font-medium">Writes to <code className="px-1 bg-black/5 dark:bg-white/10 rounded">chatLanguageModels.json</code></p>
                   <p className="mt-0.5 opacity-80">Reload VS Code after applying for changes to take effect.</p>
                 </div>

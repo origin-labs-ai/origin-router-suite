@@ -8,7 +8,6 @@ import ProviderIcon from "@/shared/components/ProviderIcon";
 import HeaderMenu from "@/shared/components/HeaderMenu";
 import HeaderLanguage from "@/shared/components/HeaderLanguage";
 import ThemeToggle from "@/shared/components/ThemeToggle";
-import DonateModal from "@/shared/components/DonateModal";
 import { useHeaderSearchStore } from "@/store/headerSearchStore";
 import { OAUTH_PROVIDERS, APIKEY_PROVIDERS } from "@/shared/constants/config";
 import { MEDIA_PROVIDER_KINDS, AI_PROVIDERS } from "@/shared/constants/providers";
@@ -52,7 +51,12 @@ const getPageInfo = (pathname) => {
   // Provider detail page: /dashboard/providers/[id]
   const providerMatch = pathname.match(/\/providers\/([^/]+)$/);
   if (providerMatch) {
-    const providerId = providerMatch[1];
+    let providerId = providerMatch[1];
+    try {
+      providerId = decodeURIComponent(providerId);
+    } catch {
+      // Keep the raw segment when it is not valid percent-encoding.
+    }
     const providerInfo =
       OAUTH_PROVIDERS[providerId] || APIKEY_PROVIDERS[providerId];
     if (providerInfo) {
@@ -68,6 +72,15 @@ const getPageInfo = (pathname) => {
         ],
       };
     }
+    // Custom compatible providers are addressed by their user-given name.
+    return {
+      title: providerId,
+      description: "",
+      breadcrumbs: [
+        { label: "Providers", href: "/dashboard/providers" },
+        { label: providerId },
+      ],
+    };
   }
 
   if (pathname.includes("/providers") && !pathname.includes("/media-providers"))
@@ -150,8 +163,8 @@ const getPageInfo = (pathname) => {
     };
   if (pathname.includes("/skills"))
     return {
-      title: "Agent Skills",
-      description: "Copy a link and paste to your AI to use OriginRouter — no install needed",
+      title: "",
+      description: "",
       icon: "extension",
       breadcrumbs: [],
     };
@@ -197,7 +210,6 @@ export default function Header({ onMenuClick, showMenuButton = true }) {
   const pathname = usePathname();
   const [displayName, setDisplayName] = useState("");
   const [loginMethod, setLoginMethod] = useState("");
-  const [donateOpen, setDonateOpen] = useState(false);
 
   // Memoize page info to prevent unnecessary recalculations
   const pageInfo = useMemo(() => getPageInfo(pathname), [pathname]);
@@ -332,19 +344,11 @@ export default function Header({ onMenuClick, showMenuButton = true }) {
           </div>
         )}
         <HeaderSearch />
-        <button
-          onClick={() => setDonateOpen(true)}
-          className="hidden sm:flex items-center gap-1.5 px-3 h-8 rounded-lg border border-pink-500/30 bg-pink-500/10 text-pink-600 dark:text-pink-400 hover:bg-pink-500/20 transition-colors text-sm font-medium"
-          aria-label="Donate"
-        >
-          <span className="material-symbols-outlined text-[18px]">volunteer_activism</span>
-          <span className="hidden sm:inline">Donate</span>
-        </button>
         <ThemeToggle />
         <HeaderLanguage />
         <HeaderMenu onLogout={handleLogout} />
       </div>
-      <DonateModal isOpen={donateOpen} onClose={() => setDonateOpen(false)} />
+      
     </header>
   );
 }

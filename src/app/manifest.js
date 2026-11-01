@@ -1,6 +1,6 @@
 export default function manifest() {
   return {
-    name: 'OriginRouter - AI Infrastructure Management',
+    name: 'OriginRouter',
     short_name: 'OriginRouter',
     description: 'One endpoint for all your AI providers. Manage keys, monitor usage, and scale effortlessly.',
     start_url: '/',

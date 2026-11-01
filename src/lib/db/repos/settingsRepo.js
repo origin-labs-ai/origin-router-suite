@@ -73,6 +73,33 @@ const DEFAULT_SETTINGS = {
   pxpipeTimeoutMs: 15000,
   // Per-provider user header overrides applied at dispatch: { [providerId]: { headers: {..} } }
   providerOverrides: {},
+  // Routing resilience (see src/lib/routingPolicy.js). Concurrency is the
+  // number of agent requests the router serves at once; the rest of the block
+  // decides how long it keeps looking for a seat that answers, and the fact
+  // that an upstream error is never handed to the client.
+  routingPolicy: {
+    enabled: true,
+    maxAgentsConcurrency: 8,
+    perConnectionConcurrency: 2,
+    admissionQueueMs: 20000,
+    failoverEnabled: true,
+    hedgeMs: 12000,
+    hedgeMaxBytes: 65536,
+    maxFailoverRoutes: 12,
+    failoverDeadlineMs: 150000,
+    degradeCooldownMs: 45000,
+    trimOnPromptCap: false,
+    lastResort: "respond",
+    panda: {
+      enabled: true,
+      baseUrl: "http://127.0.0.1:8765",
+      mode: "max_utility",
+      minPSuccess: 0.5,
+      exploreEpsilon: 0.08,
+      decideProvider: true,
+      timeoutMs: 1500,
+    },
+  },
 };
 
 async function readRaw() {
@@ -107,6 +134,16 @@ export function mergeWithDefaults(raw) {
       }
     }
   }
+  // Routing policy is saved as one object, so a partial PATCH (a single knob)
+  // must not erase the other keys.
+  merged.routingPolicy = {
+    ...DEFAULT_SETTINGS.routingPolicy,
+    ...(merged.routingPolicy || {}),
+    panda: {
+      ...DEFAULT_SETTINGS.routingPolicy.panda,
+      ...((merged.routingPolicy || {}).panda || {}),
+    },
+  };
   return merged;
 }
 

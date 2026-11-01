@@ -8,6 +8,7 @@ import fs from "fs/promises";
 import path from "path";
 import os from "os";
 import { getCapabilitiesForModel } from "open-sse/providers/capabilities.js";
+import { ensureMaxContextWindow } from "@/lib/contextLimits";
 import {
   applyGrokBuildConfig,
   GROK_SUBAGENT_TYPES,
@@ -48,11 +49,11 @@ const readConfigToml = async () => {
 
 const normalizeContextWindow = (value, model) => {
   const explicit = Number(value);
-  if (Number.isFinite(explicit) && explicit > 0) return Math.floor(explicit);
+  if (Number.isFinite(explicit) && explicit > 0) return Math.floor(ensureMaxContextWindow(explicit));
   const slash = model.indexOf("/");
   const provider = slash > 0 ? model.slice(0, slash) : null;
   const modelId = slash > 0 ? model.slice(slash + 1) : model;
-  return getCapabilitiesForModel(provider, modelId).contextWindow;
+  return ensureMaxContextWindow(getCapabilitiesForModel(provider, modelId).contextWindow);
 };
 
 const normalizeSubagentModels = (value) => {

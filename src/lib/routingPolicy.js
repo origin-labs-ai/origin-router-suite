@@ -48,6 +48,10 @@ export const DEFAULT_ROUTING_POLICY = {
   // Never trim the prompt. A seat that cannot take the context is the wrong
   // seat; the answer is another seat, not a shortened conversation.
   trimOnPromptCap: false,
+  // A stream that dies after HTTP 200 (stall, upstream reset, provider abort)
+  // closes with a valid terminal frame instead of an error frame, so the caller
+  // never receives an API error even mid-answer.
+  midStreamSilent: true,
   // What to return when literally nothing served the request.
   //   "respond"    → a valid completion in the client's own format (no error)
   //   "passthrough"→ the last upstream error (debugging escape hatch)
@@ -67,6 +71,10 @@ export const DEFAULT_ROUTING_POLICY = {
     exploreEpsilon: 0.08,
     // Ask Panda even for provider rotation inside one model id (which seat first).
     decideProvider: true,
+    // Choose at random among the top-K ranked seats instead of always taking the
+    // single best one: spread across the fleet, no seat permanently first, and
+    // still never a bottom-ranked model (K caps how low it may go).
+    pickFromTopK: 3,
     timeoutMs: 1500,
   },
 };
@@ -115,6 +123,7 @@ export function resolveRoutingPolicy(settings = {}) {
     maxFailoverRoutes: envInt("OR_MAX_FAILOVER_ROUTES", DEFAULT_ROUTING_POLICY.maxFailoverRoutes),
     failoverDeadlineMs: envInt("OR_FAILOVER_DEADLINE_MS", DEFAULT_ROUTING_POLICY.failoverDeadlineMs),
     degradeCooldownMs: envInt("OR_DEGRADE_COOLDOWN_MS", DEFAULT_ROUTING_POLICY.degradeCooldownMs),
+    midStreamSilent: envBool("OR_MID_STREAM_SILENT", DEFAULT_ROUTING_POLICY.midStreamSilent),
     lastResort: String(process.env.OR_LAST_RESORT || "").trim() || DEFAULT_ROUTING_POLICY.lastResort,
   };
   const stored = settings?.routingPolicy || {};
@@ -132,11 +141,13 @@ export function resolveRoutingPolicy(settings = {}) {
     failoverDeadlineMs: int(merged.failoverDeadlineMs, DEFAULT_ROUTING_POLICY.failoverDeadlineMs, 1000, 900000),
     degradeCooldownMs: int(merged.degradeCooldownMs, DEFAULT_ROUTING_POLICY.degradeCooldownMs, 0, 900000),
     trimOnPromptCap: merged.trimOnPromptCap === true,
+    midStreamSilent: merged.midStreamSilent !== false,
     panda: {
       ...DEFAULT_ROUTING_POLICY.panda,
       ...(merged.panda || {}),
       enabled: (merged.panda?.enabled ?? DEFAULT_ROUTING_POLICY.panda.enabled) === true,
       decideProvider: (merged.panda?.decideProvider ?? DEFAULT_ROUTING_POLICY.panda.decideProvider) === true,
+      pickFromTopK: int(merged.panda?.pickFromTopK, DEFAULT_ROUTING_POLICY.panda.pickFromTopK, 1, 20),
       baseUrl: String(merged.panda?.baseUrl || DEFAULT_ROUTING_POLICY.panda.baseUrl).replace(/\/+$/, ""),
       timeoutMs: int(merged.panda?.timeoutMs, DEFAULT_ROUTING_POLICY.panda.timeoutMs, 200, 15000),
       exploreEpsilon: Math.min(0.5, Math.max(0, Number(merged.panda?.exploreEpsilon) || 0)),

@@ -6,7 +6,7 @@
   "main": "main.js",
   "scripts": {
     "start": "electron .",
-    "dist:win": "electron-builder --win nsis --x64"
+    "dist:win": "electron-builder --win dir --x64 && node scripts/desktop-installer.cjs"
   },
   "devDependencies": {
     "electron": "33.4.11",
@@ -33,32 +33,21 @@
       {
         "from": "assets/icon.png",
         "to": "icon.png"
+      },
+      {
+        "from": "assets/icon.ico",
+        "to": "icon.ico"
       }
     ],
     "win": {
       "target": [
         {
-          "target": "nsis",
+          "target": "dir",
           "arch": ["x64"]
         }
       ],
       "icon": "assets/icon.ico",
-      "signAndEditExecutable": false,
-      "artifactName": "OriginRouter-Desktop-Setup-${version}.exe"
-    },
-    "nsis": {
-      "oneClick": false,
-      "perMachine": false,
-      "allowElevation": false,
-      "allowToChangeInstallationDirectory": true,
-      "createDesktopShortcut": true,
-      "createStartMenuShortcut": true,
-      "shortcutName": "OriginRouter Desktop",
-      "runAfterFinish": true,
-      "deleteAppDataOnUninstall": false,
-      "installerIcon": "assets/icon.ico",
-      "uninstallerIcon": "assets/icon.ico",
-      "installerHeaderIcon": "assets/icon.ico"
+      "signAndEditExecutable": false
     }
   }
 }

@@ -21,6 +21,7 @@ import { augmentModelsWithCapacityAdapter, withCapacityAdapterStripping, getActi
 import { handleBypassRequest, synthesizeResponse } from "open-sse/utils/bypassHandler.js";
 import { HTTP_STATUS } from "open-sse/config/runtimeConfig.js";
 import { resolveRoutingPolicy } from "@/lib/routingPolicy";
+import { setMidStreamSilent } from "open-sse/utils/midStreamPolicy.js";
 import { acquireSlot, beginConnection } from "../services/inflight.js";
 import { findAlternateRoutes } from "../services/alternateRoutes.js";
 import { orderRoutes, markDegraded, clearRoute } from "../services/routeHealth.js";
@@ -89,6 +90,9 @@ export async function handleChat(request, clientRawRequest = null, options = {})
   // Resilience policy: how hard the router keeps looking, and the one thing it
   // must never do — answer a client with an upstream API error.
   const policy = resolveRoutingPolicy(settings);
+  // Applies process-wide: an aborted stream closes cleanly instead of emitting an
+  // error frame the caller would surface as an API error.
+  setMidStreamSilent(policy.midStreamSilent);
   const resilience = {
     policy,
     settings,

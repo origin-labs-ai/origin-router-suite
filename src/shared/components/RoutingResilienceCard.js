@@ -65,6 +65,7 @@ const DEFAULTS = {
   failoverDeadlineMs: 150000,
   degradeCooldownMs: 45000,
   trimOnPromptCap: false,
+  midStreamSilent: true,
   lastResort: "respond",
   panda: {
     enabled: true,
@@ -180,6 +181,20 @@ export default function RoutingResilienceCard() {
           <Toggle
             checked={policy.failoverEnabled !== false}
             onChange={() => patch({ failoverEnabled: policy.failoverEnabled === false })}
+            disabled={loading || saving}
+          />
+        </div>
+
+        <div className="flex items-start sm:items-center justify-between gap-4 pt-2 border-t border-border/50">
+          <div className="flex-1 min-w-0">
+            <p className="font-medium text-sm sm:text-base">Close a broken stream silently</p>
+            <p className="text-xs sm:text-sm text-text-muted">
+              If an answer dies after HTTP 200 (stall or upstream reset), end it with a valid stop frame instead of an error frame.
+            </p>
+          </div>
+          <Toggle
+            checked={policy.midStreamSilent !== false}
+            onChange={() => patch({ midStreamSilent: !(policy.midStreamSilent !== false) })}
             disabled={loading || saving}
           />
         </div>

@@ -228,8 +228,46 @@ function rotateModelsFromIndex(models, currentIndex) {
  * @param {number|string} [stickyLimit=1] - Requests per combo model before switching
  * @returns {string[]} Rotated models array
  */
+// Random-spread rotation state: the shuffled order plus how many requests have
+// reused it. Held per combo so a burst of parallel agents lands on different
+// seats, while a short sticky window still lets prompt caches stay warm.
+const randomRotationState = new Map();
+
+function shuffleRotation(models, comboName, stickyLimit) {
+  const rotationKey = comboName || "__default__";
+  const limit = normalizeStickyLimit(stickyLimit);
+  const state = randomRotationState.get(rotationKey);
+
+  if (state && state.count < limit) {
+    randomRotationState.set(rotationKey, { order: state.order, count: state.count + 1 });
+    return state.order;
+  }
+
+  // Fisher-Yates. Every seat stays in the list, so all of them get tried across
+  // requests — no seat is permanently skipped and none is always first.
+  const order = [...models];
+  for (let i = order.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [order[i], order[j]] = [order[j], order[i]];
+  }
+  randomRotationState.set(rotationKey, { order, count: 1 });
+  return order;
+}
+
 export function getRotatedModels(models, comboName, strategy, stickyLimit = 1) {
-  if (!models || models.length <= 1 || strategy !== "round-robin") {
+  if (!models || models.length <= 1) {
+    return models;
+  }
+
+  // Random spread: every request walks the seats in a freshly shuffled order,
+  // so a fleet of agents fans out over all of them instead of queueing behind
+  // the same first model. The order is held for `stickyLimit` requests per combo,
+  // which is what keeps prompt-cache warm when the same seat is reused.
+  if (strategy === "random") {
+    return shuffleRotation(models, comboName, stickyLimit);
+  }
+
+  if (strategy !== "round-robin") {
     return models;
   }
 
@@ -266,6 +304,7 @@ export function getRotatedModels(models, comboName, strategy, stickyLimit = 1) {
 export function resetComboRotation(comboName) {
   if (comboName) {
     comboRotationState.delete(comboName);
+    randomRotationState.delete(comboName);
     clearStickyComboSession(comboName);
   } else {
     comboRotationState.clear();

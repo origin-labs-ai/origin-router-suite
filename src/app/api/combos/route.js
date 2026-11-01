@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getCombos, createCombo, getComboByName } from "@/lib/localDb";
 import { findSeatsBelowContext, describeContextShort } from "@/lib/comboContext";
+import { applyContextCeilings } from "@/lib/contextCeilings";
 
 export const dynamic = "force-dynamic";
 
@@ -41,6 +42,8 @@ export async function POST(request) {
 
     // A context ceiling is a promise: every member must be able to serve it.
     if (maxContextWindow) {
+      // Owner-declared ceilings (~/.or/context-ceilings.json) count as evidence.
+      applyContextCeilings();
       const combosByName = new Map((await getCombos()).map((c) => [c.name, c]));
       const offenders = findSeatsBelowContext(models || [], maxContextWindow, combosByName);
       if (offenders.length > 0) {

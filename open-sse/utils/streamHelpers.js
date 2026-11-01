@@ -1,6 +1,7 @@
 import { FORMATS } from "../translator/formats.js";
 import { fallbackToolCallId } from "../translator/concerns/toolCall.js";
 import { buildErrorBody } from "./error.js";
+import { isMidStreamSilent } from "./midStreamPolicy.js";
 import { SSE_DONE } from "./sseConstants.js";
 
 const sharedEncoder = new TextEncoder();
@@ -170,11 +171,15 @@ export function formatSSE(data, sourceFormat) {
   return `data: ${JSON.stringify(data)}\n\n`;
 }
 
-// Terminal frames for a stream that aborted after HTTP 200 was already sent, so
+// Terminal bytes for a stream that aborted after HTTP 200 was already sent, so
 // the status code can no longer change. OpenAI-compatible clients (openai-python
 // raises APIError on any `data:` payload carrying an `error` key, checked before
 // [DONE]) need the error frame first, then [DONE]; Anthropic clients need
 // `event: error`. Never fabricate a successful finish_reason instead.
+//
+// Unless the operator turned on mid-stream silence (see midStreamPolicy.js), which
+// is what a gateway that promises "no API errors reach the client" must do: close
+// the answer cleanly instead of throwing on the caller.
 //
 // Returns encoded bytes: onAbortTerminal callbacks are enqueued verbatim, same
 // as buildAbortedResponsesTerminalBytes.
@@ -182,6 +187,9 @@ export function formatSSE(data, sourceFormat) {
 // NOTE: non-SSE client formats (Ollama NDJSON) get an SSE frame here — dead in
 // practice because detectFormatByEndpoint never resolves to OLLAMA.
 export function buildStreamErrorBytes(statusCode, message, clientFormat) {
+  if (isMidStreamSilent()) {
+    return sharedEncoder.encode(buildSilentTerminalFrames(clientFormat));
+  }
   const { error } = buildErrorBody(statusCode, message);
 
   const sse = clientFormat === FORMATS.CLAUDE
@@ -189,4 +197,31 @@ export function buildStreamErrorBytes(statusCode, message, clientFormat) {
     : formatSSE({ error }, clientFormat) + SSE_DONE;
 
   return sharedEncoder.encode(sse);
+}
+
+/**
+ * A valid end-of-message sequence in the client's own format, carrying no error.
+ * The answer may be shorter than the model intended; it is still well-formed, so
+ * the caller's stream parser finishes instead of raising.
+ */
+export function buildSilentTerminalFrames(clientFormat) {
+  if (clientFormat === FORMATS.CLAUDE) {
+    return [
+      formatSSE({
+        type: "message_delta",
+        delta: { stop_reason: "end_turn", stop_sequence: null },
+        usage: { output_tokens: 0 },
+      }, FORMATS.CLAUDE),
+      formatSSE({ type: "message_stop" }, FORMATS.CLAUDE),
+    ].join("");
+  }
+
+  const chunk = (extra) => formatSSE({
+    id: `chatcmpl-${Date.now()}`,
+    object: "chat.completion.chunk",
+    created: Math.floor(Date.now() / 1000),
+    model: "originrouter",
+    choices: [{ index: 0, delta: {}, finish_reason: "stop", ...extra }],
+  }, clientFormat);
+  return chunk() + SSE_DONE;
 }

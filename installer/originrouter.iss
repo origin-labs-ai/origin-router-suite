@@ -58,7 +58,9 @@ Name: "{group}\Uninstall {#AppName}"; Filename: "{uninstallexe}"
 Name: "{autodesktop}\{#AppName}"; Filename: "{app}\{#AppExe}"; WorkingDir: "{app}"; Tasks: desktopicon
 
 [Registry]
-Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: string; ValueName: "OriginRouter"; ValueData: """{app}\{#AppExe}"" --tray"; Tasks: autostart
+; Autostart must not leave a console window on the desktop: the tray-mode CLI is
+ ; launched through a hidden PowerShell so the gateway starts silently.
+Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: string; ValueName: "OriginRouter"; ValueData: """{sys}\WindowsPowerShell\v1.0\powershell.exe"" -WindowStyle Hidden -NoProfile -ExecutionPolicy Bypass -Command ""Start-Process -FilePath '{app}\originrouter.cmd' -ArgumentList '--tray' -WindowStyle Hidden"""; Tasks: autostart
 Root: HKCU; Subkey: "Environment"; ValueType: expandsz; ValueName: "Path"; ValueData: "{olddata};{app}"; Check: NeedsAddPath('{app}')
 
 [Run]

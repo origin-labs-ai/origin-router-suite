@@ -1,6 +1,6 @@
 "use strict";
 
-const { app, BrowserWindow, ipcMain, screen, shell } = require("electron");
+const { app, BrowserWindow, ipcMain, screen, shell, Tray, Menu, nativeImage } = require("electron");
 const { spawn, execFile } = require("child_process");
 const fs = require("fs");
 const http = require("http");
@@ -16,6 +16,22 @@ const ICON_PATH = app.isPackaged
   ? path.join(process.resourcesPath, "icon.png")
   : path.join(__dirname, "assets", "icon.png");
 
+// Both background services live in the tray, so nothing may leave a console
+// window on screen: the gateway's own output and the orchestrator's output are
+// redirected to log files, and the tray menu opens them on demand in a visible
+// window the user closes when done.
+const ROUTER_LOG = path.join(os.homedir(), ".or", "logs", "router.log");
+const PANDA_HOME = path.join(os.homedir(), ".or", "panda");
+const PANDA_LOG = path.join(PANDA_HOME, "panda.log");
+const PANDA_ERR_LOG = path.join(PANDA_HOME, "panda.err.log");
+const PANDA_SERVE = "C:\\Users\\thaku\\Tools\\PandaOrchestrator\\.venv-panda\\Scripts\\panda-router-serve.exe";
+const PANDA_ARTIFACTS = "C:\\Users\\thaku\\Tools\\PandaOrchestrator\\artifacts\\panda-router-v4";
+const PANDA_PORT = 8765;
+const TRAY_ICON_PATH = app.isPackaged
+  ? path.join(process.resourcesPath, "icon.ico")
+  : path.join(__dirname, "assets", "icon.ico");
+const REPO_URL = "https://github.com/origin-labs-ai/originrouter";
+
 app.setName("OriginRouter");
 app.setAppUserModelId("ai.originlabs.originrouter.desktop");
 app.setPath("userData", ORIGIN_HOME);
@@ -23,6 +39,8 @@ app.setPath("userData", ORIGIN_HOME);
 let mainWindow = null;
 let serverChild = null;
 let startedServer = false;
+let tray = null;
+let quitting = false;
 
 function readBounds() {
   try {
@@ -108,15 +126,24 @@ function startBundledServer() {
     TRAY_MODE: "1",
   };
   if (!systemNode) env.ELECTRON_RUN_AS_NODE = "1";
+  try {
+    fs.mkdirSync(path.dirname(ROUTER_LOG), { recursive: true });
+  } catch {}
+  // windowsHide keeps the child off the screen; the log file is what the tray's
+  // "Open Router Console" item tails, so nothing is lost by running hidden.
+  const logStream = fs.createWriteStream(ROUTER_LOG, { flags: "a" });
   serverChild = spawn(
     runtime,
     [cli, "--tray", "--skip-update", "--host", "127.0.0.1"],
     {
       env,
       windowsHide: true,
-      stdio: "ignore",
+      stdio: ["ignore", "pipe", "pipe"],
     },
   );
+  serverChild.stdout?.pipe(logStream);
+  serverChild.stderr?.pipe(logStream);
+  serverChild.on("error", (error) => logStream.write(`[spawn] ${error.message}\n`));
   serverChild.on("exit", () => { serverChild = null; });
 }
 
@@ -156,6 +183,113 @@ function sendMaximizedState() {
   mainWindow.webContents.send("or:window-maximized", mainWindow.isMaximized());
 }
 
+function powershellPath() {
+  const systemRoot = process.env.SystemRoot || process.env.windir || "C:\\Windows";
+  return path.join(systemRoot, "System32", "WindowsPowerShell", "v1.0", "powershell.exe");
+}
+
+/**
+ * Start the PandaOrchestrator model picker if port 8765 is not answering.
+ * Fully hidden: no console flashes, its output goes to ~/.or/panda/panda.log.
+ * The router works without it (it falls back to its own ordering), so a failure
+ * here is logged and ignored.
+ */
+function ensurePandaOrchestrator() {
+  const script = [
+    "$ErrorActionPreference='SilentlyContinue';",
+    `if (-not (Get-NetTCPConnection -LocalPort ${PANDA_PORT} -State Listen)) {`,
+    `  if (Test-Path '${PANDA_SERVE}') {`,
+    `    $env:PANDA_ROUTER_ARTIFACTS='${PANDA_ARTIFACTS}';`,
+    `    $env:PANDA_ROUTER_DB='${path.join(PANDA_HOME, "router_log.sqlite")}';`,
+    `    Start-Process -FilePath '${PANDA_SERVE}' -ArgumentList '--port','${PANDA_PORT}','--db','${path.join(PANDA_HOME, "router_log.sqlite")}' -WindowStyle Hidden -RedirectStandardOutput '${PANDA_LOG}' -RedirectStandardError '${PANDA_ERR_LOG}'`,
+    "  }",
+    "}",
+  ].join(" ");
+  try {
+    fs.mkdirSync(PANDA_HOME, { recursive: true });
+    const child = spawn(powershellPath(), ["-NoProfile", "-ExecutionPolicy", "Bypass", "-WindowStyle", "Hidden", "-Command", script], {
+      detached: true,
+      stdio: "ignore",
+      windowsHide: true,
+    });
+    child.on("error", () => {});
+    child.unref();
+  } catch {}
+}
+
+// A visible terminal that follows one of the background services' logs.
+function openConsoleWindow(file, title) {
+  const script = [
+    `$Host.UI.RawUI.WindowTitle='${title}';`,
+    `if (Test-Path '${file}') { Get-Content '${file}' -Tail 300 -Wait } else { 'No log yet at ${file}' }`,
+  ].join(" ");
+  const child = spawn(powershellPath(), ["-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", script], {
+    detached: true,
+    stdio: "ignore",
+    windowsHide: false,
+  });
+  child.on("error", () => {});
+  child.unref();
+}
+
+function showMainWindow() {
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    createWindow();
+    return;
+  }
+  mainWindow.show();
+  mainWindow.focus();
+}
+
+function buildTrayMenu() {
+  return Menu.buildFromTemplate([
+    { label: "Open OriginRouter (GUI)", click: showMainWindow },
+    { label: "Open Gateway Console (log)", click: () => openConsoleWindow(ROUTER_LOG, "OriginRouter gateway console") },
+    { label: "Open Panda Orchestrator Console (log)", click: () => openConsoleWindow(PANDA_LOG, "PandaOrchestrator console") },
+    { label: "Restart Panda Orchestrator", click: ensurePandaOrchestrator },
+    { type: "separator" },
+    { label: "Check for Updates", click: () => shell.openExternal(`${REPO_URL}/releases/latest`) },
+    { label: "Hide Window (keep running)", click: () => mainWindow?.hide() },
+    { type: "separator" },
+    { label: "Quit OriginRouter", click: () => { quitting = true; app.quit(); } },
+  ]);
+}
+
+function createTray() {
+  if (tray) return;
+  try {
+    // An empty image would make the tray entry invisible, and then a hidden
+    // window with no way back would look exactly like a process that cannot be
+    // closed. Try the .ico, then the .png, and only fall back to a text-less
+    // icon after both fail.
+    let image = nativeImage.createFromPath(TRAY_ICON_PATH);
+    if (image.isEmpty()) image = nativeImage.createFromPath(ICON_PATH);
+    if (image.isEmpty()) {
+      tray = null;
+      return;
+    }
+    tray = new Tray(image.resize({ width: 16, height: 16 }));
+    tray.setToolTip("OriginRouter — gateway running");
+    tray.setContextMenu(buildTrayMenu());
+    tray.on("double-click", showMainWindow);
+  } catch {
+    tray = null;
+  }
+}
+
+// Tell the user once where the app went, so hiding on close is never mistaken
+// for a stuck process.
+function notifyHiddenOnce() {
+  if (!tray) return;
+  try {
+    tray.displayBalloon({
+      title: "OriginRouter is still running",
+      content: "Minimised to the tray. Right-click the tray icon to open the gateway, its logs, or to Quit.",
+      iconType: "info",
+    });
+  } catch {}
+}
+
 function registerWindowControls() {
   const windowFor = (event) => BrowserWindow.fromWebContents(event.sender);
 
@@ -191,7 +325,19 @@ function createWindow() {
     },
   });
 
-  mainWindow.on("close", saveBounds);
+  // Closing the window hides it: the gateway and the orchestrator keep running
+  // in the tray, and both consoles stay reachable from the tray menu.
+  mainWindow.on("close", (event) => {
+    saveBounds();
+    if (!quitting && tray) {
+      event.preventDefault();
+      mainWindow.hide();
+      notifyHiddenOnce();
+    }
+  });
+  app.on("before-quit", () => { quitting = true; });
+  createTray();
+  ensurePandaOrchestrator();
   mainWindow.on("maximize", sendMaximizedState);
   mainWindow.on("unmaximize", sendMaximizedState);
   mainWindow.on("restore", sendMaximizedState);

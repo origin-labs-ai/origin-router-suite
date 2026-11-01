@@ -1,7 +1,16 @@
-import { getCapabilitiesForModel } from "open-sse/providers/capabilities.js";
 import { PROVIDER_ID_TO_ALIAS } from "@/shared/constants/models";
+import { getModelsByProviderId } from "open-sse/config/providerModels.js";
 import { ALIAS_TO_ID } from "@/shared/constants/providers";
-import { ensureMaxContextWindow } from "@/lib/contextLimits";
+import { MAX_CONTEXT_WINDOW } from "@/lib/contextLimits";
+
+// Owner-raised ceilings are passed in by the server routes (from
+// ~/.or/context-ceilings.json). This module stays importable from the dashboard
+// bundle, so it must not touch node:fs or the catalog cache module.
+let injectedOverrides = {};
+
+export function setContextCeilingOverrides(map) {
+  injectedOverrides = map && typeof map === "object" ? map : {};
+}
 
 // Combo seats are written with UI aliases (cc, oc, kr, …) while the capability
 // tables are keyed by provider id (claude, opencode, kiro, …). Same mapping the
@@ -20,6 +29,37 @@ function seatsOf(comboOrModels) {
 }
 
 /**
+ * A context window someone actually DECLARED for this exact model.
+ *
+ * Three sources count as evidence: the owner's ceiling override and a declared
+ * number in the static provider registry. The capability table is deliberately
+ * excluded: for models it has never seen it falls back to a name heuristic (`deepseek*` → 128K, an unknown `-free` card → 200K), and using that
+ * guess as a hard ceiling blocked perfectly good 1M seats from joining a combo.
+ * No evidence means unknown, and unknown is allowed through.
+ */
+export function declaredContextWindow(providerId, model) {
+  const overrides = injectedOverrides;
+  const explicit = Number(
+    overrides[`${providerId}/${model}`] ?? overrides[model] ?? overrides[`${providerId}/${model}`.toLowerCase()],
+  );
+  if (Number.isFinite(explicit) && explicit > 0) {
+    return Math.min(explicit, MAX_CONTEXT_WINDOW);
+  }
+
+  if (providerId) {
+    try {
+      const entry = (getModelsByProviderId(providerId) || []).find((m) => m.id === model);
+      const registryWindow = Number(entry?.contextWindow ?? entry?.caps?.contextWindow);
+      if (Number.isFinite(registryWindow) && registryWindow > 0) {
+        return Math.min(registryWindow, MAX_CONTEXT_WINDOW);
+      }
+    } catch { /* provider has no static list */ }
+  }
+
+  return null;
+}
+
+/**
  * Declared context window for one combo seat, in tokens.
  *
  * A seat is either `alias/model` or the name of another combo (nested combo).
@@ -35,14 +75,13 @@ function seatsOf(comboOrModels) {
 export function resolveSeatContextWindow(seat, combosByName, visiting = new Set()) {
   if (typeof seat !== "string" || !seat) return null;
 
-  const lookup = (name) => {
-    if (!combosByName) return null;
-    if (typeof combosByName.get === "function") return combosByName.get(name) ?? null;
-    return combosByName[name] ?? null;
-  };
-
   const slash = seat.indexOf("/");
   if (slash <= 0) {
+    const lookup = (name) => {
+      if (!combosByName) return null;
+      if (typeof combosByName.get === "function") return combosByName.get(name) ?? null;
+      return combosByName[name] ?? null;
+    };
     const nested = lookup(seat);
     if (nested) {
       if (visiting.has(seat)) return null;
@@ -58,20 +97,20 @@ export function resolveSeatContextWindow(seat, combosByName, visiting = new Set(
       }
       return Number.isFinite(smallest) ? smallest : null;
     }
-    const caps = getCapabilitiesForModel(null, seat);
-    return Number.isFinite(caps?.contextWindow) ? ensureMaxContextWindow(caps.contextWindow) : null;
+    // A bare model name: only a declared registry/catalog number counts.
+    return declaredContextWindow(null, seat);
   }
 
   const alias = seat.slice(0, slash);
   const providerId = ALIAS_TO_PROVIDER_ID[alias] || alias;
-  const caps = getCapabilitiesForModel(providerId, seat.slice(slash + 1));
-  return Number.isFinite(caps?.contextWindow) ? ensureMaxContextWindow(caps.contextWindow) : null;
+  const model = seat.slice(slash + 1);
+  return declaredContextWindow(providerId, model) ?? declaredContextWindow(alias, model);
 }
 
 /**
- * Seats that cannot honour `limit`. Unknown windows are allowed through — the
- * catalog is incomplete by design and blocking on a guess would be worse than
- * letting the request fail upstream.
+ * Seats that cannot honour `limit`, judged only on declared numbers.
+   Unknown windows are allowed through — the catalog is incomplete by design and
+   blocking on a name heuristic would punish the owner for our missing data.
  *
  * @param {string[]} seats
  * @param {number} limit

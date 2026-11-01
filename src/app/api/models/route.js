@@ -5,12 +5,24 @@ import { AI_MODELS } from "@/shared/constants/config";
 import { getProviderAlias, ALIAS_TO_ID } from "@/shared/constants/providers";
 import { getCapabilitiesForModel } from "open-sse/providers/capabilities.js";
 import { ensureMaxContextWindow } from "@/lib/contextLimits";
+import { declaredContextWindow } from "@/lib/comboContext";
+import { applyContextCeilings } from "@/lib/contextCeilings";
 
 // GET /api/models - Get models with aliases
 export async function GET() {
   try {
     const modelAliases = await getModelAliases();
     const disabled = await getDisabledModels();
+    // Owner-declared ceilings (~/.or/context-ceilings.json) win over the name
+    // heuristic, and `contextDeclared` tells the UI the difference so a guess is
+    // never shown as if it were the model's hardware limit.
+    applyContextCeilings();
+    const windowFor = (alias, providerId, model, fallback) => {
+      const declared = declaredContextWindow(alias, model) ?? declaredContextWindow(providerId, model);
+      return declared != null
+        ? { contextWindow: ensureMaxContextWindow(declared), contextDeclared: true }
+        : { contextWindow: ensureMaxContextWindow(fallback), contextDeclared: false };
+    };
 
     const models = AI_MODELS
       .filter((m) => {
@@ -23,6 +35,7 @@ export async function GET() {
         const providerAlias = getProviderAlias(m.provider) || m.provider;
         const routedModel = `${providerAlias}/${m.model}`;
         const c = getCapabilitiesForModel(m.provider, m.model);
+        const win = windowFor(m.provider, m.provider, m.model, c.contextWindow);
         return {
           ...m,
           fullModel,
@@ -32,7 +45,8 @@ export async function GET() {
             vision: c.vision,
             search: c.search,
             reasoning: c.reasoning,
-            contextWindow: ensureMaxContextWindow(c.contextWindow),
+            contextWindow: win.contextWindow,
+            contextDeclared: win.contextDeclared,
             maxOutput: c.maxOutput,
           },
         };
@@ -58,6 +72,7 @@ export async function GET() {
       const fullModel = `${m.providerAlias}/${m.id}`;
       const providerId = ALIAS_TO_ID[m.providerAlias] || m.providerAlias;
       const c = getCapabilitiesForModel(providerId, m.id);
+      const win = windowFor(m.providerAlias, providerId, m.id, m.caps?.contextWindow ?? c.contextWindow);
       models.push({
         provider: m.providerAlias,
         model: m.id,
@@ -71,7 +86,8 @@ export async function GET() {
           reasoning: c.reasoning,
           maxOutput: c.maxOutput,
           ...(m.caps || {}),
-          contextWindow: ensureMaxContextWindow((m.caps || {}).contextWindow ?? c.contextWindow),
+          contextWindow: win.contextWindow,
+          contextDeclared: win.contextDeclared,
         },
       });
     }

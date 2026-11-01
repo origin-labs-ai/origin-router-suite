@@ -89,6 +89,7 @@ const DEFAULT_SETTINGS = {
     failoverDeadlineMs: 150000,
     degradeCooldownMs: 45000,
     trimOnPromptCap: false,
+    midStreamSilent: true,
     lastResort: "respond",
     panda: {
       enabled: true,

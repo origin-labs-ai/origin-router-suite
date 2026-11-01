@@ -56,6 +56,22 @@ export function taskTextFrom(body) {
   return text.slice(0, TEXT_CAP);
 }
 
+/**
+ * Shuffle only the head of a ranked list; the tail keeps Panda's order.
+ * @param {Array} ranked
+ * @param {number} k
+ */
+function spreadWithinTopK(ranked, k = 1) {
+  const head = Math.max(1, Number(k) || 1);
+  if (ranked.length <= head) return ranked;
+  const top = ranked.slice(0, head);
+  for (let i = top.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [top[i], top[j]] = [top[j], top[i]];
+  }
+  return [...top, ...ranked.slice(head)];
+}
+
 function hasImages(body) {
   const raw = (() => {
     try {
@@ -150,7 +166,12 @@ async function route({ candidates, body, policy, log }) {
     const response = await call("/route", request, policy);
     const seen = new Set();
     const ordered = [];
-    for (const entry of [...(response.escalation_ladder || []), ...(response.ranking || [])]) {
+    // Best first, then the ladder. Panda's escalation_ladder deliberately opens
+    // with the cheap-but-safe seat (it assumes the caller verifies and retries),
+    // and using that order here burned the first attempts of every agent on weak
+    // seats. The ranking is already ordered by the chosen mode, so it drives the
+    // walk; the ladder still contributes any seat the ranking left out.
+    for (const entry of [...(response.ranking || []), ...(response.escalation_ladder || [])]) {
       const key = keyOf.get(entry.model_id);
       if (!key || seen.has(key)) continue;
       seen.add(key);
@@ -160,9 +181,12 @@ async function route({ candidates, body, policy, log }) {
     // Anything Panda did not recognise (no card for it) keeps its original place
     // at the end rather than being dropped: it is still a seat worth trying.
     const rest = candidates.filter((item) => !seen.has(item.key));
+    // Pick at random inside the top-K instead of always the single best: that is
+    // what spreads a fleet over the good seats without dropping to the weak ones.
+    const spread = spreadWithinTopK(ordered, policy.panda.pickFromTopK);
     log?.debug?.("PANDA", `ranked ${ordered.length}/${candidates.length} (difficulty=${response.difficulty?.level ?? "?"}, category=${response.category?.label ?? "?"}, trace=${response.trace_id})`);
     return {
-      ordered: [...ordered, ...rest],
+      ordered: [...spread, ...rest],
       ranked: ordered.map((item) => ({ key: item.key, p: item.panda?.p_success, cost: item.panda?.est_cost_usd })),
       traceId: response.trace_id || null,
       difficulty: response.difficulty || null,

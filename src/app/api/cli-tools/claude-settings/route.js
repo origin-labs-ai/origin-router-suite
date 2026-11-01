@@ -161,6 +161,22 @@ export async function POST(request) {
       delete env.ANTHROPIC_AUTH_TOKEN;
     }
 
+    // Claude Code's own request budget. The router keeps a turn open while it
+    // walks providers, so the client must not time out first (2h, matching the
+    // router's stream stall/first-token limits). Every other timeout knob gets
+    // the same ceiling so no long command, MCP call or tool run dies early.
+    const CLAUDE_TIMEOUT_MS = "7200000";
+    const timeoutKeys = [
+      "API_TIMEOUT_MS",
+      "BASH_DEFAULT_TIMEOUT_MS",
+      "BASH_MAX_TIMEOUT_MS",
+      "MCP_TIMEOUT",
+      "MCP_TOOL_TIMEOUT",
+    ];
+    for (const key of timeoutKeys) {
+      if (!env[key] && !currentSettings.env?.[key]) env[key] = CLAUDE_TIMEOUT_MS;
+    }
+
     // Merge new env with existing settings
     const newSettings = {
       ...currentSettings,

@@ -110,9 +110,9 @@ export default function DefaultToolCard({ toolId, tool, isExpanded, onToggle, ba
           const isWarning = note.type === "warning";
           const isError = note.type === "cloudCheck" && !cloudEnabled && !tunnelEnabled;
           
-          let bgClass = "bg-blue-500/10 border-blue-500/30";
-          let textClass = "text-blue-600 dark:text-blue-400";
-          let iconClass = "text-blue-500";
+          let bgClass = "bg-[#2B7FFF]/10 border-[#2B7FFF]/30";
+          let textClass = "text-[#1a66e6] dark:text-[#2B7FFF]";
+          let iconClass = "text-[#2B7FFF]";
           let icon = "info";
           
           if (isWarning) {

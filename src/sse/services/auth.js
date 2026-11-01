@@ -4,6 +4,8 @@ import { formatRetryAfter, checkFallbackError, isModelLockActive, buildModelLock
 import { MAX_RATE_LIMIT_COOLDOWN_MS } from "open-sse/config/errorConfig.js";
 import { resolveProviderId, FREE_PROVIDERS } from "@/shared/constants/providers.js";
 import { getAntigravityQuotaCache, getAntigravityModelQuota } from "./antigravityQuota.js";
+import { rankByLoad, connectionLoad } from "./inflight.js";
+import { resolveRoutingPolicy } from "@/lib/routingPolicy";
 import * as log from "../utils/logger.js";
 
 // Mutex to prevent race conditions during account selection
@@ -143,7 +145,13 @@ export async function getProviderCredentials(provider, excludeConnectionIds = nu
     const settings = await getSettings();
     // Per-provider strategy overrides global setting
     const providerOverride = (settings.providerStrategies || {})[providerId] || {};
-    const strategy = providerOverride.fallbackStrategy || settings.fallbackStrategy || "fill-first";
+    // Default is load-aware: with several agents running at once, fill-first kept
+    // handing every one of them the same credential, and the upstream answered
+    // the stampede with parallel-request limits or simply stopped replying.
+    // Least-loaded spreads the fleet over the connections that are actually free.
+    const strategy = providerOverride.fallbackStrategy
+      || settings.fallbackStrategy
+      || (resolveRoutingPolicy(settings).enabled ? "least-loaded" : "fill-first");
 
     let connection;
     // Pin to preferred connection if specified and available
@@ -192,6 +200,18 @@ export async function getProviderCredentials(provider, excludeConnectionIds = nu
         await updateProviderConnection(connection.id, {
           lastUsedAt: new Date().toISOString(),
           consecutiveUseCount: 1
+        });
+      }
+    } else if (strategy === "least-loaded") {
+      const cap = resolveRoutingPolicy(settings).perConnectionConcurrency;
+      const ranked = rankByLoad(availableConnections, cap);
+      connection = ranked[0];
+      const busy = connection ? connectionLoad(connection.id) : 0;
+      if (connection) {
+        log.debug("AUTH", `${provider} | least-loaded pick ${connection.id?.slice(0, 8)} (inflight=${busy}, cap=${cap}) of ${ranked.length}`);
+        await updateProviderConnection(connection.id, {
+          lastUsedAt: new Date().toISOString(),
+          consecutiveUseCount: (connection.consecutiveUseCount || 0) + 1,
         });
       }
     } else {

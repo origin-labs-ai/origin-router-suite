@@ -6,7 +6,7 @@ import { Card } from "@/shared/components";
 
 // Derive simple connected/configured/not-installed status from API payload
 function getStatus(status, tool) {
-  if (tool?.configType === "guide") return { label: "Guide", cls: "bg-blue-500/10 text-blue-600 dark:text-blue-400" };
+  if (tool?.configType === "guide") return { label: "Guide", cls: "bg-[#2B7FFF]/10 text-[#1a66e6] dark:text-[#2B7FFF]" };
   if (!status) return { label: "Unknown", cls: "bg-gray-500/10 text-gray-500" };
   if (!status.installed) return { label: "Not installed", cls: "bg-gray-500/10 text-gray-500" };
   if (status.hasOriginRouter) return { label: "Connected", cls: "bg-green-500/10 text-green-600 dark:text-green-400" };

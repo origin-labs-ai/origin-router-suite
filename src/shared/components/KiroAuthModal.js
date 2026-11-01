@@ -359,7 +359,7 @@ export default function KiroAuthModal({ isOpen, onMethodSelect, onClose }) {
           <div className="space-y-4">
             <div className="bg-blue-50 dark:bg-blue-900/20 p-3 rounded-lg border border-blue-200 dark:border-blue-800">
               <div className="flex gap-2">
-                <span className="material-symbols-outlined text-blue-600 dark:text-blue-400">info</span>
+                <span className="material-symbols-outlined text-[#1a66e6] dark:text-[#2B7FFF]">info</span>
                 <p className="text-sm text-blue-800 dark:text-blue-200">
                   Paste a long-lived Kiro/CodeWhisperer API key. It is validated
                   against AWS and stored directly as a bearer credential (no refresh).
@@ -504,7 +504,7 @@ export default function KiroAuthModal({ isOpen, onMethodSelect, onClose }) {
                 {!autoDetected && !error && (
                   <div className="bg-blue-50 dark:bg-blue-900/20 p-3 rounded-lg border border-blue-200 dark:border-blue-800">
                     <div className="flex gap-2">
-                      <span className="material-symbols-outlined text-blue-600 dark:text-blue-400">info</span>
+                      <span className="material-symbols-outlined text-[#1a66e6] dark:text-[#2B7FFF]">info</span>
                       <p className="text-sm text-blue-800 dark:text-blue-200">
                         Kiro IDE not detected. Please paste your refresh token manually.
                       </p>
@@ -548,7 +548,7 @@ export default function KiroAuthModal({ isOpen, onMethodSelect, onClose }) {
           <div className="space-y-4">
             <div className="bg-blue-50 dark:bg-blue-900/20 p-3 rounded-lg border border-blue-200 dark:border-blue-800">
               <div className="flex gap-2">
-                <span className="material-symbols-outlined text-blue-600 dark:text-blue-400">info</span>
+                <span className="material-symbols-outlined text-[#1a66e6] dark:text-[#2B7FFF]">info</span>
                 <p className="text-sm text-blue-800 dark:text-blue-200">
                   Paste the Kiro CLIProxyAPI auth JSON containing auth_method=external_idp. Only Microsoft login token endpoints are accepted.
                 </p>

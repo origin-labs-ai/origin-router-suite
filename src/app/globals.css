@@ -8,21 +8,21 @@
 .fonts-loaded .material-symbols-outlined { opacity: 1; transition: opacity .12s ease-out; }
 
 /* ============================================================
-   OriginRouter palette — adopted from 9remote_private/web
-   Brand orange (dark) / soft coral (light), neutral warm bases
+   OriginRouter palette — brand blue rgb(43, 127, 255)
+   Neutral grey surfaces are intentionally unchanged.
    ============================================================ */
 :root {
-  /* Brand scale (light) - centered on #E56A4A */
-  --color-brand-50: #fdf1ed;
-  --color-brand-100: #fadccf;
-  --color-brand-200: #f4b59c;
-  --color-brand-300: #ee8d6a;
-  --color-brand-400: #ea7855;
-  --color-brand-500: #E56A4A;
-  --color-brand-600: #cc5236;
-  --color-brand-700: #a64027;
-  --color-brand-800: #7a2f1d;
-  --color-brand-900: #4d1e12;
+  /* Brand scale (light) - centered on #2B7FFF */
+  --color-brand-50: #eff5ff;
+  --color-brand-100: #dbeafe;
+  --color-brand-200: #bfdbfe;
+  --color-brand-300: #93c5fd;
+  --color-brand-400: #5a9eff;
+  --color-brand-500: #2B7FFF;
+  --color-brand-600: #1a66e6;
+  --color-brand-700: #1552b8;
+  --color-brand-800: #15448f;
+  --color-brand-900: #143a75;
 
   /* Primary (legacy alias for backward compat with existing components) */
   --color-primary: var(--color-brand-500);
@@ -50,7 +50,7 @@
   --color-danger: #cf222e;
   --color-success: #10B981;
   --color-warning: #F59E0B;
-  --color-info: #3B82F6;
+  --color-info: #2B7FFF;
 
   /* Radius */
   --radius-brand: 10px;
@@ -58,32 +58,32 @@
 
   /* Shadows */
   --shadow-soft: 0 1px 2px 0 rgba(0,0,0,0.04);
-  --shadow-warm: 0 2px 12px -2px rgba(229, 106, 74, 0.18);
+  --shadow-warm: 0 2px 12px -2px rgba(43, 127, 255, 0.18);
   --shadow-elevated: 0 12px 28px -4px rgba(60, 50, 45, 0.06);
   --shadow-elev:
     inset 0 1px 0 0 rgba(255,255,255,0.8),
     0 1px 2px rgba(15,23,42,0.04),
     0 12px 36px -8px rgba(15,23,42,0.10);
-  --shadow-focus: 0 0 0 3px rgba(229,106,74,0.18);
+  --shadow-focus: 0 0 0 3px rgba(43,127,255,0.18);
 
   color-scheme: light;
 }
 
 .dark {
-  /* Brand scale (dark) - centered on #E56A4A, same as light for consistency */
-  --color-brand-50: #fdf1ed;
-  --color-brand-100: #fadccf;
-  --color-brand-200: #f4b59c;
-  --color-brand-300: #ee8d6a;
-  --color-brand-400: #ea7855;
-  --color-brand-500: #E56A4A;
-  --color-brand-600: #cc5236;
-  --color-brand-700: #a64027;
-  --color-brand-800: #7a2f1d;
-  --color-brand-900: #4d1e12;
+  /* Brand scale (dark) - centered on #2B7FFF, same as light for consistency */
+  --color-brand-50: #eff5ff;
+  --color-brand-100: #dbeafe;
+  --color-brand-200: #bfdbfe;
+  --color-brand-300: #93c5fd;
+  --color-brand-400: #5a9eff;
+  --color-brand-500: #2B7FFF;
+  --color-brand-600: #1a66e6;
+  --color-brand-700: #1552b8;
+  --color-brand-800: #15448f;
+  --color-brand-900: #143a75;
 
-  --color-primary: #E56A4A;
-  --color-primary-hover: #cc5236;
+  --color-primary: #2B7FFF;
+  --color-primary-hover: #5a9eff;
 
   /* Surfaces (dark - Claude-like neutral warm) */
   --color-bg: #1a1a1a;
@@ -104,10 +104,10 @@
   --color-danger: #ef4444;
   --color-success: #22c55e;
   --color-warning: #fbbf24;
-  --color-info: #60a5fa;
+  --color-info: #5a9eff;
 
   --shadow-soft: 0 1px 2px 0 rgba(0,0,0,0.3);
-  --shadow-warm: 0 2px 12px -2px rgba(229, 106, 74, 0.25);
+  --shadow-warm: 0 2px 12px -2px rgba(43, 127, 255, 0.25);
   --shadow-elevated: 0 12px 28px -4px rgba(0, 0, 0, 0.45);
   --shadow-elev:
     inset 0 1px 0 0 rgba(255,255,255,0.06),
@@ -726,4 +726,125 @@ button:disabled,
   transform: translate(-1px, -1px);
   box-shadow: 2px 2px 0 0 var(--or-edge-strong);
   border-color: var(--or-edge-strong);
+}
+
+/* ── Desktop window chrome ─────────────────────────────────────────────────
+   The Electron build is frameless. These controls are rendered only when the
+   preload bridge exists; the web build never sees them. The bar auto-hides and
+   comes back when the pointer reaches the top edge. */
+/* Chromix-style frame: 8px of window ground on every side, then one hairline
+   around the page. No corner is left open, so the boundary stays legible even
+   while the caption strip is hidden. */
+html.or-desktop body:has(.or-app-shell) {
+  height: 100vh;
+  box-sizing: border-box;
+  padding: 8px;
+  overflow: hidden;
+  background: #1b1b1b;
+}
+html.or-desktop .or-app-shell {
+  height: 100%;
+  min-height: 0;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 10px;
+  overflow: hidden;
+  padding-top: var(--or-titlebar-offset, 0px);
+  transition: padding-top 180ms cubic-bezier(.2,.8,.2,1);
+}
+
+/* The caption strip lives inside the frame. It is a closed 32px box: its side
+   borders run down from the top edge and its bottom border is the line the
+   content starts beneath. */
+.or-titlebar-reveal {
+  position: fixed;
+  inset: 0 0 auto 0;
+  z-index: 129;
+  height: 10px;
+  -webkit-app-region: no-drag;
+}
+.or-titlebar {
+  position: fixed;
+  top: 8px;
+  left: 8px;
+  right: 8px;
+  z-index: 130;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 32px;
+  padding: 0 8px 0 10px;
+  background: rgba(23, 23, 23, 0.72);
+  backdrop-filter: blur(22px) saturate(1.25);
+  border: 0;
+  border-radius: 9px 9px 0 0;
+  color: rgba(255, 255, 255, 0.72);
+  pointer-events: auto;
+  -webkit-app-region: drag;
+  -webkit-user-select: none;
+  user-select: none;
+  transition: transform 180ms cubic-bezier(.2,.8,.2,1), opacity 180ms ease;
+}
+.or-titlebar-brand {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.025em;
+  color: rgba(255, 255, 255, 0.74);
+}
+.or-titlebar-mark {
+  width: 16px;
+  height: 16px;
+  flex: none;
+  border-radius: 4px;
+}
+.or-titlebar-visible {
+  transform: translateY(0);
+  opacity: 1;
+}
+.or-titlebar-hidden {
+  transform: translateY(-100%);
+  opacity: 0;
+  pointer-events: none;
+}
+.or-titlebar-controls {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  -webkit-app-region: no-drag;
+}
+/* Chromix controls: 28x22, 6px radius, flat at rest, a translucent plate on
+   hover, and a quarter-turn press. */
+.or-titlebar-btn {
+  display: inline-flex;
+  width: 32px;
+  height: 22px;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.62);
+  cursor: default;
+  outline: none;
+  transition: background-color 100ms ease, color 100ms ease, transform 90ms ease;
+}
+.or-titlebar-btn:hover {
+  background: rgba(237, 237, 237, 0.16);
+  color: #f5f5f5;
+}
+.or-titlebar-btn:active {
+  transform: scale(0.94);
+  background: rgba(237, 237, 237, 0.22);
+}
+.or-titlebar-close:hover {
+  background: rgba(232, 17, 35, 0.22);
+  color: #ffffff;
+}
+.or-titlebar-close:active {
+  background: rgba(232, 17, 35, 0.34);
+  color: #ffffff;
 }

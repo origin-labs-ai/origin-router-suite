@@ -6,11 +6,11 @@ const FEATURES = [
     title: "Unified Endpoint", 
     desc: "Access all providers via a single standard API URL.", 
     colors: {
-      border: "hover:border-blue-500/50",
-      bg: "hover:bg-blue-500/5",
-      iconBg: "bg-blue-500/10",
-      iconText: "text-blue-500",
-      titleHover: "group-hover:text-blue-400"
+      border: "hover:border-[#2B7FFF]/50",
+      bg: "hover:bg-[#2B7FFF]/5",
+      iconBg: "bg-[#2B7FFF]/10",
+      iconText: "text-[#2B7FFF]",
+      titleHover: "group-hover:text-[#2B7FFF]"
     }
   },
   { 
@@ -18,11 +18,11 @@ const FEATURES = [
     title: "Easy Setup", 
     desc: "Get up and running in minutes with npx command.", 
     colors: {
-      border: "hover:border-orange-500/50",
-      bg: "hover:bg-orange-500/5",
-      iconBg: "bg-orange-500/10",
-      iconText: "text-orange-500",
-      titleHover: "group-hover:text-orange-400"
+      border: "hover:border-[#2B7FFF]/50",
+      bg: "hover:bg-[#2B7FFF]/5",
+      iconBg: "bg-[#2B7FFF]/10",
+      iconText: "text-[#2B7FFF]",
+      titleHover: "group-hover:text-[#5a9eff]"
     }
   },
   { 
@@ -114,7 +114,7 @@ export default function Features() {
           {FEATURES.map((feature) => (
             <div 
               key={feature.title}
-              className={`p-6 rounded-xl bg-[#23180f] border border-[#3a2f27] ${feature.colors.border} ${feature.colors.bg} transition-all duration-300 group`}
+              className={`p-6 rounded-xl bg-[#232323] border border-[#3a3a3a] ${feature.colors.border} ${feature.colors.bg} transition-all duration-300 group`}
             >
               <div className={`w-10 h-10 rounded-lg ${feature.colors.iconBg} flex items-center justify-center mb-4 ${feature.colors.iconText} group-hover:scale-110 transition-transform duration-300`}>
                 <span className="material-symbols-outlined">{feature.icon}</span>

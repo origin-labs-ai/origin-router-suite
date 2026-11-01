@@ -112,12 +112,35 @@ function resolveStandaloneBuild(appDir, buildDistDir) {
 
 function copyStandaloneBuild(appDir, buildDistDir, cliAppDir) {
   const { standaloneApp, standaloneRoot } = resolveStandaloneBuild(appDir, buildDistDir);
-  copyRecursive(standaloneApp, cliAppDir);
+
+  // Latest Next copies the whole project root into standalone when the tracing
+  // root is the project. Only these entries are needed at runtime; copying the
+  // rest leaks dist/, cli/ and local .devdata databases into the installer.
+  const keepFiles = new Set(["server.js", "package.json"]);
+  // The dist dir and public/ are copied separately from the real build below;
+  // copying the standalone copies hits Windows path-length limits.
+  const keepDirs = new Set(["node_modules"]);
+  for (const entry of fs.readdirSync(standaloneApp, { withFileTypes: true })) {
+    if (entry.isDirectory() ? keepDirs.has(entry.name) : keepFiles.has(entry.name)) {
+      fs.cpSync(path.join(standaloneApp, entry.name), path.join(cliAppDir, entry.name), { recursive: true, force: true });
+    }
+  }
 
   // Older nested-app layout stores traced node_modules at standalone root.
   const standaloneNodeModules = path.join(standaloneRoot, "node_modules");
   if (standaloneApp !== standaloneRoot && fs.existsSync(standaloneNodeModules)) {
-    copyRecursive(standaloneNodeModules, path.join(cliAppDir, "node_modules"));
+    fs.cpSync(standaloneNodeModules, path.join(cliAppDir, "node_modules"), { recursive: true, force: true });
+  }
+
+  // Next's traced node_modules is pruned; production server.js needs the full
+  // `next` package and its direct runtime dependencies.
+  const runtimeModules = ["next", "@next/env", "@swc/helpers", "baseline-browser-mapping", "caniuse-lite", "postcss", "styled-jsx"];
+  for (const moduleName of runtimeModules) {
+    const source = path.join(appDir, "node_modules", moduleName);
+    if (!fs.existsSync(source)) continue;
+    const destination = path.join(cliAppDir, "node_modules", moduleName);
+    fs.mkdirSync(path.dirname(destination), { recursive: true });
+    fs.cpSync(source, destination, { recursive: true, force: true });
   }
 }
 
@@ -155,6 +178,13 @@ function buildCliPackage() {
   fs.mkdirSync(path.join(buildHomeDir, "AppData", "Roaming"), { recursive: true });
   fs.mkdirSync(path.join(buildHomeDir, "AppData", "Local"), { recursive: true });
 
+  // Next traces the project tree during the build. Remove the previous bundle
+  // first, otherwise a polluted/nested cli/app gets traced back into the new
+  // standalone output and every rebuild doubles in size.
+  if (fs.existsSync(cliAppDir)) {
+    fs.rmSync(cliAppDir, { recursive: true, force: true });
+  }
+
   // Step 0: Sync version from app/cli/package.json to app/package.json
   console.log("0️⃣  Syncing version to app/package.json...");
   const cliPkg = JSON.parse(fs.readFileSync(path.join(cliDir, "package.json"), "utf8"));
@@ -181,7 +211,10 @@ function buildCliPackage() {
         APPDATA: path.join(buildHomeDir, "AppData", "Roaming"),
         LOCALAPPDATA: path.join(buildHomeDir, "AppData", "Local"),
         NEXT_DIST_DIR: buildDistDirName,
-        NEXT_TRACING_ROOT_MODE: "workspace",
+        // Keep tracing at the project root. The previous "workspace" mode put
+        // the standalone bundle under standalone/9router and copied unrelated
+        // project folders (cli/, dist/, .devdata/) into the release.
+        NEXT_TRACING_ROOT_MODE: "project",
       }
     });
     console.log("✅ Next.js build completed\n");
@@ -203,6 +236,16 @@ function buildCliPackage() {
   console.log("3️⃣  Copying Next.js standalone build to app/cli/app...");
   try {
     copyStandaloneBuild(appDir, buildDistDir, cliAppDir);
+    // BUILD_ID, routes/build manifests and next-server live at the dist root;
+    // server.js refuses to boot without them.
+    fs.mkdirSync(path.join(cliAppDir, buildDistDirName), { recursive: true });
+    for (const entry of fs.readdirSync(buildDistDir, { withFileTypes: true })) {
+      if (!entry.isFile()) continue;
+      fs.copyFileSync(
+        path.join(buildDistDir, entry.name),
+        path.join(cliAppDir, buildDistDirName, entry.name),
+      );
+    }
   } catch (error) {
     console.error("❌ Next.js standalone build not found under .next/standalone");
     console.error("Expected either .next/standalone/server.js or .next/standalone/app/");
@@ -228,10 +271,6 @@ function buildCliPackage() {
   console.log("3️⃣ b Configuring SQLite drivers...");
   function ensureModuleInBundle(pkg) {
     const dest = path.join(cliAppDir, "node_modules", pkg);
-    if (fs.existsSync(dest)) {
-      console.log(`✅ ${pkg} already bundled`);
-      return;
-    }
     const candidates = [
       path.join(appDir, "node_modules", pkg),
       path.join(rootDir, "node_modules", pkg),
@@ -241,8 +280,11 @@ function buildCliPackage() {
       console.warn(`⚠️  ${pkg} not found locally — bundle will rely on node:sqlite or runtime install`);
       return;
     }
+    // Tracing often copies only package.json / a few files. Replace the pruned
+    // copy with the complete package so sql-wasm.wasm and open's dist survive.
+    if (fs.existsSync(dest)) fs.rmSync(dest, { recursive: true, force: true });
     fs.mkdirSync(path.dirname(dest), { recursive: true });
-    copyRecursive(src, dest);
+    fs.cpSync(src, dest, { recursive: true, force: true });
     console.log(`✅ Bundled ${pkg}`);
   }
   ensureModuleInBundle("sql.js");

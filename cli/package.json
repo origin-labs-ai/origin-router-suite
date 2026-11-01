@@ -3,7 +3,8 @@
   "version": "0.5.111",
   "description": "OriginRouter CLI - start and manage the OriginRouter server",
   "bin": {
-    "originrouter": "./cli.js"
+    "originrouter": "./cli.js",
+    "or": "./cli.js"
   },
   "files": [
     "cli.js",

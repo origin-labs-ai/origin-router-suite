@@ -143,7 +143,7 @@ export default function CursorAuthModal({ isOpen, onSuccess, onClose }) {
             {!autoDetected && !windowsManual && !error && (
               <div className="bg-blue-50 dark:bg-blue-900/20 p-3 rounded-lg border border-blue-200 dark:border-blue-800">
                 <div className="flex gap-2">
-                  <span className="material-symbols-outlined text-blue-600 dark:text-blue-400">info</span>
+                  <span className="material-symbols-outlined text-[#1a66e6] dark:text-[#2B7FFF]">info</span>
                   <p className="text-sm text-blue-800 dark:text-blue-200">
                     Cursor IDE not detected. Please paste your tokens manually.
                   </p>

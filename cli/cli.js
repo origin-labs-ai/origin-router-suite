@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-const { spawn, exec, execSync } = require("child_process");
+const { spawn, exec, execSync, execFileSync } = require("child_process");
 const path = require("path");
 const fs = require("fs");
 const https = require("https");
@@ -63,6 +63,7 @@ function createSpinner(text) {
 }
 
 const pkg = require("./package.json");
+const updater = require("./src/cli/updater");
 const { ensureSqliteRuntime, buildEnvWithRuntime } = require("./hooks/sqliteRuntime");
 const { ensureTrayRuntime } = require("./hooks/trayRuntime");
 const args = process.argv.slice(2);
@@ -109,14 +110,25 @@ const INSTALL_CMD_LATEST = `npm i -g ${APP_NAME}@latest --prefer-online`;
 const DEFAULT_PORT = 20128;
 const DEFAULT_HOST = "0.0.0.0";
 
-// First non-internal IPv4 — the address remote peers actually reach when bound to 0.0.0.0.
+// Prefer a real Wi-Fi/Ethernet IPv4 over VMware/VPN/link-local adapters, which
+// are often enumerated first and are not reachable from a phone on the LAN.
 function getLanIp() {
-  for (const ifaces of Object.values(os.networkInterfaces())) {
+  const candidates = [];
+  for (const [name, ifaces] of Object.entries(os.networkInterfaces())) {
+    const iface = name.toLowerCase();
     for (const i of ifaces || []) {
-      if (i.family === "IPv4" && !i.internal) return i.address;
+      if (i.family !== "IPv4" || i.internal || i.address.startsWith("169.254.")) continue;
+      let score = 0;
+      if (/vmware|vmnet|virtualbox|vbox|hyper-v|vethernet|bluetooth|tailscale|wsl/.test(iface)) score -= 10;
+      if (/wi-?fi|wlan|ethernet|eth\d|en\d/.test(iface)) score += 10;
+      if (i.address.startsWith("192.168.")) score += 4;
+      else if (i.address.startsWith("10.")) score += 3;
+      else if (i.address.startsWith("172.")) score += 2;
+      candidates.push({ address: i.address, score });
     }
   }
-  return null;
+  candidates.sort((a, b) => b.score - a.score);
+  return candidates[0]?.address || null;
 }
 
 // Local URL stays "localhost"; warn separately when bound to all interfaces (network-exposed).
@@ -192,6 +204,40 @@ if (skipUpdate && !trayMode && !process.stdin.isTTY) {
 // Always use Node.js runtime with absolute path
 const RUNTIME = process.execPath;
 
+// System32 is not always on PATH (restricted shells, some corporate setups).
+// Resolve the Windows tools this launcher needs by absolute path instead of
+// trusting `powershell`, `netstat` or `taskkill` to be findable.
+const SYSTEM_ROOT = process.env.SystemRoot || process.env.windir || "C:\\Windows";
+const WIN_TOOLS = {
+  powershell: path.join(SYSTEM_ROOT, "System32", "WindowsPowerShell", "v1.0", "powershell.exe"),
+  netstat: path.join(SYSTEM_ROOT, "System32", "netstat.exe"),
+  taskkill: path.join(SYSTEM_ROOT, "System32", "taskkill.exe"),
+};
+
+function runWinTool(file, args, options = {}) {
+  return execFileSync(file, args, {
+    windowsHide: true,
+    timeout: 5000,
+    ...options,
+  });
+}
+
+function runPowerShell(script, options = {}) {
+  return runWinTool(
+    WIN_TOOLS.powershell,
+    ["-NoProfile", "-NonInteractive", "-WindowStyle", "Hidden", "-Command", script],
+    options,
+  );
+}
+
+function killWindowsPid(pid, { force = true, tree = true } = {}) {
+  const args = [];
+  if (force) args.push("/F");
+  if (tree) args.push("/T");
+  args.push("/PID", String(pid));
+  return runWinTool(WIN_TOOLS.taskkill, args, { stdio: "ignore", timeout: 3000 });
+}
+
 // Compare semver versions: returns 1 if a > b, -1 if a < b, 0 if equal
 function compareVersions(a, b) {
   const partsA = a.split(".").map(Number);
@@ -216,7 +262,7 @@ function killByPidFile(pidFile) {
     if (!pid) return;
     try {
       if (process.platform === "win32") {
-        execSync(`taskkill /F /T /PID ${pid}`, { stdio: "ignore", windowsHide: true, timeout: 3000 });
+        killWindowsPid(pid);
       } else {
         process.kill(pid, "SIGKILL");
       }
@@ -239,8 +285,8 @@ function killCloudflaredByAppPort(appPort) {
   const pids = [];
   try {
     if (process.platform === "win32") {
-      const psCmd = `powershell -NonInteractive -WindowStyle Hidden -Command "Get-WmiObject Win32_Process -Filter 'Name=\\"cloudflared.exe\\"' | Select-Object ProcessId,CommandLine | ConvertTo-Csv -NoTypeInformation"`;
-      const output = execSync(psCmd, { encoding: "utf8", windowsHide: true, timeout: 5000 });
+      const psCmd = "Get-WmiObject Win32_Process -Filter \"Name='cloudflared.exe'\" | Select-Object ProcessId,CommandLine | ConvertTo-Csv -NoTypeInformation";
+      const output = runPowerShell(psCmd, { encoding: "utf8", timeout: 5000 });
       const lines = output.split("\n").slice(1).filter(l => l.trim());
       lines.forEach(line => {
         if (portMatchers.some(m => line.includes(m))) {
@@ -281,12 +327,8 @@ function killAllAppProcesses(appPort) {
       if (platform === "win32") {
         // Windows: use WMI to get full CommandLine (tasklist /V doesn't include it)
         try {
-          const psCmd = `powershell -NonInteractive -WindowStyle Hidden -Command "Get-WmiObject Win32_Process -Filter 'Name=\\"node.exe\\"' | Select-Object ProcessId,CommandLine | ConvertTo-Csv -NoTypeInformation"`;
-          const output = execSync(psCmd, {
-            encoding: "utf8",
-            windowsHide: true,
-            timeout: 5000
-          });
+          const psCmd = "Get-WmiObject Win32_Process -Filter \"Name='node.exe'\" | Select-Object ProcessId,CommandLine | ConvertTo-Csv -NoTypeInformation";
+          const output = runPowerShell(psCmd, { encoding: "utf8", timeout: 5000 });
           const lines = output.split("\n").slice(1).filter(l => l.trim());
           lines.forEach(line => {
             // Whitelist: real node process running originrouter/cli.js, or next-server.
@@ -339,7 +381,7 @@ function killAllAppProcesses(appPort) {
         pids.forEach(pid => {
           try {
             if (platform === "win32") {
-              execSync(`taskkill /F /PID ${pid} 2>nul`, { stdio: 'ignore', shell: true, windowsHide: true, timeout: 3000 });
+              killWindowsPid(pid, { tree: false });
             } else {
               execSync(`kill -9 ${pid} 2>/dev/null`, { stdio: 'ignore', timeout: 3000 });
             }
@@ -386,13 +428,13 @@ function killProxyByPidFile() {
 
     if (process.platform === "win32") {
       // Graceful first (lets server cleanup hosts), then force
-      try { execSync(`taskkill /T /PID ${pid}`, { stdio: "ignore", windowsHide: true, timeout: 2000 }); } catch { }
+      try { killWindowsPid(pid, { force: false }); } catch { }
       if (!waitForExit(pid, 1500)) {
-        try { execSync(`taskkill /F /T /PID ${pid}`, { stdio: "ignore", windowsHide: true, timeout: 3000 }); } catch { }
+        try { killWindowsPid(pid); } catch { }
       }
       // Last-resort: PowerShell Stop-Process (sometimes succeeds where taskkill fails on admin processes)
       if (!waitForExit(pid, 500)) {
-        try { execSync(`powershell -NonInteractive -WindowStyle Hidden -Command "Stop-Process -Id ${pid} -Force"`, { stdio: "ignore", windowsHide: true, timeout: 3000 }); } catch { }
+        try { runPowerShell(`Stop-Process -Id ${pid} -Force`, { stdio: "ignore", timeout: 3000 }); } catch { }
       }
     } else {
       // SIGTERM via cached sudo token first
@@ -416,16 +458,19 @@ function killProcessOnPort(port) {
 
       if (platform === "win32") {
         try {
-          const output = execSync(`netstat -ano | findstr :${port}`, {
-            encoding: 'utf8',
-            shell: true,
-            windowsHide: true,
-            timeout: 5000
-          }).trim();
-          const lines = output.split('\n').filter(l => l.includes('LISTENING'));
-          if (lines.length > 0) {
-            pid = lines[0].trim().split(/\s+/).pop();
-            execSync(`taskkill /F /PID ${pid} 2>nul`, { stdio: 'ignore', shell: true, windowsHide: true, timeout: 3000 });
+          const output = runWinTool(WIN_TOOLS.netstat, ["-ano"], {
+            encoding: "utf8",
+            timeout: 5000,
+          });
+          const portPattern = new RegExp(`:${port}\\s`);
+          const pids = new Set();
+          for (const line of output.split(/\r?\n/)) {
+            if (!line.includes("LISTENING") || !portPattern.test(line)) continue;
+            const candidate = line.trim().split(/\s+/).pop();
+            if (candidate && /^\d+$/.test(candidate)) pids.add(candidate);
+          }
+          for (const target of pids) {
+            try { killWindowsPid(target, { tree: false }); } catch { }
           }
         } catch (e) {
           // Port is free or error
@@ -471,6 +516,10 @@ function isRestrictedEnvironment() {
   return null;
 }
 
+// Latest GitHub release with a Windows installer. Only the installed build can
+// apply this automatically; npm/global copies keep the manual npm command.
+let pendingInstallerUpdate = null;
+
 // Check if new version available, return latest version or null
 function checkForUpdate() {
   return new Promise((resolve) => {
@@ -498,6 +547,21 @@ function checkForUpdate() {
       resolve(version);
     };
 
+    const installInfo = updater.readInstallInfo();
+    if (installInfo?.mode === "installer") {
+      updater.fetchLatestRelease(installInfo.updateRepo || "origin-labs-ai/originrouter")
+        .then((release) => {
+          if (updater.isNewer(release.version, pkg.version)) {
+            pendingInstallerUpdate = release;
+            done(release.version);
+          } else {
+            done(null);
+          }
+        })
+        .catch(() => done(null));
+      return;
+    }
+
     const req = https.get(`https://registry.npmjs.org/${pkg.name}/latest`, { timeout: 3000 }, (res) => {
       let data = "";
       res.on("data", chunk => data += chunk);
@@ -518,6 +582,36 @@ function checkForUpdate() {
     req.on("error", () => done(null));
     req.on("timeout", () => { req.destroy(); done(null); });
   });
+}
+
+const AUTO_UPDATE_DELAY_MS = 60 * 1000;
+
+async function runInstallerUpdate(release) {
+  if (!release) return false;
+  console.log(`\n⬆  Auto-updating ${pkg.version} → ${release.version}\n`);
+  updater.logLine(`auto-update ${pkg.version} -> ${release.version}`);
+  try {
+    // One release, both Inno builds: the server product always, plus the desktop
+    // window app when it is installed on this machine.
+    const channels = ["server"];
+    if (updater.desktopAppInstalled()) channels.push("desktop");
+    const staged = await updater.stageInstallers(release, channels);
+    if (staged.length === 0) throw new Error("Release has no applicable installer asset");
+    await killAllAppProcesses(port);
+    await killProcessOnPort(port);
+    updater.launchInstallerAndRestart({
+      installerPaths: staged.map((entry) => entry.installerPath),
+      installRoot: __dirname,
+      channel: channels[0],
+    });
+    updater.logLine(`installer launched (${channels.join(",")}); exiting old process`);
+    setTimeout(() => process.exit(0), 800);
+    return true;
+  } catch (error) {
+    updater.logLine(`auto-update failed: ${error.message}`);
+    console.error(`Auto-update failed: ${error.message}`);
+    return false;
+  }
 }
 
 // Open browser
@@ -744,6 +838,11 @@ function startServer(updatePromise) {
   waitServerReady(port).then(async () => {
     // Resolve parallel update check (already running); don't block server start on it.
     const latestVersion = await latestVersionPromise;
+    // Installed builds update themselves in the background. npm copies keep the
+    // explicit command so a global install is never modified without consent.
+    if (pendingInstallerUpdate && !skipUpdate) {
+      setTimeout(() => { runInstallerUpdate(pendingInstallerUpdate); }, AUTO_UPDATE_DELAY_MS).unref?.();
+    }
     // Start tray icon alongside TUI
     initTrayIcon();
 
@@ -752,9 +851,14 @@ function startServer(updatePromise) {
         const choice = await showInterfaceMenu(latestVersion);
 
         if (choice === "update") {
-          isShuttingDown = true;
           const { clearScreen } = require("./src/cli/utils/display");
           clearScreen();
+          if (pendingInstallerUpdate) {
+            isShuttingDown = true;
+            await runInstallerUpdate(pendingInstallerUpdate);
+            return;
+          }
+          isShuttingDown = true;
           console.log(`\n⬆  Update v${pkg.version} → v${latestVersion}\n`);
           console.log(`Run this after exit:\n`);
           console.log(`   \x1b[33m${INSTALL_CMD_LATEST}\x1b[0m\n`);

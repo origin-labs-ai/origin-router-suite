@@ -14,6 +14,7 @@ import { useModelCaps } from "@/shared/hooks/useModelCaps";
 import { translate } from "@/i18n/runtime";
 import { fetchSuggestedModels } from "@/shared/utils/providerModelsFetcher";
 import { getProviderCustomModelRows } from "@/shared/utils/providerCustomModels";
+import { isHiddenModelName } from "@/shared/utils/modelDisplayName";
 import ModelRow from "./ModelRow";
 import PassthroughModelsSection from "./PassthroughModelsSection";
 import CompatibleModelsSection from "./CompatibleModelsSection";
@@ -42,7 +43,15 @@ function sleep(ms) {
 export default function ProviderDetailPage() {
   const params = useParams();
   const router = useRouter();
-  const providerId = params.id;
+  // Custom providers are linked by their human name; built-ins by stable id.
+  const routeParam = (() => {
+    try {
+      return decodeURIComponent(String(params.id || ""));
+    } catch {
+      return String(params.id || "");
+    }
+  })();
+  const [providerId, setProviderId] = useState(routeParam);
   const { getCaps } = useModelCaps();
   const [connections, setConnections] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -148,7 +157,7 @@ export default function ProviderDetailPage() {
     ? {
         id: providerNode.id,
         name: providerNode.name || (providerNode.type === "anthropic-compatible" ? "Anthropic Compatible" : "OpenAI Compatible"),
-        color: providerNode.type === "anthropic-compatible" ? "#D97757" : "#10A37F",
+        color: providerNode.type === "anthropic-compatible" ? "#2B7FFF" : "#10A37F",
         textIcon: providerNode.type === "anthropic-compatible" ? "AC" : "OC",
         apiType: providerNode.apiType,
         baseUrl: providerNode.baseUrl,
@@ -336,7 +345,9 @@ export default function ProviderDetailPage() {
       const apCfg = autoPingSettingsKey ? settingsData[autoPingSettingsKey] || {} : {};
       setAutoPing({ enabled: apCfg.enabled === true, connections: apCfg.connections || {}, schedules: apCfg.schedules || {} });
       if (nodesRes.ok) {
-        let node = (nodesData.nodes || []).find((entry) => entry.id === providerId) || null;
+        const matchesNode = (entry) => entry.id === providerId
+          || (entry.name && entry.name.trim().toLowerCase() === String(providerId).trim().toLowerCase());
+        let node = (nodesData.nodes || []).find(matchesNode) || null;
 
         // Newly created compatible nodes can be briefly unavailable on one worker.
         // Retry a few times before showing "Provider not found".
@@ -346,11 +357,17 @@ export default function ProviderDetailPage() {
             const retryRes = await fetch("/api/provider-nodes", { cache: "no-store" });
             if (!retryRes.ok) continue;
             const retryData = await retryRes.json();
-            node = (retryData.nodes || []).find((entry) => entry.id === providerId) || null;
+            node = (retryData.nodes || []).find(matchesNode) || null;
             if (node) break;
           }
         }
 
+        if (node && node.id !== providerId) {
+          // Adopt the canonical node id for every API call on this page while
+          // the address bar keeps the owner's name.
+          setLoading(true);
+          setProviderId(node.id);
+        }
         setProviderNode(node);
       }
     } catch (error) {
@@ -1183,7 +1200,8 @@ export default function ProviderDetailPage() {
     const allModels = [
       ...models,
       ...kiloFreeModels.filter((fm) => !models.some((m) => m.id === fm.id)),
-    ].filter((m) => { const k = getModelKind(m); return !k || k === "llm"; });
+    ].filter((m) => { const k = getModelKind(m); return !k || k === "llm"; })
+      .filter((m) => !isHiddenModelName(m.id));
     const disabledSet = new Set(disabledModelIds);
     const displayModels = allModels.filter((m) => !disabledSet.has(m.id));
     const disabledDisplayModels = allModels.filter((m) => disabledSet.has(m.id));
@@ -1193,7 +1211,7 @@ export default function ProviderDetailPage() {
       providerAlias: providerStorageAlias,
       builtInModels: models,
       type: "llm",
-    });
+    }).filter((m) => !isHiddenModelName(m.id));
 
     return (
       <div className="flex flex-wrap gap-3">
@@ -1265,7 +1283,7 @@ export default function ProviderDetailPage() {
           <button
             onClick={handleImportQoderModels}
             disabled={importingQoderModels}
-            className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-dashed border-blue-500/40 px-3 py-2 text-xs text-blue-600 dark:text-blue-400 transition-colors hover:border-blue-500 hover:bg-blue-500/5 sm:w-auto disabled:opacity-50 disabled:cursor-not-allowed"
+            className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-dashed border-[#2B7FFF]/40 px-3 py-2 text-xs text-[#1a66e6] dark:text-[#2B7FFF] transition-colors hover:border-[#2B7FFF] hover:bg-[#2B7FFF]/5 sm:w-auto disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <span className="material-symbols-outlined text-sm" style={importingQoderModels ? { animation: "spin 1s linear infinite" } : undefined}>
               {importingQoderModels ? "progress_activity" : "download"}
@@ -1279,7 +1297,7 @@ export default function ProviderDetailPage() {
           <button
             onClick={handleImportClineModels}
             disabled={importingClineModels}
-            className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-dashed border-blue-500/40 px-3 py-2 text-xs text-blue-600 dark:text-blue-400 transition-colors hover:border-blue-500 hover:bg-blue-500/5 sm:w-auto disabled:opacity-50 disabled:cursor-not-allowed"
+            className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-dashed border-[#2B7FFF]/40 px-3 py-2 text-xs text-[#1a66e6] dark:text-[#2B7FFF] transition-colors hover:border-[#2B7FFF] hover:bg-[#2B7FFF]/5 sm:w-auto disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <span className="material-symbols-outlined text-sm" style={importingClineModels ? { animation: "spin 1s linear infinite" } : undefined}>
               {importingClineModels ? "progress_activity" : "download"}
@@ -1442,15 +1460,15 @@ export default function ProviderDetailPage() {
       )}
 
       {providerInfo.notice?.text && !providerInfo.deprecated && (
-        <div className="flex flex-col gap-2 rounded-lg border border-blue-500/30 bg-blue-500/10 px-3 py-2 sm:flex-row sm:items-center">
-          <span className="material-symbols-outlined text-[16px] text-blue-500 shrink-0">info</span>
-          <p className="min-w-0 flex-1 text-xs leading-relaxed text-blue-600 dark:text-blue-400">{providerInfo.notice.text}</p>
+        <div className="flex flex-col gap-2 rounded-lg border border-[#2B7FFF]/30 bg-[#2B7FFF]/10 px-3 py-2 sm:flex-row sm:items-center">
+          <span className="material-symbols-outlined text-[16px] text-[#2B7FFF] shrink-0">info</span>
+          <p className="min-w-0 flex-1 text-xs leading-relaxed text-[#1a66e6] dark:text-[#2B7FFF]">{providerInfo.notice.text}</p>
           {providerInfo.notice.apiKeyUrl && (
             <a
               href={providerInfo.notice.apiKeyUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex justify-center rounded bg-blue-500 px-2 py-1 text-xs font-medium text-white transition-colors hover:bg-blue-600 sm:py-0.5"
+              className="inline-flex justify-center rounded bg-[#2B7FFF] px-2 py-1 text-xs font-medium text-white transition-colors hover:bg-[#1a66e6] sm:py-0.5"
             >
               Get API Key →
             </a>

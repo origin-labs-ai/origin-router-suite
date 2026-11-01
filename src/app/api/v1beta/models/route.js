@@ -23,7 +23,7 @@ export async function GET() {
     const models = [];
     const seen = new Set();
 
-    function addModel({ name, displayName, description, methods = ["generateContent"], inputTokenLimit = 128000 }) {
+    function addModel({ name, displayName, description, methods = ["generateContent"], inputTokenLimit = 1000000 }) {
       if (seen.has(name)) return;
       seen.add(name);
       models.push({
@@ -51,7 +51,7 @@ export async function GET() {
           displayName: combo.name,
           description: `OriginRouter combo: ${combo.name}`,
           methods: ["generateContent", "streamGenerateContent"],
-          inputTokenLimit: Number(combo.maxContextWindow) > 0 ? Number(combo.maxContextWindow) : 128000,
+          inputTokenLimit: Number(combo.maxContextWindow) > 0 ? Number(combo.maxContextWindow) : 1000000,
         });
       }
       return Response.json({ models });

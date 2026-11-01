@@ -94,6 +94,75 @@ export function handleBypassRequest(body, model, userAgent = "", ccFilterNaming 
 const DEFAULT_BYPASS_TEXT = "CLI Command Execution: Clear Terminal";
 
 /**
+ * Build a valid, error-free completion in the format the client used.
+ *
+ * Two callers: the bypass patterns above, and the resilience layer, which must
+ * answer a request that no provider could serve without ever returning an API
+ * error envelope. A CLI treats a non-2xx as a hard failure of its own run, so
+ * the last resort is a real (if short) completion instead.
+ *
+ * @param {{ body: object, model: string, text?: string, format?: string }} params
+ * @returns {Response}
+ */
+export function synthesizeResponse({ body, model, text, format }) {
+  // The endpoint decides the wire format when it is unambiguous: a Claude body
+  // with plain-string messages is indistinguishable from an OpenAI one by shape
+  // alone, and answering /v1/messages with a chat.completion breaks the client.
+  const sourceFormat = format || detectFormat(body);
+  const stream = body.stream !== false;
+  const payload = text || DEFAULT_BYPASS_TEXT;
+  if (!stream) {
+    return new Response(JSON.stringify(directNonStreaming(sourceFormat, model, payload)), {
+      headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
+    });
+  }
+  return createStreamingResponse(sourceFormat, model, payload).response;
+}
+
+/**
+ * A complete non-streaming answer, built in the client's own shape.
+ *
+ * Rebuilding it from translated stream chunks (the path the bypass helpers use)
+ * is not good enough here: a Claude `message_start` carries no content blocks and
+ * no stop_reason, so a caller that asked for a single JSON message would get an
+ * empty one back.
+ */
+function directNonStreaming(sourceFormat, model, text) {
+  const now = Math.floor(Date.now() / 1000);
+  if (sourceFormat === FORMATS.CLAUDE) {
+    return {
+      id: `msg_${Date.now()}`,
+      type: "message",
+      role: "assistant",
+      model,
+      content: [{ type: "text", text }],
+      stop_reason: "end_turn",
+      stop_sequence: null,
+      usage: { input_tokens: 1, output_tokens: 1 },
+    };
+  }
+  if (sourceFormat === FORMATS.OPENAI_RESPONSES || sourceFormat === FORMATS.OPENAI_RESPONSE) {
+    return {
+      id: `resp_${Date.now()}`,
+      object: "response",
+      created_at: now,
+      model,
+      status: "completed",
+      output: [{ type: "message", role: "assistant", content: [{ type: "output_text", text, annotations: [] }] }],
+      usage: { input_tokens: 1, output_tokens: 1, total_tokens: 2 },
+    };
+  }
+  if (sourceFormat === FORMATS.GEMINI || sourceFormat === FORMATS.GEMINI_CLI || sourceFormat === FORMATS.VERTEX) {
+    return {
+      candidates: [{ content: { role: "model", parts: [{ text }] }, finishReason: "STOP" }],
+      usageMetadata: { promptTokenCount: 1, candidatesTokenCount: 1, totalTokenCount: 2 },
+      model,
+    };
+  }
+  return createOpenAIResponse(model, text);
+}
+
+/**
  * Create OpenAI standard format response
  */
 function createOpenAIResponse(model, text = DEFAULT_BYPASS_TEXT) {

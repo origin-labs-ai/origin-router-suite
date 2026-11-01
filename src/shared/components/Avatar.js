@@ -32,7 +32,7 @@ export default function Avatar({
     if (!name) return "bg-primary";
     const colors = [
       "bg-red-500",
-      "bg-orange-500",
+      "bg-[#2B7FFF]",
       "bg-amber-500",
       "bg-yellow-500",
       "bg-lime-500",
@@ -41,7 +41,7 @@ export default function Avatar({
       "bg-teal-500",
       "bg-cyan-500",
       "bg-sky-500",
-      "bg-blue-500",
+      "bg-[#2B7FFF]",
       "bg-indigo-500",
       "bg-violet-500",
       "bg-purple-500",

@@ -229,7 +229,7 @@ export default function TranslatorPage() {
           <div className="flex items-center gap-2 flex-wrap justify-end">
             <MetaBadge label="src" value={meta.sourceFormat} color="blue" />
             <span className="material-symbols-outlined text-text-muted text-[14px]">arrow_forward</span>
-            <MetaBadge label="dst" value={meta.targetFormat} color="orange" />
+            <MetaBadge label="dst" value={meta.targetFormat} color="brand" />
             <MetaBadge label="provider" value={meta.provider} color="green" />
             <MetaBadge label="model" value={meta.model} color="purple" />
           </div>
@@ -297,8 +297,8 @@ export default function TranslatorPage() {
 
 function MetaBadge({ label, value, color }) {
   const colors = {
-    blue: "bg-blue-500/10 text-blue-500",
-    orange: "bg-orange-500/10 text-orange-500",
+    blue: "bg-[#2B7FFF]/10 text-[#2B7FFF]",
+    brand: "bg-[#2B7FFF]/10 text-[#2B7FFF]",
     green: "bg-green-500/10 text-green-500",
     purple: "bg-purple-500/10 text-purple-500",
   };

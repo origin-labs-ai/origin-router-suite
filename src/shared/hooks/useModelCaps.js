@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { getCapabilitiesForModel } from "open-sse/providers/capabilities.js";
 import { ALIAS_TO_ID } from "@/shared/constants/providers";
+import { withMaxContextWindow } from "@/lib/contextLimits";
 
 // Module cache: one /api/models fetch shared by every useModelCaps instance.
 let cache = null; // { byFull, byId } | null
@@ -13,9 +14,10 @@ function buildMaps(models) {
   const byId = {};
   for (const m of models || []) {
     if (!m.caps) continue;
-    if (m.fullModel) byFull[m.fullModel] = m.caps;
-    if (m.routedModel) byFull[m.routedModel] = m.caps;
-    if (m.model) byId[m.model] = m.caps;
+    const caps = withMaxContextWindow(m.caps);
+    if (m.fullModel) byFull[m.fullModel] = caps;
+    if (m.routedModel) byFull[m.routedModel] = caps;
+    if (m.model) byId[m.model] = caps;
   }
   return { byFull, byId };
 }
@@ -55,7 +57,7 @@ export function resolveCaps(byFull, byId, key) {
     vision: c.vision,
     search: c.search,
     reasoning: c.reasoning,
-    contextWindow: c.contextWindow,
+    contextWindow: withMaxContextWindow(c).contextWindow,
     maxOutput: c.maxOutput,
   };
 }

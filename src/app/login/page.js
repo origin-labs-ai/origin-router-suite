@@ -3,6 +3,14 @@
 import { useState, useEffect } from "react";
 import { Card, Button, Input } from "@/shared/components";
 
+// Honour ?next=/claude so the native surface returns where it came from.
+function nextTarget() {
+  if (typeof window === "undefined") return "/dashboard";
+  const next = new URLSearchParams(window.location.search).get("next");
+  if (next && next.startsWith("/") && !next.startsWith("//")) return next;
+  return "/dashboard";
+}
+
 export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -41,7 +49,7 @@ export default function LoginPage() {
         if (res.ok) {
           const data = await res.json();
           if (data.authenticated === true || data.requireLogin === false) {
-            window.location.assign("/dashboard");
+            window.location.assign(nextTarget());
             return;
           }
           setHasPassword(!!data.hasPassword);
@@ -82,7 +90,7 @@ export default function LoginPage() {
           setMustChange(true);
           return;
         }
-        window.location.assign("/dashboard");
+        window.location.assign(nextTarget());
       } else {
         const data = await res.json();
         setError(data.error || "Invalid password");
@@ -108,7 +116,7 @@ export default function LoginPage() {
         body: JSON.stringify({ currentPassword: password, newPassword }),
       });
       if (res.ok) {
-        window.location.assign("/dashboard");
+        window.location.assign(nextTarget());
       } else {
         const data = await res.json();
         setError(data.error || "Failed to set password");
@@ -140,7 +148,7 @@ export default function LoginPage() {
   // Show loading state while checking password
   if (hasPassword === null) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-bg p-4">
+      <div className="or-app-shell min-h-screen flex items-center justify-center bg-bg p-4">
         <div className="text-center">
           <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
           <p className="text-text-muted mt-4">Loading...</p>
@@ -150,7 +158,7 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-bg p-4 relative overflow-hidden">
+    <div className="or-app-shell min-h-screen flex items-center justify-center bg-bg p-4 relative overflow-hidden">
       {/* Faint grid background */}
       <div className="landing-grid absolute inset-0 pointer-events-none" aria-hidden="true" />
       <div className="relative z-10 w-full max-w-md">

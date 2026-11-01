@@ -26,7 +26,7 @@ function getToastStyle(type) {
     };
   }
   return {
-    wrapper: "border-blue-500/30 bg-blue-500/10 text-blue-600 dark:text-blue-400",
+    wrapper: "border-[#2B7FFF]/30 bg-[#2B7FFF]/10 text-[#1a66e6] dark:text-[#2B7FFF]",
     icon: "info",
   };
 }
@@ -56,7 +56,7 @@ export default function DashboardLayout({ children }) {
   }, []);
 
   return (
-    <div className="flex h-screen w-full overflow-hidden bg-bg">
+    <div className="or-app-shell flex h-screen w-full overflow-hidden bg-bg">
       <div className="fixed top-4 right-4 z-[80] flex w-[min(92vw,380px)] flex-col gap-2">
         {notifications.map((n) => {
           const style = getToastStyle(n.type);

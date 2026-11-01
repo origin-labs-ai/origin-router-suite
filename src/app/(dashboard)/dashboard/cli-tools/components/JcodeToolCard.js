@@ -226,7 +226,7 @@ id = "${selectedModel || "cc/claude-opus-4-7"}"`;
               <h3 className="font-medium text-sm">{tool.name}</h3>
               {configStatus === "configured" && <span className="px-1.5 py-0.5 text-[10px] font-medium bg-green-500/10 text-green-600 dark:text-green-400 rounded-full">Connected</span>}
               {configStatus === "not_configured" && <span className="px-1.5 py-0.5 text-[10px] font-medium bg-yellow-500/10 text-yellow-600 dark:text-yellow-400 rounded-full">Not configured</span>}
-              {configStatus === "other" && <span className="px-1.5 py-0.5 text-[10px] font-medium bg-blue-500/10 text-blue-600 dark:text-blue-400 rounded-full">Other</span>}
+              {configStatus === "other" && <span className="px-1.5 py-0.5 text-[10px] font-medium bg-[#2B7FFF]/10 text-[#1a66e6] dark:text-[#2B7FFF] rounded-full">Other</span>}
             </div>
             <p className="text-xs text-text-muted truncate">{tool.description}</p>
           </div>
@@ -275,7 +275,7 @@ id = "${selectedModel || "cc/claude-opus-4-7"}"`;
                   <div className="flex flex-col gap-2 mb-2">
                     {tool.notes.map((note, idx) => (
                       <div key={idx} className={`flex items-start gap-2 p-2 rounded text-xs ${
-                        note.type === "info" ? "bg-blue-500/10 text-blue-600 dark:text-blue-400" :
+                        note.type === "info" ? "bg-[#2B7FFF]/10 text-[#1a66e6] dark:text-[#2B7FFF]" :
                         note.type === "warning" ? "bg-yellow-500/10 text-yellow-600 dark:text-yellow-400" :
                         "bg-gray-500/10 text-text-muted"
                       }`}>
@@ -334,8 +334,8 @@ id = "${selectedModel || "cc/claude-opus-4-7"}"`;
                 </div>
 
                 {/* Usage hint */}
-                <div className="flex flex-col gap-1 p-3 bg-blue-500/5 border border-blue-500/20 rounded-lg">
-                  <p className="text-xs font-medium text-blue-600 dark:text-blue-400">Usage:</p>
+                <div className="flex flex-col gap-1 p-3 bg-[#2B7FFF]/5 border border-[#2B7FFF]/20 rounded-lg">
+                  <p className="text-xs font-medium text-[#1a66e6] dark:text-[#2B7FFF]">Usage:</p>
                   <code className="text-xs font-mono text-text-muted">jcode --provider-profile originrouter</code>
                   <code className="text-xs font-mono text-text-muted">jcode --provider-profile originrouter --model {selectedModel || "cc/claude-opus-4-7"}</code>
                 </div>

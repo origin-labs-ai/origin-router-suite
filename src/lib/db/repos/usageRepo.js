@@ -2,6 +2,8 @@ import { EventEmitter } from "events";
 import { getAdapter } from "../driver.js";
 import { parseJson, stringifyJson } from "../helpers/jsonCol.js";
 import { getMeta, setMeta } from "../helpers/metaStore.js";
+import { resolveProviderLabel } from "@/shared/utils/providerLabel";
+import { isHiddenModelName, prettyModelName } from "@/shared/utils/modelDisplayName";
 
 function maskApiKey(key) {
   if (!key || typeof key !== "string") return null;
@@ -786,27 +788,50 @@ export async function getRecentLogs(limit = 200) {
   try {
     const db = await getAdapter();
     const rows = db.all(
-      `SELECT timestamp, provider, model, connectionId, promptTokens, completionTokens, status, tokens FROM usageHistory ORDER BY id DESC LIMIT ?`,
+      `SELECT timestamp, provider, model, connectionId, apiKey, promptTokens, completionTokens, status, tokens FROM usageHistory ORDER BY id DESC LIMIT ?`,
       [limit],
     );
     if (!rows.length) return [];
 
     const connMap = {};
+    const connById = {};
     try {
       const { getProviderConnections } = await import("./connectionsRepo.js");
       const connections = await getProviderConnections();
-      for (const c of connections) connMap[c.id] = c.name || c.email || "";
+      for (const c of connections) {
+        connById[c.id] = c;
+        connMap[c.id] = c.name || c.email || "";
+      }
+    } catch {}
+
+    const nodeNames = {};
+    try {
+      const { getProviderNodes } = await import("./nodesRepo.js");
+      for (const node of await getProviderNodes()) {
+        if (node?.id && node?.name) nodeNames[node.id] = node.name;
+      }
+    } catch {}
+
+    const keyNames = {};
+    try {
+      const { getApiKeys } = await import("./apiKeysRepo.js");
+      for (const key of await getApiKeys()) {
+        if (key?.key) keyNames[key.key.trim()] = key.name || maskApiKey(key.key);
+      }
     } catch {}
 
     return rows.map((r) => {
       const ts = formatLogDate(new Date(r.timestamp));
-      const p = r.provider?.toUpperCase() || "-";
-      const m = r.model || "-";
+      const p = resolveProviderLabel(r.provider, { nodeNames, connection: connById[r.connectionId] });
+      const m = r.model && !isHiddenModelName(r.model) ? prettyModelName(r.model) : "-";
       const account = connMap[r.connectionId] || (r.connectionId ? r.connectionId.slice(0, 8) : "-");
       const tk = r.tokens ? parseJson(r.tokens, {}) : {};
       const sent = r.promptTokens ?? tk.prompt_tokens ?? "-";
       const received = r.completionTokens ?? tk.completion_tokens ?? "-";
-      return `${ts} | ${m} | ${p} | ${account} | ${sent} | ${received} | ${r.status || "-"}`;
+      const apiKeyName = r.apiKey
+        ? (keyNames[String(r.apiKey).trim()] || maskApiKey(r.apiKey))
+        : "Local (No API Key)";
+      return `${ts} | ${m} | ${p} | ${account} | ${sent} | ${received} | ${r.status || "-"} | ${apiKeyName}`;
     });
   } catch (e) {
     console.error("[usageRepo] getRecentLogs failed:", e.message);

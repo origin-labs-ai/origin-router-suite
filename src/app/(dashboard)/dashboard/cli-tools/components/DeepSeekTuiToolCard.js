@@ -198,7 +198,7 @@ model = "${selectedModel || "provider/model-id"}"
               <h3 className="font-medium text-sm">{tool.name}</h3>
               {configStatus === "configured" && <span className="px-1.5 py-0.5 text-[10px] font-medium bg-green-500/10 text-green-600 dark:text-green-400 rounded-full">Connected</span>}
               {configStatus === "not_configured" && <span className="px-1.5 py-0.5 text-[10px] font-medium bg-yellow-500/10 text-yellow-600 dark:text-yellow-400 rounded-full">Not configured</span>}
-              {configStatus === "other" && <span className="px-1.5 py-0.5 text-[10px] font-medium bg-blue-500/10 text-blue-600 dark:text-blue-400 rounded-full">Other</span>}
+              {configStatus === "other" && <span className="px-1.5 py-0.5 text-[10px] font-medium bg-[#2B7FFF]/10 text-[#1a66e6] dark:text-[#2B7FFF] rounded-full">Other</span>}
             </div>
             <p className="text-xs text-text-muted truncate">{tool.description}</p>
           </div>
@@ -246,7 +246,7 @@ model = "${selectedModel || "provider/model-id"}"
                       <div key={idx} className={`flex items-start gap-2 p-2 rounded text-xs ${
                         note.type === "warning" ? "bg-yellow-500/10 text-yellow-600 dark:text-yellow-400" :
                         note.type === "error" ? "bg-red-500/10 text-red-600 dark:text-red-400" :
-                        "bg-blue-500/10 text-blue-600 dark:text-blue-400"
+                        "bg-[#2B7FFF]/10 text-[#1a66e6] dark:text-[#2B7FFF]"
                       }`}>
                         <span className="material-symbols-outlined text-[14px] mt-0.5">
                           {note.type === "warning" ? "warning" : note.type === "error" ? "error" : "info"}

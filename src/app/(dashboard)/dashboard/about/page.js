@@ -28,8 +28,8 @@ export default function AboutPage() {
           className="w-full max-w-[560px] rounded-md"
         />
         <p className="max-w-2xl text-sm leading-6 text-text-muted">
-          {APP_CONFIG.description}. One local endpoint for every provider you already pay for —
-          every key, every quota, every model behind a single OpenAI-compatible API.
+          One local endpoint for every provider you already pay for — every key, every quota,
+          every model behind a single OpenAI-compatible API.
         </p>
         <div className="flex flex-wrap items-center justify-center gap-2">
           <span className="or-chip font-mono">v{APP_CONFIG.version}</span>

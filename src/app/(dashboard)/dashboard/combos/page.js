@@ -10,7 +10,6 @@ import { useCopyToClipboard } from "@/shared/hooks/useCopyToClipboard";
 import { useModelCaps } from "@/shared/hooks/useModelCaps";
 import { aggregateComboCapabilities } from "open-sse/providers/capabilities.js";
 import { resolveProviderId, AI_PROVIDERS } from "@/shared/constants/providers";
-import { resolveSeatContextWindow, describeContextShort } from "@/lib/comboContext";
 import { prettyModelName } from "@/shared/utils/modelDisplayName";
 
 // Validate combo name: only a-z, A-Z, 0-9, -, _
@@ -1289,15 +1288,6 @@ function ComboFormModal({ isOpen, combo, onClose, onSave, activeProviders, kindF
 
   const contextLimit = Number(maxContextWindow) || null;
 
-  // Members that cannot honour the selected ceiling. Windows the catalog does
-  // not know are ignored — same fail-open rule the server applies on save.
-  const contextViolations = useMemo(() => {
-    if (!contextLimit) return [];
-    return (models || [])
-      .map((seat) => ({ seat, contextWindow: resolveSeatContextWindow(seat, comboByName) }))
-      .filter(({ contextWindow }) => Number.isFinite(contextWindow) && contextWindow < contextLimit);
-  }, [models, contextLimit, comboByName]);
-
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
@@ -1354,12 +1344,8 @@ function ComboFormModal({ isOpen, combo, onClose, onSave, activeProviders, kindF
 
   const handleAddModel = (model) => {
     if (models.includes(model.value)) return;
-    // The picker already hides undersized models; this guards the batch
-    // "Select All" and wildcard paths that bypass the per-row visibility check.
-    if (contextLimit) {
-      const window = resolveSeatContextWindow(model.value, comboByName);
-      if (Number.isFinite(window) && window < contextLimit) return;
-    }
+    // No size gate here either: any member the owner picks is kept, and the
+    // gateway routes around one that turns out too small for a given prompt.
     setModels([...models, model.value]);
   };
 
@@ -1387,9 +1373,9 @@ function ComboFormModal({ isOpen, combo, onClose, onSave, activeProviders, kindF
 
   const handleSave = async () => {
     if (!validateName(name)) return;
-    // Block instead of silently dropping members: the user picked the ceiling,
-    // so they must decide which seat to remove.
-    if (contextViolations.length > 0) return;
+    // No client-side veto on membership: only the gateway knows which windows were
+    // actually declared, and an oversized prompt rotates past a member that cannot
+    // take it. Any honest warnings come back on the save response.
     setSaving(true);
     await onSave({
       name: name.trim(),
@@ -1452,29 +1438,14 @@ function ComboFormModal({ isOpen, combo, onClose, onSave, activeProviders, kindF
                 ? `Only models that can serve ${fmtK(contextLimit)} or more will be offered. The combo publishes ${fmtK(contextLimit)} to API clients.`
                 : "No ceiling — members keep their own windows and the combo publishes its smallest one."}
             </p>
-            {contextViolations.length > 0 && (
-              <div className="mt-2 rounded-lg border border-red-500/30 bg-red-500/5 p-2">
-                <p className="text-[11px] font-medium text-red-500">
-                  {contextViolations.length} selected model{contextViolations.length > 1 ? "s" : ""} cannot serve {fmtK(contextLimit)} — remove or raise the limit:
-                </p>
-                <ul className="mt-1 space-y-0.5">
-                  {contextViolations.map(({ seat, contextWindow }) => (
-                    <li key={seat} className="flex items-center justify-between gap-2 text-[11px]">
-                      <code className="min-w-0 flex-1 truncate font-mono text-text-muted">{prettyModelName(seat)}</code>
-                      <span className="shrink-0 text-red-500">{fmtK(contextWindow)}</span>
-                      <button
-                        type="button"
-                        onClick={() => setModels((prev) => prev.filter((m) => m !== seat))}
-                        className="shrink-0 rounded p-0.5 text-text-muted transition-colors hover:bg-red-500/10 hover:text-red-500"
-                        title="Remove model"
-                      >
-                        <span className="material-symbols-outlined text-[13px]">close</span>
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
+            {/*
+              No member list is filtered or blocked here. A seat's context window is
+              only known when a provider, the catalog or the owner declared one, and
+              guessing from the model name is what produced a "cannot serve 1M" list
+              that the server never agreed with. The gateway decides at request time:
+              an oversized prompt simply rotates to a member that can take it, and
+              the save response carries any honest warnings.
+            */}
           </div>
 
           {/* Models */}
@@ -1532,7 +1503,7 @@ function ComboFormModal({ isOpen, combo, onClose, onSave, activeProviders, kindF
               onClick={handleSave}
               fullWidth
               size="sm"
-              disabled={!name.trim() || !!nameError || saving || contextViolations.length > 0}
+              disabled={!name.trim() || !!nameError || saving}
             >
               {saving ? "Saving..." : isEdit ? "Save" : "Create"}
             </Button>

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getCombos, createCombo, getComboByName } from "@/lib/localDb";
-import { findSeatsBelowContext, describeContextShort } from "@/lib/comboContext";
+import { findSeatsBelowContext } from "@/lib/comboContext";
 import { applyContextCeilings } from "@/lib/contextCeilings";
 
 export const dynamic = "force-dynamic";
@@ -40,18 +40,16 @@ export async function POST(request) {
       return NextResponse.json({ error: "Combo name already exists" }, { status: 400 });
     }
 
-    // A context ceiling is a promise: every member must be able to serve it.
+    // A context ceiling is a promise, so report who cannot keep it — as advice.
+    // Refusing the save would punish the owner for numbers most of these seats
+    // never declared; at runtime an oversized request simply rotates past a member
+    // that cannot take it, which is what the failover layer is for.
+    let contextWarnings = [];
     if (maxContextWindow) {
       // Owner-declared ceilings (~/.or/context-ceilings.json) count as evidence.
       applyContextCeilings();
       const combosByName = new Map((await getCombos()).map((c) => [c.name, c]));
-      const offenders = findSeatsBelowContext(models || [], maxContextWindow, combosByName);
-      if (offenders.length > 0) {
-        return NextResponse.json({
-          error: `These models cannot serve ${maxContextWindow} tokens of context: ${describeContextShort(offenders)}`,
-          contextViolations: offenders,
-        }, { status: 400 });
-      }
+      contextWarnings = findSeatsBelowContext(models || [], maxContextWindow, combosByName);
     }
 
     const combo = await createCombo({
@@ -62,7 +60,10 @@ export async function POST(request) {
       displayName: displayName || null,
     });
 
-    return NextResponse.json(combo, { status: 201 });
+    return NextResponse.json(
+      contextWarnings.length ? { ...combo, contextWarnings } : combo,
+      { status: 201 },
+    );
   } catch (error) {
     console.log("Error creating combo:", error);
     return NextResponse.json({ error: "Failed to create combo" }, { status: 500 });

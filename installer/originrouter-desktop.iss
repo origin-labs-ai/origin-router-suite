@@ -37,6 +37,15 @@ MinVersion=10.0
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"
 
+[InstallDelete]
+; The Next build dir is replaced wholesale on every upgrade. Without this, files
+; from the previous build stay behind: old hashed JS chunks plus the runtime
+; `server\route-cache`, and that cache is what answers page requests — so the app
+; keeps rendering the *previous* build's UI forever, however many times it is
+; rebuilt and reinstalled. Same rule as the gateway installer.
+Type: filesandordirs; Name: "{app}\resources\server\app\.next-cli-build"
+Type: filesandordirs; Name: "{app}\resources\server\app\.next"
+
 [Files]
 Source: "{#SourceDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 

@@ -4,7 +4,7 @@ import { getDisabledModels } from "@/lib/disabledModelsDb";
 import { AI_MODELS } from "@/shared/constants/config";
 import { getProviderAlias, ALIAS_TO_ID } from "@/shared/constants/providers";
 import { getCapabilitiesForModel } from "open-sse/providers/capabilities.js";
-import { ensureMaxContextWindow, isDeclaredContextWindow, MAX_CONTEXT_WINDOW } from "@/lib/contextLimits";
+import { isDeclaredContextWindow, MAX_CONTEXT_WINDOW } from "@/lib/contextLimits";
 import { declaredContextWindow } from "@/lib/comboContext";
 import { applyContextCeilings } from "@/lib/contextCeilings";
 
@@ -17,19 +17,22 @@ export async function GET() {
     // heuristic, and `contextDeclared` tells the UI the difference so a guess is
     // never shown as if it were the model's hardware limit.
     applyContextCeilings();
-    const windowFor = (alias, providerId, model, heuristicValue) => {
-      // Priority: owner ceiling file → provider's static registry record → the
-      // capability table's family record (only when it is not the 200K floor).
-      // Anything else is unknown and reported as null, so the UI shows "—"/no
-      // badge instead of a number nobody declared.
+    const windowFor = (alias, providerId, model, rowValue) => {
+      // Only real declarations count: the owner's ceiling file, the provider's
+      // static registry record, or a window stored on the model row itself.
+      //
+      // The capability table's family patterns (a name containing "deepseek"
+      // reading as 128K, "omni" as 262K) are NOT declarations: they are guesses,
+      // and counting them re-created the "cannot serve 1M" list every time a new
+      // seat was picked. Unknown is reported as null, which renders no badge.
       const declared = declaredContextWindow(alias, model) ?? declaredContextWindow(providerId, model);
       if (declared != null) {
-        return { contextWindow: Math.min(declared, MAX_CONTEXT_WINDOW), contextDeclared: true };
+        return { contextWindow: Math.min(declared, MAX_CONTEXT_WINDOW), contextDeclared: true, contextSource: "declared-ceiling" };
       }
-      if (isDeclaredContextWindow(heuristicValue)) {
-        return { contextWindow: ensureMaxContextWindow(heuristicValue), contextDeclared: true };
+      if (isDeclaredContextWindow(rowValue)) {
+        return { contextWindow: Math.min(rowValue, MAX_CONTEXT_WINDOW), contextDeclared: true, contextSource: "model-record" };
       }
-      return { contextWindow: null, contextDeclared: false };
+      return { contextWindow: null, contextDeclared: false, contextSource: "undeclared" };
     };
 
     const models = AI_MODELS
@@ -43,7 +46,9 @@ export async function GET() {
         const providerAlias = getProviderAlias(m.provider) || m.provider;
         const routedModel = `${providerAlias}/${m.model}`;
         const c = getCapabilitiesForModel(m.provider, m.model);
-        const win = windowFor(m.provider, m.provider, m.model, c.contextWindow);
+        // Static catalog rows have no per-row record; their registry entry is
+        // already consulted inside windowFor via the provider id.
+        const win = windowFor(m.provider, m.provider, m.model, undefined);
         return {
           ...m,
           fullModel,
@@ -80,7 +85,9 @@ export async function GET() {
       const fullModel = `${m.providerAlias}/${m.id}`;
       const providerId = ALIAS_TO_ID[m.providerAlias] || m.providerAlias;
       const c = getCapabilitiesForModel(providerId, m.id);
-      const win = windowFor(m.providerAlias, providerId, m.id, m.caps?.contextWindow ?? c.contextWindow);
+      // Only the row's own stored number is a declaration here; falling back to
+      // c.contextWindow would smuggle the family-pattern guess back in.
+      const win = windowFor(m.providerAlias, providerId, m.id, m.caps?.contextWindow);
       models.push({
         provider: m.providerAlias,
         model: m.id,

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getComboById, updateCombo, deleteCombo, getComboByName, getCombos } from "@/lib/localDb";
-import { findSeatsBelowContext, describeContextShort } from "@/lib/comboContext";
+import { findSeatsBelowContext } from "@/lib/comboContext";
+import { applyContextCeilings } from "@/lib/contextCeilings";
 import { resetComboRotation } from "open-sse/services/combo.js";
 
 // Validate combo name: only a-z, A-Z, 0-9, -, _
@@ -45,23 +46,22 @@ export async function PUT(request, { params }) {
     // Capture previous name to invalidate rotation state on rename
     const prev = await getComboById(id);
 
-    // Validate the context ceiling against the merged member list, so a plain
-    // rename never re-runs the check against models the combo no longer has.
+    // The ceiling is reported, never enforced: refusing the save would punish the
+    // owner for numbers these seats never declared, and at runtime an oversized
+    // prompt simply rotates past a member that cannot take it. Same advice-only
+    // contract as POST /api/combos, judged on the merged member list so a plain
+    // rename does not re-check models the combo no longer has.
+    let contextWarnings = [];
     const nextModels = Array.isArray(body.models) ? body.models : prev?.models || [];
     const nextLimit = body.maxContextWindow !== undefined
       ? body.maxContextWindow
       : prev?.maxContextWindow;
     if (nextLimit) {
+      applyContextCeilings();
       const combosByName = new Map(
         (await getCombos()).filter((c) => c.id !== id).map((c) => [c.name, c])
       );
-      const offenders = findSeatsBelowContext(nextModels, nextLimit, combosByName);
-      if (offenders.length > 0) {
-        return NextResponse.json({
-          error: `These models cannot serve ${nextLimit} tokens of context: ${describeContextShort(offenders)}`,
-          contextViolations: offenders,
-        }, { status: 400 });
-      }
+      contextWarnings = findSeatsBelowContext(nextModels, nextLimit, combosByName);
     }
 
     const combo = await updateCombo(id, body);
@@ -74,7 +74,7 @@ export async function PUT(request, { params }) {
     if (prev?.name) resetComboRotation(prev.name);
     if (combo.name && combo.name !== prev?.name) resetComboRotation(combo.name);
 
-    return NextResponse.json(combo);
+    return NextResponse.json(contextWarnings.length ? { ...combo, contextWarnings } : combo);
   } catch (error) {
     console.log("Error updating combo:", error);
     return NextResponse.json({ error: "Failed to update combo" }, { status: 500 });

@@ -305,6 +305,14 @@ function registerWindowControls() {
 }
 
 function createWindow() {
+  // The dashboard is served from the local gateway, whose bundle changes on every
+  // update. Electron's disk cache survives restarts, so a stale page would keep
+  // rendering the previous build's logic (and its old capability labels) after an
+  // auto-update. Clearing on startup guarantees the UI matches the installed server.
+  try {
+    app.defaultSession?.clearCache();
+  } catch {}
+
   mainWindow = new BrowserWindow({
     ...clampBounds(readBounds()),
     minWidth: 960,

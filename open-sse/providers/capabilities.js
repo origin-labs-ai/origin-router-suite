@@ -679,9 +679,19 @@ export function aggregateComboCapabilities(comboModels, comboLookup = null, reso
     const model = slash === -1 ? fullId : fullId.slice(slash + 1);
     const local = getCapabilitiesForModel(provider, model);
     const override = resolveCaps?.(fullId);
-    return override ? { ...local, ...override } : local;
+    const merged = override ? { ...local, ...override } : local;
+    // A member whose window nobody declared must not lower the combo's ceiling.
+    // getCapabilitiesForModel always returns a complete object, and its
+    // DEFAULT_CAPABILITIES.contextWindow (200K) is a runtime floor, not a limit —
+    // letting it into Math.min(...) made every combo look capped at 200K and
+    // produced "cannot serve 1M" lists for members that do serve it.
+    return Number.isFinite(merged.contextWindow)
+      ? merged
+      : { ...merged, contextWindow: Infinity };
   });
   const first = allCaps[0];
+  const smallest = Math.min(...allCaps.map((c) => c.contextWindow));
+  const largest = Math.max(...allCaps.map((c) => c.maxOutput));
   return {
     vision:      allCaps.some((c) => c.vision),
     pdf:         allCaps.some((c) => c.pdf),
@@ -695,8 +705,8 @@ export function aggregateComboCapabilities(comboModels, comboLookup = null, reso
     thinkingFormat:     first.thinkingFormat,
     thinkingCanDisable: first.thinkingCanDisable,
     thinkingRange:      first.thinkingRange,
-    contextWindow: Math.min(...allCaps.map((c) => c.contextWindow)),
-    maxOutput:     Math.max(...allCaps.map((c) => c.maxOutput)),
+    contextWindow: Number.isFinite(smallest) ? smallest : undefined,
+    maxOutput:     Number.isFinite(largest) ? largest : undefined,
   };
 }
 
@@ -735,11 +745,42 @@ function getCatalogSource() {
   return globalThis.__9rCatalogSource || null;
 }
 
+/**
+ * Owner context-window ceilings, injected the same way as the catalog source.
+ *
+ * The gateway reads ~/.or/context-ceilings.json (alias/model → tokens) and hands
+ * it to this module at startup, so every consumer — the provider page's model
+ * rows, the pickers, the playground filter and /v1/models — sees the same
+ * declared number instead of this table's DEFAULT_CAPABILITIES.contextWindow
+ * (200K), which is a runtime floor and never a model's limit.
+ */
+let ceilingsSource = null;
+
+export function setContextCeilingsSource(source) {
+  ceilingsSource = source;
+  if (typeof globalThis !== "undefined") globalThis.__orContextCeilingsSource = source;
+}
+
+function getCeilingsSource() {
+  if (typeof globalThis === "undefined") return ceilingsSource;
+  return globalThis.__orContextCeilingsSource || null;
+}
+
+function ownerCeiling(provider, model) {
+  const source = getCeilingsSource();
+  if (!source || typeof source.get !== "function") return null;
+  const tokens = Number(source.get(provider, model));
+  return Number.isFinite(tokens) && tokens > 0 ? tokens : null;
+}
+
 // Apply the synced catalog + name heuristic on top of a table-resolved result.
 // Strictly additive: a capability already true stays true, and a false one only
 // flips when an outside source positively declares support.
 function refine(base, provider, model) {
   const result = { ...DEFAULT_CAPABILITIES, ...base };
+  // True while the number came from something that actually declared it: a table
+  // entry (base) or the synced catalog. Stays false when only the floor remains.
+  let declared = base && Number.isFinite(base.contextWindow) && base.contextWindow > 0;
 
   const source = getCatalogSource();
   if (source) {
@@ -752,13 +793,26 @@ function refine(base, provider, model) {
 
     const limits = source.getLimits(provider, model);
     if (limits) {
-      if (limits.contextWindow > 0) result.contextWindow = limits.contextWindow;
+      if (limits.contextWindow > 0) {
+        result.contextWindow = limits.contextWindow;
+        declared = true;
+      }
       if (limits.maxOutput > 0) result.maxOutput = limits.maxOutput;
     }
   }
 
+  // The owner's declaration wins over everything, including the floor.
+  const ceiling = ownerCeiling(provider, model);
+  if (ceiling) {
+    result.contextWindow = ceiling;
+    declared = true;
+  }
+
   if (!result.vision && looksLikeVisionModel(model)) result.vision = true;
 
+  result.contextDeclared = declared;
+  // contextWindow keeps its value so max_tokens maths still works, but every
+  // display reads contextDeclared and shows nothing rather than the floor.
   return result;
 }
 

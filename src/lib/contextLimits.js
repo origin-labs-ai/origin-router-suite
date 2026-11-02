@@ -2,7 +2,11 @@
 // 1M is the maximum a model or combo may advertise, not a floor: applying a
 // 1M floor to every model made the playground label every entry "1M" and made
 // its context filter unable to narrow anything.
-export const MAX_CONTEXT_WINDOW = 1_000_000;
+// 1,048,576 is the number Claude Code sends for its "[1m]" tier. Clamping a
+// model at 1,000,000 while the combo ceiling is 1,048,576 made every member look
+// short by 48,576 tokens, so the editor flagged models that actually do serve the
+// full window. The ceiling is therefore the binary number.
+export const MAX_CONTEXT_WINDOW = 1_048_576;
 export const DEFAULT_CONTEXT_WINDOW = 200_000;
 
 // open-sse/providers/capabilities.js merges every lookup over
@@ -57,15 +61,22 @@ export function withMaxContextWindow(caps) {
   };
 }
 
+export const CONTEXT_PRESETS = [32000, 64000, 128000, 200000, 256000, 512000, 1000000];
+
 /**
  * Context values offered by the playground picker for a model that supports
  * `maxWindow` tokens. The model's own window is always offered, even when it is
  * not one of the round presets (for example 262144 or 400000).
+ *
+ * An undeclared window means nobody said anything, which is not evidence the model
+ * is small: offering only up to the 200K floor for those made every unknown seat
+ * look like it could not take 1M. Unknown therefore gets the full ladder.
  */
-export const CONTEXT_PRESETS = [32000, 64000, 128000, 200000, 256000, 512000, 1000000];
-
 export function contextWindowOptions(maxWindow) {
-  const max = ensureMaxContextWindow(maxWindow);
+  const tokens = Number(maxWindow);
+  const max = Number.isFinite(tokens) && tokens > 0
+    ? Math.min(Math.floor(tokens), MAX_CONTEXT_WINDOW)
+    : MAX_CONTEXT_WINDOW;
   const options = CONTEXT_PRESETS.filter((value) => value <= max);
   if (!options.includes(max)) options.push(max);
   return options.sort((a, b) => a - b);

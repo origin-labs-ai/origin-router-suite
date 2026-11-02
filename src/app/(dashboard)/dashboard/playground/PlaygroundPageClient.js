@@ -19,6 +19,7 @@ import {
 import { parseModelIdentity } from "@/shared/utils/modelIdentity";
 import {
   DEFAULT_CONTEXT_WINDOW,
+  MAX_CONTEXT_WINDOW,
   contextWindowOptions,
   defaultContextWindow,
   ensureMaxContextWindow,
@@ -282,8 +283,17 @@ function normalizeCustomModel(model, connection, nodeNames) {
 }
 
 function modelContextWindow(model, getCaps) {
-  if (!model) return DEFAULT_CONTEXT_WINDOW;
-  if (model.source === "combo") return ensureMaxContextWindow(model.contextWindow);
+  // null means "nobody declared anything", which is not the same as "200K". The
+  // capability table's 200K is a runtime floor; presenting it as a limit is what
+  // produced a list of models that supposedly could not serve 1M. Callers that need
+  // a number for a request still fall back through defaultContextWindow().
+  if (!model) return null;
+  if (model.source === "combo") {
+    const declared = Number(model.contextWindow);
+    return Number.isFinite(declared) && declared > 0
+      ? Math.min(declared, MAX_CONTEXT_WINDOW)
+      : null;
+  }
   const identity = model.identity || parseModelIdentity(model.requestModel || model.id, model.providerId, model.providerName);
   const capsKey = `${model.providerId}/${identity.model}`;
   const caps = getCaps(capsKey) || getCaps(model.requestModel || model.id) || getCaps(model.id);
@@ -291,7 +301,29 @@ function modelContextWindow(model, getCaps) {
     || model.caps?.contextWindow
     || caps?.contextWindow
     || model.contextWindow;
-  return ensureMaxContextWindow(value);
+  const tokens = Number(value);
+  return Number.isFinite(tokens) && tokens > 0 ? Math.min(tokens, MAX_CONTEXT_WINDOW) : null;
+}
+
+// Largest declared window in a group. An unknown member wins over any number,
+// because a seat nobody declared is not proof that it is small — labelling the
+// group by its smallest member is how whole model families got shown as "200K".
+function maxDeclaredWindow(variants) {
+  let max = 0;
+  for (const variant of variants || []) {
+    const value = variant?.contextWindow;
+    if (value === null || value === undefined) return null;
+    if (Number(value) > max) max = Number(value);
+  }
+  return max || null;
+}
+
+// A context filter may only exclude models that are known to be too small.
+function passesContextFilter(variant, threshold) {
+  if (!threshold) return true;
+  const value = variant?.contextWindow;
+  if (value === null || value === undefined) return true;
+  return Number(value) >= threshold;
 }
 
 function parseProviderModelsPayload(data) {
@@ -670,15 +702,9 @@ export default function PlaygroundPageClient({ variant = "full" }) {
     return Array.from(map.values()).map((entry) => {
       const providers = Array.from(entry.providerMap.values()).map((provider) => ({
         ...provider,
-        contextWindow: provider.variants.reduce(
-          (max, variant) => Math.max(max, variant.contextWindow),
-          0,
-        ) || DEFAULT_CONTEXT_WINDOW,
+        contextWindow: maxDeclaredWindow(provider.variants),
       }));
-      const contextWindow = entry.variants.reduce(
-        (max, variant) => Math.max(max, variant.contextWindow),
-        0,
-      ) || DEFAULT_CONTEXT_WINDOW;
+      const contextWindow = maxDeclaredWindow(entry.variants);
       return {
         key: entry.key,
         name: entry.name,
@@ -698,24 +724,24 @@ export default function PlaygroundPageClient({ variant = "full" }) {
   }, [providerGroups, getCaps]);
 
   // Search + context are applied to categories, never to a capped slice. The
-  // selected window also prunes the provider list: a provider that cannot serve
-  // that window must not be offered for the model.
+  // selected window also prunes the provider list, but only on declared numbers: a
+  // model nobody ever sized stays available, because "unknown" is not "too small".
   const matchingModelGroups = useMemo(() => {
     const query = modelSearch.trim().toLowerCase();
     const threshold = Number(contextFilter) || 0;
     return modelGroups
       .map((group) => {
         if (!threshold) return group;
-        const variants = group.variants.filter((variant) => variant.contextWindow >= threshold);
+        const variants = group.variants.filter((variant) => passesContextFilter(variant, threshold));
         if (variants.length === 0) return null;
         const providers = group.providers
           .map((provider) => {
-            const supported = provider.variants.filter((variant) => variant.contextWindow >= threshold);
+            const supported = provider.variants.filter((variant) => passesContextFilter(variant, threshold));
             if (supported.length === 0) return null;
             return {
               ...provider,
               variants: supported,
-              contextWindow: supported.reduce((max, variant) => Math.max(max, variant.contextWindow), 0),
+              contextWindow: maxDeclaredWindow(supported),
             };
           })
           .filter(Boolean);
@@ -724,7 +750,7 @@ export default function PlaygroundPageClient({ variant = "full" }) {
           variants,
           providers,
           providerNames: providers.map((provider) => provider.providerName),
-          contextWindow: variants.reduce((max, variant) => Math.max(max, variant.contextWindow), 0),
+          contextWindow: maxDeclaredWindow(variants),
         };
       })
       .filter(Boolean)
@@ -1388,12 +1414,12 @@ export default function PlaygroundPageClient({ variant = "full" }) {
   };
 
   const modelLabel = activeModel ? `${activeModel.name}` : "Select model";
-  const activeMaxContextWindow = activeModel
-    ? modelContextWindow(activeModel, getCaps)
-    : DEFAULT_CONTEXT_WINDOW;
+  // Unknown window: no upper bound to clamp against (Infinity), not a silent 200K.
+  const declaredMaxWindow = activeModel ? modelContextWindow(activeModel, getCaps) : null;
+  const activeMaxContextWindow = declaredMaxWindow || Number.POSITIVE_INFINITY;
   const activeContextWindow = selectionContextWindow > 0
     ? Math.min(selectionContextWindow, activeMaxContextWindow)
-    : defaultContextWindow(activeMaxContextWindow);
+    : defaultContextWindow(declaredMaxWindow);
   const modelSubLabel = activeModel
     ? `${activeModel.providerName} · ${formatContext(activeContextWindow)}`
     : "Choose an exact model";
@@ -1410,7 +1436,7 @@ export default function PlaygroundPageClient({ variant = "full" }) {
     ? modelContextWindow(pickerVariant, getCaps)
     : pickerModel
       ? pickerModel.contextWindow
-      : DEFAULT_CONTEXT_WINDOW;
+      : null;
   const pickerOptions = contextWindowOptions(pickerMaxWindow);
   const pickerDefaultWindow = defaultContextWindow(pickerMaxWindow);
   const pickerSelectedWindow = pickerOptions.includes(pickerContext)

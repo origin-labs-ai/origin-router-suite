@@ -4,6 +4,72 @@ const fs = require("fs");
 const crypto = require("crypto");
 const { pathToFileURL } = require("url");
 
+// Next writes the rendered dashboard pages into <dist>/server/route-cache and that
+// folder is NOT part of the shipped build: it is created by whatever version was
+// running first and then survives every upgrade, because the page key is a hash of
+// the route, not of the code. BUILD_ID does not change between our builds either
+// (same content hash), so nothing invalidates it. The result: an updated app keeps
+// serving the previous build's HTML, which references the previous build's JS
+// chunks — and those chunks also linger on disk because an upgrade only overwrites
+// files. That is why a removed or fixed screen can keep showing up forever, no
+// matter how many times the app is rebuilt and reinstalled.
+//
+// The rule is a comparison, not a version stamp: if any shipped build file is newer
+// than the newest cached page, the build changed underneath the cache, so the cache
+// is dropped and regenerated from the code that is actually installed now.
+function newestMtime(dir, skipDir) {
+  let newest = -1;
+  const stack = [dir];
+  while (stack.length) {
+    const current = stack.pop();
+    let entries;
+    try {
+      entries = fs.readdirSync(current, { withFileTypes: true });
+    } catch {
+      continue;
+    }
+    for (const entry of entries) {
+      const full = path.join(current, entry.name);
+      if (skipDir && full === skipDir) continue;
+      if (entry.isDirectory()) {
+        stack.push(full);
+        continue;
+      }
+      try {
+        const mtime = fs.statSync(full).mtimeMs;
+        if (mtime > newest) newest = mtime;
+      } catch {
+        /* unreadable file: ignore */
+      }
+    }
+  }
+  return newest;
+}
+
+function pruneStaleRouteCache() {
+  if (process.env.OR_KEEP_ROUTE_CACHE === "1") return;
+  for (const distName of [".next-cli-build", ".next"]) {
+    const distDir = path.join(__dirname, distName);
+    const serverDir = path.join(distDir, "server");
+    const cacheDir = path.join(serverDir, "route-cache");
+    if (!fs.existsSync(cacheDir)) continue;
+    const cacheNewest = newestMtime(cacheDir);
+    const buildNewest = Math.max(
+      newestMtime(serverDir, cacheDir),
+      newestMtime(path.join(distDir, "static")),
+    );
+    if (!(buildNewest > cacheNewest)) continue;
+    try {
+      fs.rmSync(cacheDir, { recursive: true, force: true });
+      console.log(`[ROUTE_CACHE] pruned ${distName}: build is newer than the cached pages`);
+    } catch (e) {
+      console.warn(`[ROUTE_CACHE] prune failed for ${distName}: ${e && e.message ? e.message : e}`);
+    }
+  }
+}
+
+pruneStaleRouteCache();
+
 const origCreate = http.createServer.bind(http);
 
 // Per-process secret proving x-9r-real-ip was stamped below rather than sent by the client.

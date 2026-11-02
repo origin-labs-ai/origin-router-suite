@@ -4,7 +4,7 @@ import { getDisabledModels } from "@/lib/disabledModelsDb";
 import { AI_MODELS } from "@/shared/constants/config";
 import { getProviderAlias, ALIAS_TO_ID } from "@/shared/constants/providers";
 import { getCapabilitiesForModel } from "open-sse/providers/capabilities.js";
-import { ensureMaxContextWindow } from "@/lib/contextLimits";
+import { ensureMaxContextWindow, isDeclaredContextWindow, MAX_CONTEXT_WINDOW } from "@/lib/contextLimits";
 import { declaredContextWindow } from "@/lib/comboContext";
 import { applyContextCeilings } from "@/lib/contextCeilings";
 
@@ -17,11 +17,19 @@ export async function GET() {
     // heuristic, and `contextDeclared` tells the UI the difference so a guess is
     // never shown as if it were the model's hardware limit.
     applyContextCeilings();
-    const windowFor = (alias, providerId, model, fallback) => {
+    const windowFor = (alias, providerId, model, heuristicValue) => {
+      // Priority: owner ceiling file → provider's static registry record → the
+      // capability table's family record (only when it is not the 200K floor).
+      // Anything else is unknown and reported as null, so the UI shows "—"/no
+      // badge instead of a number nobody declared.
       const declared = declaredContextWindow(alias, model) ?? declaredContextWindow(providerId, model);
-      return declared != null
-        ? { contextWindow: ensureMaxContextWindow(declared), contextDeclared: true }
-        : { contextWindow: ensureMaxContextWindow(fallback), contextDeclared: false };
+      if (declared != null) {
+        return { contextWindow: Math.min(declared, MAX_CONTEXT_WINDOW), contextDeclared: true };
+      }
+      if (isDeclaredContextWindow(heuristicValue)) {
+        return { contextWindow: ensureMaxContextWindow(heuristicValue), contextDeclared: true };
+      }
+      return { contextWindow: null, contextDeclared: false };
     };
 
     const models = AI_MODELS

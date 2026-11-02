@@ -5,6 +5,22 @@
 export const MAX_CONTEXT_WINDOW = 1_000_000;
 export const DEFAULT_CONTEXT_WINDOW = 200_000;
 
+// open-sse/providers/capabilities.js merges every lookup over
+// DEFAULT_CAPABILITIES, whose contextWindow (200000) is a *safe runtime floor*,
+// not a statement about the model. Display layers must not present that floor as
+// the model's limit, so it is exported here for one comparison:
+// a value equal to it means "nobody actually declared anything".
+export const UNDECLARED_CONTEXT_WINDOW = 200_000;
+
+/**
+ * Was this window declared by a provider record, the catalog or the owner's
+ * ceiling file — or is it just the capability table's fallback floor?
+ */
+export function isDeclaredContextWindow(value) {
+  const tokens = Number(value);
+  return Number.isFinite(tokens) && tokens > 0 && tokens !== UNDECLARED_CONTEXT_WINDOW;
+}
+
 /**
  * Normalize a declared context window.
  *
@@ -23,10 +39,22 @@ export function ensureMaxContextWindow(value, fallback = DEFAULT_CONTEXT_WINDOW)
   return Math.min(Math.floor(tokens), MAX_CONTEXT_WINDOW);
 }
 
-/** Normalize a capability object without mutating the capability table. */
+/**
+ * Normalize a capability object without mutating the capability table.
+ *
+ * `contextWindow` becomes null when the only number available is the floor, and
+ * `contextDeclared` records that distinction, so badges can render "not declared"
+ * instead of a made-up limit. Selection defaults still use
+ * ensureMaxContextWindow() separately.
+ */
 export function withMaxContextWindow(caps) {
   if (!caps) return caps;
-  return { ...caps, contextWindow: ensureMaxContextWindow(caps.contextWindow) };
+  const declared = isDeclaredContextWindow(caps.contextWindow);
+  return {
+    ...caps,
+    contextWindow: declared ? Math.min(Math.floor(Number(caps.contextWindow)), MAX_CONTEXT_WINDOW) : null,
+    contextDeclared: declared,
+  };
 }
 
 /**

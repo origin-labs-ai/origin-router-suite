@@ -53,12 +53,15 @@ export function resolveCaps(byFull, byId, key) {
   const alias = key.includes("/") ? key.slice(0, key.indexOf("/")) : null;
   const provider = alias ? (ALIAS_TO_ID[alias] || alias) : null;
   const c = getCapabilitiesForModel(provider, bare);
+  const normalized = withMaxContextWindow(c);
   return {
-    vision: c.vision,
-    search: c.search,
-    reasoning: c.reasoning,
-    contextWindow: withMaxContextWindow(c).contextWindow,
-    maxOutput: c.maxOutput,
+    ...normalized,
+    // A model the API does not know keeps its feature flags from the pattern
+    // table, but its context window stays null: the capability table's 200K is a
+    // runtime floor, and showing it as a limit is what made undeclared seats look
+    // capped.
+    contextWindow: normalized.contextWindow,
+    contextDeclared: normalized.contextDeclared === true,
   };
 }
 

@@ -10,7 +10,8 @@ import { getModelsByProviderId, getModelKind } from "@/shared/constants/models";
 import { OAUTH_PROVIDERS, APIKEY_PROVIDERS, FREE_PROVIDERS, FREE_TIER_PROVIDERS, AI_PROVIDERS, isOpenAICompatibleProvider, isAnthropicCompatibleProvider, getProviderAlias } from "@/shared/constants/providers";
 import { parseSearchQuery, matchesSearch } from "@/shared/utils/modelSearchFilter";
 import { getDeactivatedProviderIds } from "@/shared/utils/connectionStatus";
-import { isHiddenModelName, prettyModelName } from "@/shared/utils/modelDisplayName";
+import { isHiddenModelName, prettyModelName, modelGroupKey, groupDisplayName, modelMatchesQuery } from "@/shared/utils/modelDisplayName";
+import { modelTier } from "@/shared/utils/modelTier";
 import { parseModelIdentity } from "@/shared/utils/modelIdentity";
 
 // Provider order: OAuth first, then Free Tier, then API Key (matches dashboard/providers)
@@ -35,6 +36,13 @@ const LIVE_CATALOG_PROVIDERS = ["cursor", "cline", "clinepass", "zed"];
 // same provider produce the same picker value (`alias/id`), so keeping the first
 // avoids duplicate rows. There is no per-connection metadata to preserve beyond
 // {id,name}. Empty array means "nothing live" so callers keep the static fallback.
+/** Added seats float to the top; inside each group the name decides. */
+function sortByAddedFirst(models, addedValues) {
+  const added = models.filter((m) => addedValues.includes(m.value)).sort((a, b) => a.name.localeCompare(b.name));
+  const rest = models.filter((m) => !addedValues.includes(m.value)).sort((a, b) => a.name.localeCompare(b.name));
+  return [...added, ...rest];
+}
+
 function formatContextWindow(tokens) {
   const n = Number(tokens);
   if (!Number.isFinite(n) || n <= 0) return "—";
@@ -156,7 +164,10 @@ export default function ModelSelectModal({
     return getDeactivatedProviderIds(effectiveConnections);
   }, [effectiveConnections]);
 
-  const { getCaps } = useModelCaps();
+  // getModelName is what turns Qoder's `qd/qfmodel` into "Qwen3.8-Flash": the
+  // catalog carries the real name, and a picker that only reads ids cannot be
+  // searched by the model's actual name.
+  const { getCaps, getModelName } = useModelCaps();
   const [searchQuery, setSearchQuery] = useState("");
   const [combos, setCombos] = useState([]);
   const [providerNodes, setProviderNodes] = useState([]);
@@ -543,14 +554,8 @@ export default function ModelSelectModal({
     });
   }, [combos, parsedQuery, kindFilter, capFilter, minContextWindow, getCaps]);
 
-  // Sort models alphabetically, with added models floated to top
-  const sortModels = (models) => {
-    const added = models.filter(m => addedModelValues.includes(m.value)).sort((a, b) => a.name.localeCompare(b.name));
-    const rest = models.filter(m => !addedModelValues.includes(m.value)).sort((a, b) => a.name.localeCompare(b.name));
-    return [...added, ...rest];
-  };
-
-  // Filter models by search query (supports substring, regex, and negation !token / -token)
+  // Filter models by search query (supports substring, regex, negation !token/-token,
+  // and a spelling-insensitive match so a model is found by its name alone)
   const filteredGroups = useMemo(() => {
     const filtered = {};
     Object.entries(groupedModels).forEach(([providerId, group]) => {
@@ -581,6 +586,11 @@ export default function ModelSelectModal({
 
         models = models.filter((m) => {
           if (matchesSearch(m, parsedQuery)) return true;
+          // Tolerant match: `minimax m3.1 flash` finds `minimax-m3.1-flash-free`
+          // even when the row also carries a vendor namespace or a provider name,
+          // which is exactly the search that used to come back empty.
+          const seat = m.value || m.id;
+          if (modelMatchesQuery(`${seat} ${m.name || ""} ${group.name || ""}`, searchQuery)) return true;
           // If provider or alias matches, but model doesn't violate negative exclusion terms
           if (providerNameMatches || aliasMatches) {
             if (parsedQuery.negativeTerms.length > 0) {
@@ -595,28 +605,35 @@ export default function ModelSelectModal({
       }
       filtered[providerId] = {
         ...group,
-        models: sortModels(models),
+        models: sortByAddedFirst(models, addedModelValues),
       };
     });
 
     return filtered;
-  }, [groupedModels, parsedQuery, addedModelValues, allowProviderWildcard, capFilter, minContextWindow, getCaps]);
+  }, [groupedModels, parsedQuery, searchQuery, addedModelValues, allowProviderWildcard, capFilter, minContextWindow, getCaps]);
 
-  // LLM picker: one card per exact model category, with the providers that
-  // serve it as the choices inside. Media pickers keep provider grouping.
+  // LLM picker: one card per model, with every provider that serves it as a choice
+  // inside. Media pickers keep provider grouping.
   const categoryGroups = useMemo(() => {
     if (kindFilter || capFilter || allowProviderWildcard) return null;
     const map = new Map();
     for (const [providerId, group] of Object.entries(filteredGroups)) {
       for (const model of group.models) {
         if (!model || model.isPlaceholder) continue;
-        const identity = parseModelIdentity(model.value || model.id, providerId, group.name);
-        const key = identity.groupKey;
+        const value = model.value || model.id;
+        // Group on the catalog's name when there is one: `qd/qfmodel` (named
+        // "Qwen3.8-Flash") must land in the same card as every other Qwen 3.8 Flash,
+        // not stand alone as an unsearchable "Qfmodel".
+        const spellings = [getModelName(value), model.name, value].filter(Boolean);
+        const key = spellings.map((s) => modelGroupKey(s)).find(Boolean)
+          || parseModelIdentity(value, providerId, group.name).groupKey;
         let entry = map.get(key);
         if (!entry) {
           entry = {
             key,
-            name: identity.categoryName || prettyModelName(model.name || model.id),
+            // Every spelling seen for this model, so the card can be titled with the
+            // one a human wrote (MiniMax, not minimax).
+            spellings: [],
             color: group.color || "#666",
             providerId,
             isCategory: true,
@@ -625,7 +642,9 @@ export default function ModelSelectModal({
           };
           map.set(key, entry);
         }
-        const value = model.value || model.id;
+        for (const spelling of spellings) {
+          if (!entry.spellings.includes(spelling)) entry.spellings.push(spelling);
+        }
         if (entry.seen.has(value)) continue;
         // One chip per provider: high/low/thinking variants of the same model
         // are routes inside that provider, not separate providers.
@@ -635,22 +654,36 @@ export default function ModelSelectModal({
           ...model,
           providerId,
           providerName: group.name,
-          categoryName: entry.name,
         });
       }
     }
     return [...map.values()]
-      .map((entry) => ({
-        ...entry,
-        models: entry.models.sort((a, b) => {
-          const addedA = addedModelValues.includes(a.value) ? 0 : 1;
-          const addedB = addedModelValues.includes(b.value) ? 0 : 1;
-          if (addedA !== addedB) return addedA - addedB;
-          return a.providerName.localeCompare(b.providerName);
-        }),
-      }))
-      .sort((a, b) => a.name.localeCompare(b.name));
-  }, [filteredGroups, kindFilter, capFilter, allowProviderWildcard, addedModelValues]);
+      .map((entry) => {
+        const name = groupDisplayName(entry.spellings, entry.key);
+        const tier = modelTier(entry.spellings[0], entry.spellings.find((s) => !s.includes("/")) || "");
+        return {
+          ...entry,
+          name,
+          // The class the owner asked to see: Pro / Flash, with the family
+          // subcategory (Flash / DeepSeek-Flash) next to the model name.
+          tier: tier.tier,
+          family: tier.family,
+          subcategory: tier.subcategory,
+          categoryName: name,
+          models: entry.models
+            .map((model) => ({ ...model, categoryName: name }))
+            .sort((a, b) => {
+              const addedA = addedModelValues.includes(a.value) ? 0 : 1;
+              const addedB = addedModelValues.includes(b.value) ? 0 : 1;
+              if (addedA !== addedB) return addedA - addedB;
+              return a.providerName.localeCompare(b.providerName);
+            }),
+        };
+      })
+      // Pro class first (the heavy models the owner wants used), then Flash, then
+      // by name inside each class.
+      .sort((a, b) => (a.tier === b.tier ? a.name.localeCompare(b.name) : a.tier === "pro" ? -1 : 1));
+  }, [filteredGroups, kindFilter, capFilter, allowProviderWildcard, addedModelValues, getModelName]);
 
   const renderGroups = useMemo(() => {
     if (!categoryGroups) return filteredGroups;
@@ -895,6 +928,19 @@ export default function ModelSelectModal({
                       {wildcardValue}
                     </span>
                   </button>
+                ) : group.isCategory && group.models.length === 1 ? (
+                  /* One provider serves this model, so there is nothing to choose:
+                     the name is the button. The old flow made you pick a provider even
+                     when only one existed. */
+                  <button
+                    type="button"
+                    onClick={() => handleSelect(group.models[0])}
+                    title={`Add ${group.models[0].value} (only ${group.models[0].providerName} serves it)`}
+                    className="inline-flex items-center gap-1.5 text-xs font-medium text-primary hover:underline"
+                  >
+                    <span>{group.name}</span>
+                    <span className="material-symbols-outlined text-[13px]">add_circle</span>
+                  </button>
                 ) : (
                   <span className="text-xs font-medium text-primary">
                     {group.name}
@@ -906,8 +952,13 @@ export default function ModelSelectModal({
                     : `(${group.models.length})`}
                 </span>
                 {group.isCategory ? (
-                  <span className="rounded-md border border-border px-1.5 py-0.5 text-[9px] uppercase tracking-wide text-text-muted">
-                    Category
+                  <span
+                    className={`rounded-md border px-1.5 py-0.5 text-[9px] uppercase tracking-wide ${group.tier === "pro"
+                      ? "border-violet-500/40 text-violet-500"
+                      : "border-sky-500/40 text-sky-500"}`}
+                    title={`Model class: ${group.subcategory || group.categoryName}`}
+                  >
+                    {group.family || group.category}
                   </span>
                 ) : null}
               </div>

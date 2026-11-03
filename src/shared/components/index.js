@@ -38,6 +38,8 @@ export { default as Tooltip } from "./Tooltip";
 export { default as ProviderInfoCard } from "./ProviderInfoCard";
 export { default as CapacityBadges } from "./CapacityBadges";
 export { default as SmartPolicyModal } from "./SmartPolicyModal";
+export { default as AddToComboModal, AddToComboButton } from "./AddToComboModal";
+export { default as SeatName } from "./SeatName";
 
 // Layouts
 export * from "./layouts";

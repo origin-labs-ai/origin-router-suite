@@ -2,25 +2,33 @@
 
 import { useState, useCallback, useEffect } from "react";
 import PropTypes from "prop-types";
-import { Card, Button, Modal } from "@/shared/components";
+import { Card, Button, Modal, AddToComboButton } from "@/shared/components";
+import { prettyModelName } from "@/shared/utils/modelDisplayName";
 import { getModelsByProviderId, getModelKind } from "@/shared/constants/models";
 import { getProviderAlias } from "@/shared/constants/providers";
+import { describeModelTest, modelTestStyle } from "@/shared/utils/modelTestStatus";
 import { useCopyToClipboard } from "@/shared/hooks/useCopyToClipboard";
 
 // ── ModelRow ───────────────────────────────────────────────────
-export function ModelRow({ model, fullModel, copied, onCopy, testStatus, isCustom, isFree, onDeleteAlias, onTest, isTesting }) {
-  const borderColor = testStatus === "ok" ? "border-green-500/40" : testStatus === "error" ? "border-red-500/40" : "border-border";
-  const iconColor = testStatus === "ok" ? "#22c55e" : testStatus === "error" ? "#ef4444" : undefined;
+export function ModelRow({ model, fullModel, copied, onCopy, testStatus, testDetail, isCustom, isFree, onDeleteAlias, onTest, isTesting }) {
+  const style = modelTestStyle(testStatus);
 
   return (
-    <div className={`group px-3 py-2 rounded-lg border ${borderColor} hover:bg-sidebar/50`}>
+    <div className={`group px-3 py-2 rounded-lg border ${style.border} hover:bg-sidebar/50`}>
       <div className="flex items-center gap-2">
-        <span className="material-symbols-outlined text-base" style={iconColor ? { color: iconColor } : undefined}>
-          {testStatus === "ok" ? "check_circle" : testStatus === "error" ? "cancel" : "smart_toy"}
+        <span className="material-symbols-outlined text-base" style={style.color ? { color: style.color } : undefined} title={testDetail || style.label}>
+          {style.icon}
         </span>
         <div className="flex flex-col gap-1">
-          <code className="text-xs text-text-muted font-mono bg-sidebar px-1.5 py-0.5 rounded">{fullModel}</code>
-          {model.name && <span className="text-[9px] text-text-muted/70 italic pl-1">{model.name}</span>}
+          {/* The label is the model; the routed id stays available on hover and on
+              copy, so a provider head or a namespace never becomes the name. */}
+          <code
+            title={fullModel}
+            className="text-xs text-text-muted font-mono bg-sidebar px-1.5 py-0.5 rounded"
+          >
+            {prettyModelName(model.name || model.id)}
+          </code>
+          {model.name && <span className="text-[9px] text-text-muted/70 italic pl-1">{model.id}</span>}
         </div>
         {onTest && (
           <div className="relative group/btn">
@@ -34,6 +42,7 @@ export function ModelRow({ model, fullModel, copied, onCopy, testStatus, isCusto
             </span>
           </div>
         )}
+        <AddToComboButton seat={fullModel} />
         <div className="relative group/btn">
           <button onClick={() => onCopy(fullModel, `model-${model.id}`)} className="p-0.5 hover:bg-sidebar rounded text-text-muted hover:text-primary">
             <span className="material-symbols-outlined text-sm">{copied === `model-${model.id}` ? "check" : "content_copy"}</span>
@@ -58,7 +67,8 @@ ModelRow.propTypes = {
   fullModel: PropTypes.string.isRequired,
   copied: PropTypes.string,
   onCopy: PropTypes.func.isRequired,
-  testStatus: PropTypes.oneOf(["ok", "error"]),
+  testStatus: PropTypes.oneOf(["ok", "error", "timeout"]),
+  testDetail: PropTypes.string,
   isCustom: PropTypes.bool,
   isFree: PropTypes.bool,
   onDeleteAlias: PropTypes.func,
@@ -113,6 +123,7 @@ export default function ModelsCard({ providerId, kindFilter, providerAliasOverri
   const [modelAliases, setModelAliases] = useState({});
   const [customModels, setCustomModels] = useState([]);
   const [modelTestResults, setModelTestResults] = useState({});
+  const [modelTestDetails, setModelTestDetails] = useState({});
   const [testingModelId, setTestingModelId] = useState(null);
   const [testError, setTestError] = useState("");
   const [showAddCustomModel, setShowAddCustomModel] = useState(false);
@@ -189,10 +200,13 @@ export default function ModelsCard({ providerId, kindFilter, providerAliasOverri
         body: JSON.stringify({ model: `${providerAlias}/${modelId}`, kind: kindFilter }),
       });
       const data = await res.json();
-      setModelTestResults((prev) => ({ ...prev, [modelId]: data.ok ? "ok" : "error" }));
-      setTestError(data.ok ? "" : (data.error || "Model not reachable"));
+      const verdict = describeModelTest(data);
+      setModelTestResults((prev) => ({ ...prev, [modelId]: verdict.status }));
+      setModelTestDetails((prev) => ({ ...prev, [modelId]: verdict.detail }));
+      setTestError(verdict.status === "ok" ? "" : verdict.detail);
     } catch {
       setModelTestResults((prev) => ({ ...prev, [modelId]: "error" }));
+      setModelTestDetails((prev) => ({ ...prev, [modelId]: "Network error" }));
       setTestError("Network error");
     } finally { setTestingModelId(null); }
   };
@@ -238,6 +252,7 @@ export default function ModelsCard({ providerId, kindFilter, providerAliasOverri
                 onSetAlias={(alias) => handleSetAlias(model.id, alias)}
                 onDeleteAlias={() => handleDeleteAlias(existingAlias)}
                 testStatus={modelTestResults[model.id]}
+                testDetail={modelTestDetails[model.id]}
                 onTest={() => handleTestModel(model.id)}
                 isTesting={testingModelId === model.id}
                 isFree={model.isFree}
@@ -255,6 +270,7 @@ export default function ModelsCard({ providerId, kindFilter, providerAliasOverri
               onSetAlias={() => {}}
               onDeleteAlias={() => handleDeleteCustomModel(model.id)}
               testStatus={modelTestResults[model.id]}
+              testDetail={modelTestDetails[model.id]}
               onTest={() => handleTestModel(model.id)}
               isTesting={testingModelId === model.id}
               isCustom

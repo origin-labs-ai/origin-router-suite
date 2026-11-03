@@ -1,10 +1,56 @@
 import { getApiKeys } from "@/lib/localDb";
 import { resolveProviderId } from "@/shared/constants/providers.js";
 import { unwrapClineEnvelope } from "open-sse/shared/clineEnvelope.js";
+import { LAST_RESORT_TEXT } from "open-sse/utils/lastResortText.js";
 import { UPDATER_CONFIG } from "@/shared/constants/config";
 import { getConsistentMachineId } from "@/shared/utils/machineId";
 
 const CLI_TOKEN_SALT = "9r-cli-auth";
+const PING_TIMEOUT_MS = 15000;
+
+// A test must never be the reason a seat goes cold: the strict header tells the
+// router to report the upstream answer verbatim and write no connection state,
+// instead of handing back a synthesized completion that looks like success.
+const MODEL_TEST_HEADER = { "x-or-model-test": "1" };
+
+function isTimeoutError(err) {
+  const name = String(err?.name || "");
+  const message = String(err?.message || "");
+  return name === "TimeoutError" || name === "AbortError" || /timeout|timed out|aborted/i.test(message);
+}
+
+// null = the probe timed out. A timeout is not a refusal: the seat is merely slow
+// or busy, so the caller rechecks instead of deleting a working model.
+async function timedFetch(url, init) {
+  try {
+    return await fetch(url, init);
+  } catch (err) {
+    if (isTimeoutError(err)) return null;
+    throw err;
+  }
+}
+
+function timeoutResult(start, kind) {
+  return {
+    ok: false,
+    timedOut: true,
+    latencyMs: Date.now() - start,
+    error: `Timed out after ${Math.round(PING_TIMEOUT_MS / 1000)}s (${kind}) — recheck, this is not a refusal`,
+  };
+}
+
+// The model the upstream says answered. Providers often echo a dated variant of
+// the id they were given, so this is compared loosely and only reported.
+function answeredModelOf(parsed) {
+  return parsed?.model || parsed?.response?.model || parsed?.message?.model || parsed?.results?.[0]?.model || null;
+}
+
+function sameModelEcho(answered, requested) {
+  const a = String(answered || "").toLowerCase();
+  const b = String(requested || "").split("/").pop().toLowerCase();
+  if (!a) return true;
+  return a === b || a.startsWith(b) || b.startsWith(a) || a.includes(b) || b.includes(a);
+}
 
 function createSilentWavFile() {
   const sampleRate = 16000;
@@ -49,7 +95,7 @@ async function getInternalHeaders() {
     apiKey = (activeKeys.find((k) => !k.access?.restricted) || activeKeys[0])?.key || null;
   } catch {}
 
-  const headers = { "Content-Type": "application/json" };
+  const headers = { "Content-Type": "application/json", ...MODEL_TEST_HEADER };
   if (apiKey) headers["Authorization"] = `Bearer ${apiKey}`;
   headers["x-9r-cli-token"] = await getConsistentMachineId(CLI_TOKEN_SALT);
   return headers;
@@ -60,12 +106,13 @@ export async function pingModelByKind(model, kind, baseUrl = `http://127.0.0.1:$
   const start = Date.now();
 
   if (kind === "embedding") {
-    const res = await fetch(`${baseUrl}/api/v1/embeddings`, {
+    const res = await timedFetch(`${baseUrl}/api/v1/embeddings`, {
       method: "POST",
       headers,
       body: JSON.stringify({ model, input: "test" }),
-      signal: AbortSignal.timeout(15000),
+      signal: AbortSignal.timeout(PING_TIMEOUT_MS),
     });
+    if (!res) return timeoutResult(start, "embedding");
     const latencyMs = Date.now() - start;
     const rawText = await res.text().catch(() => "");
     let parsed = null;
@@ -83,12 +130,13 @@ export async function pingModelByKind(model, kind, baseUrl = `http://127.0.0.1:$
   }
 
   if (kind === "image") {
-    const res = await fetch(`${baseUrl}/api/v1/images/generations`, {
+    const res = await timedFetch(`${baseUrl}/api/v1/images/generations`, {
       method: "POST",
       headers,
       body: JSON.stringify({ model, prompt: "test" }),
-      signal: AbortSignal.timeout(15000),
+      signal: AbortSignal.timeout(PING_TIMEOUT_MS),
     });
+    if (!res) return timeoutResult(start, "image");
     const latencyMs = Date.now() - start;
     const rawText = await res.text().catch(() => "");
     let parsed = null;
@@ -112,12 +160,13 @@ export async function pingModelByKind(model, kind, baseUrl = `http://127.0.0.1:$
     form.append("file", sampleAudio, "test.wav");
     form.append("model", model);
 
-    const res = await fetch(`${baseUrl}/api/v1/audio/transcriptions`, {
+    const res = await timedFetch(`${baseUrl}/api/v1/audio/transcriptions`, {
       method: "POST",
       headers: Object.fromEntries(Object.entries(headers).filter(([key]) => key.toLowerCase() !== "content-type")),
       body: form,
-      signal: AbortSignal.timeout(15000),
+      signal: AbortSignal.timeout(PING_TIMEOUT_MS),
     });
+    if (!res) return timeoutResult(start, "stt");
     const latencyMs = Date.now() - start;
     const rawText = await res.text().catch(() => "");
     let parsed = null;
@@ -136,7 +185,7 @@ export async function pingModelByKind(model, kind, baseUrl = `http://127.0.0.1:$
   }
 
   if (kind === "systemone") {
-    const res = await fetch(`${baseUrl}/api/v1/systemone`, {
+    const res = await timedFetch(`${baseUrl}/api/v1/systemone`, {
       method: "POST",
       headers,
       body: JSON.stringify({
@@ -146,8 +195,9 @@ export async function pingModelByKind(model, kind, baseUrl = `http://127.0.0.1:$
           probe: { type: "noul", instructions: "Is the customer reporting a billing problem?" },
         },
       }),
-      signal: AbortSignal.timeout(15000),
+      signal: AbortSignal.timeout(PING_TIMEOUT_MS),
     });
+    if (!res) return timeoutResult(start, "systemone");
     const latencyMs = Date.now() - start;
     const rawText = await res.text().catch(() => "");
     let parsed = null;
@@ -165,7 +215,7 @@ export async function pingModelByKind(model, kind, baseUrl = `http://127.0.0.1:$
     return { ok: true, latencyMs, error: null, status: res.status };
   }
 
-  const res = await fetch(`${baseUrl}/api/v1/chat/completions`, {
+  const res = await timedFetch(`${baseUrl}/api/v1/chat/completions`, {
     method: "POST",
     headers,
     body: JSON.stringify({
@@ -178,8 +228,9 @@ export async function pingModelByKind(model, kind, baseUrl = `http://127.0.0.1:$
       stream: false,
       messages: [{ role: "user", content: "hi" }],
     }),
-    signal: AbortSignal.timeout(15000),
+    signal: AbortSignal.timeout(PING_TIMEOUT_MS),
   });
+  if (!res) return timeoutResult(start, "llm");
   const latencyMs = Date.now() - start;
 
   const rawText = await res.text().catch(() => "");
@@ -246,5 +297,39 @@ export async function pingModelByKind(model, kind, baseUrl = `http://127.0.0.1:$
     };
   }
 
-  return { ok: true, latencyMs, error: null, status: res.status };
+  // The router writing an answer is not a model answering. The strict header stops
+  // this from ever being generated; the check stays as a guarantee so no path —
+  // or an older build — can hand a green checkmark to a request nothing served.
+  if (String(firstChoice.message?.content || "").trim() === LAST_RESORT_TEXT.trim()) {
+    return {
+      ok: false,
+      latencyMs,
+      status: res.status,
+      error: "Router synthesized this answer — no provider actually served this model",
+    };
+  }
+
+  // A 200 with nothing in it proves the wire works, not the model.
+  if (contentEmpty && !hasReasoning) {
+    return {
+      ok: false,
+      latencyMs,
+      status: res.status,
+      error: "Provider returned an empty completion for this model",
+    };
+  }
+
+  // Honest success also names who answered. If some other seat carrying the same
+  // id replied, the dashboard shows it instead of claiming the tested model did.
+  const answeredModel = answeredModelOf(parsed);
+  return {
+    ok: true,
+    latencyMs,
+    error: null,
+    status: res.status,
+    answeredModel,
+    ...(answeredModel && !sameModelEcho(answeredModel, model)
+      ? { note: `answered by: ${answeredModel}` }
+      : {}),
+  };
 }

@@ -1,33 +1,25 @@
 import PropTypes from "prop-types";
-import { CapacityBadges } from "@/shared/components";
+import { CapacityBadges, AddToComboButton } from "@/shared/components";
 import { prettyModelName } from "@/shared/utils/modelDisplayName";
+import { modelTestStyle } from "@/shared/utils/modelTestStatus";
 
-export default function ModelRow({ model, fullModel, alias, copied, onCopy, testStatus, isCustom, isFree, onDeleteAlias, onTest, isTesting, onDisable, caps, thinkingSuffix }) {
+export default function ModelRow({ model, fullModel, alias, copied, onCopy, testStatus, testDetail, isCustom, isFree, onDeleteAlias, onTest, isTesting, onDisable, caps, thinkingSuffix }) {
   // The routed id is for copying; the visible label is the model's own name,
   // without the provider alias or the vendor/org namespace.
   const displayModel = thinkingSuffix
     ? `${prettyModelName(model.name || model.id)} (${thinkingSuffix})`
     : prettyModelName(model.name || model.id);
-  const borderColor = testStatus === "ok"
-    ? "border-green-500/40"
-    : testStatus === "error"
-    ? "border-red-500/40"
-    : "border-border";
-
-  const iconColor = testStatus === "ok"
-    ? "#22c55e"
-    : testStatus === "error"
-    ? "#ef4444"
-    : undefined;
+  const style = modelTestStyle(testStatus);
 
   return (
-    <div className={`group w-full sm:w-auto min-w-0 max-w-full rounded-lg border px-3 py-2 ${borderColor} hover:bg-sidebar/50`}>
+    <div className={`group w-full sm:w-auto min-w-0 max-w-full rounded-lg border px-3 py-2 ${style.border} hover:bg-sidebar/50`}>
       <div className="flex min-w-0 items-start gap-2 sm:items-center">
         <span
           className="material-symbols-outlined shrink-0 text-base mt-0.5 sm:mt-0"
-          style={iconColor ? { color: iconColor } : undefined}
+          style={style.color ? { color: style.color } : undefined}
+          title={testDetail || style.label}
         >
-          {testStatus === "ok" ? "check_circle" : testStatus === "error" ? "cancel" : "smart_toy"}
+          {style.icon}
         </span>
         <div className="flex min-w-0 flex-1 flex-col gap-1">
           <code className="w-fit max-w-full break-all rounded bg-sidebar px-1.5 py-0.5 font-mono text-xs text-text-muted sm:max-w-[360px] sm:truncate">{displayModel}</code>
@@ -53,6 +45,7 @@ export default function ModelRow({ model, fullModel, alias, copied, onCopy, test
               </span>
             </div>
           )}
+          <AddToComboButton seat={fullModel} />
           <div className="relative shrink-0 group/btn">
             <button
               onClick={() => onCopy(displayModel, `model-${model.id}`)}

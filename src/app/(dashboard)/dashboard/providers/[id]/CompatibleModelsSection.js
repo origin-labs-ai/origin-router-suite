@@ -2,31 +2,24 @@
 
 import { useState } from "react";
 import PropTypes from "prop-types";
-import { Button } from "@/shared/components";
+import { Button, AddToComboButton } from "@/shared/components";
+import { prettyModelName } from "@/shared/utils/modelDisplayName";
 import { getProviderCustomModelRows } from "@/shared/utils/providerCustomModels";
-function CompatibleModelRow({ modelId, fullModel, copied, onCopy, onDeleteAlias, onTest, testStatus, isTesting }) {
-  const borderColor = testStatus === "ok"
-    ? "border-green-500/40"
-    : testStatus === "error"
-    ? "border-red-500/40"
-    : "border-border";
-
-  const iconColor = testStatus === "ok"
-    ? "#22c55e"
-    : testStatus === "error"
-    ? "#ef4444"
-    : undefined;
+import { describeModelTest, modelTestStyle } from "@/shared/utils/modelTestStatus";
+function CompatibleModelRow({ modelId, fullModel, copied, onCopy, onDeleteAlias, onTest, testStatus, testDetail, isTesting }) {
+  const style = modelTestStyle(testStatus);
 
   return (
-    <div className={`flex items-center gap-3 p-3 rounded-lg border ${borderColor} hover:bg-sidebar/50`}>
+    <div className={`flex items-center gap-3 p-3 rounded-lg border ${style.border} hover:bg-sidebar/50`}>
       <span
         className="material-symbols-outlined text-base text-text-muted"
-        style={iconColor ? { color: iconColor } : undefined}
+        style={style.color ? { color: style.color } : undefined}
+        title={testDetail || style.label}
       >
-        {testStatus === "ok" ? "check_circle" : testStatus === "error" ? "cancel" : "smart_toy"}
+        {style.icon}
       </span>
       <div className="flex-1 min-w-0">
-        <p className="text-sm font-medium truncate">{modelId}</p>
+        <p className="text-sm font-medium truncate" title={modelId}>{prettyModelName(modelId)}</p>
         <div className="flex items-center gap-1 mt-1">
           <code className="text-xs text-text-muted font-mono bg-sidebar px-1.5 py-0.5 rounded">{fullModel}</code>
           <div className="relative group/btn">
@@ -42,6 +35,7 @@ function CompatibleModelRow({ modelId, fullModel, copied, onCopy, onDeleteAlias,
               {copied === `model-${modelId}` ? "Copied!" : "Copy"}
             </span>
           </div>
+          <AddToComboButton seat={fullModel} />
           {onTest && (
             <div className="relative group/btn">
               <button
@@ -77,6 +71,7 @@ export default function CompatibleModelsSection({ providerStorageAlias, provider
   const [importing, setImporting] = useState(false);
   const [testingModelId, setTestingModelId] = useState(null);
   const [modelTestResults, setModelTestResults] = useState({});
+  const [modelTestDetails, setModelTestDetails] = useState({});
 
   const handleTestModel = async (modelId) => {
     if (testingModelId) return;
@@ -88,9 +83,12 @@ export default function CompatibleModelsSection({ providerStorageAlias, provider
         body: JSON.stringify({ model: `${providerStorageAlias}/${modelId}` }),
       });
       const data = await res.json();
-      setModelTestResults((prev) => ({ ...prev, [modelId]: data.ok ? "ok" : "error" }));
+      const verdict = describeModelTest(data);
+      setModelTestResults((prev) => ({ ...prev, [modelId]: verdict.status }));
+      setModelTestDetails((prev) => ({ ...prev, [modelId]: verdict.detail }));
     } catch {
       setModelTestResults((prev) => ({ ...prev, [modelId]: "error" }));
+      setModelTestDetails((prev) => ({ ...prev, [modelId]: "Network error" }));
     } finally {
       setTestingModelId(null);
     }
@@ -205,6 +203,7 @@ export default function CompatibleModelsSection({ providerStorageAlias, provider
               onDeleteAlias={() => source === "custom" ? onDeleteCustomModel(id) : onDeleteAlias(alias)}
               onTest={connections.length > 0 ? () => handleTestModel(id) : undefined}
               testStatus={modelTestResults[id]}
+              testDetail={modelTestDetails[id]}
               isTesting={testingModelId === id}
             />
           ))}

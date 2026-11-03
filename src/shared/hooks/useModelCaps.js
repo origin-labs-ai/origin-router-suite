@@ -6,20 +6,39 @@ import { ALIAS_TO_ID } from "@/shared/constants/providers";
 import { withMaxContextWindow } from "@/lib/contextLimits";
 
 // Module cache: one /api/models fetch shared by every useModelCaps instance.
-let cache = null; // { byFull, byId } | null
+let cache = null; // { byFull, byId, names } | null
 let inflight = null;
 
 function buildMaps(models) {
   const byFull = {};
   const byId = {};
+  // A provider catalog often stores the model's real name next to an opaque id:
+  // `qd/qfmodel` is named "Qwen3.8-Flash". Without that name the label and the
+  // category can only be guessed from the id, which is how a perfectly good model
+  // becomes unfindable in a picker. Same fetch, kept beside the caps.
+  const names = { byFull: {}, byId: {} };
   for (const m of models || []) {
+    const label = typeof m?.name === "string" ? m.name.trim() : "";
+    if (label) {
+      if (m.fullModel) names.byFull[m.fullModel] = label;
+      if (m.routedModel) names.byFull[m.routedModel] = label;
+      if (m.model) names.byId[m.model] = label;
+    }
     if (!m.caps) continue;
     const caps = withMaxContextWindow(m.caps);
     if (m.fullModel) byFull[m.fullModel] = caps;
     if (m.routedModel) byFull[m.routedModel] = caps;
     if (m.model) byId[m.model] = caps;
   }
-  return { byFull, byId };
+  return { byFull, byId, names };
+}
+
+/** The catalog's own name for a seat, when the provider gave one. */
+export function resolveModelName(names, key) {
+  if (!key || !names) return "";
+  if (names.byFull[key]) return names.byFull[key];
+  const bare = key.includes("/") ? key.slice(key.indexOf("/") + 1) : key;
+  return names.byId[bare] || "";
 }
 
 function loadModelCaps() {
@@ -34,7 +53,7 @@ function loadModelCaps() {
     })
     .catch(() => {
       // Keep null so a later mount can retry
-      return { byFull: {}, byId: {} };
+      return { byFull: {}, byId: {}, names: { byFull: {}, byId: {} } };
     })
     .finally(() => { inflight = null; });
   return inflight;
@@ -68,11 +87,14 @@ export function resolveCaps(byFull, byId, key) {
 export function useModelCaps() {
   const [byFull, setByFull] = useState(() => cache?.byFull || {});
   const [byId, setById] = useState(() => cache?.byId || {});
+  const [names, setNames] = useState(() => cache?.names || { byFull: {}, byId: {} });
 
   useEffect(() => {
     let alive = true;
     const sync = (maps) => {
-      if (alive) { setByFull(maps.byFull); setById(maps.byId); }
+      if (!alive) return;
+      setByFull(maps.byFull); setById(maps.byId);
+      setNames(maps.names || { byFull: {}, byId: {} });
     };
     if (cache) {
       sync(cache);
@@ -95,6 +117,10 @@ export function useModelCaps() {
     (key) => resolveCaps(byFull, byId, key),
     [byFull, byId],
   );
+  const getModelName = useCallback(
+    (key) => resolveModelName(names, key),
+    [names],
+  );
 
-  return { getCaps };
+  return { getCaps, getModelName };
 }

@@ -4,21 +4,23 @@ import { useState, useEffect } from "react";
 import PropTypes from "prop-types";
 import { Button, Modal, Select, Toggle } from "@/shared/components";
 import { CAPACITY_META, STT_TRANSPORT_META, STT_TRANSPORTS } from "@/shared/constants/models";
+import { describeModelTest } from "@/shared/utils/modelTestStatus";
 
 const defaultCaps = () => Object.fromEntries(Object.keys(CAPACITY_META).map((key) => [key, false]));
 
 export default function AddCustomModelModal({ isOpen, providerAlias, providerDisplayAlias, onSave, onClose }) {
   const [modelId, setModelId] = useState("");
   const [caps, setCaps] = useState(defaultCaps);
-  const [testStatus, setTestStatus] = useState(null); // null | "testing" | "ok" | "error"
+  const [testStatus, setTestStatus] = useState(null); // null | "testing" | "ok" | "error" | "timeout"
   const [testError, setTestError] = useState("");
+  const [testDetail, setTestDetail] = useState("");
   const [saving, setSaving] = useState(false);
   // Realtime dispatch marker for the transport select; "" = provider default REST.
   const [transport, setTransport] = useState("");
 
   // Reset state when modal opens
   useEffect(() => {
-    if (isOpen) { setModelId(""); setCaps(defaultCaps()); setTransport(""); setTestStatus(null); setTestError(""); }
+    if (isOpen) { setModelId(""); setCaps(defaultCaps()); setTransport(""); setTestStatus(null); setTestError(""); setTestDetail(""); }
   }, [isOpen]);
 
   // Strip provider's own alias prefix (e.g. "cc/model" -> "model" for cc provider)
@@ -39,10 +41,13 @@ export default function AddCustomModelModal({ isOpen, providerAlias, providerDis
         body: JSON.stringify({ model: `${providerAlias}/${cleanId}` }),
       });
       const data = await res.json();
-      setTestStatus(data.ok ? "ok" : "error");
-      setTestError(data.error || "");
+      const verdict = describeModelTest(data);
+      setTestStatus(verdict.status);
+      setTestDetail(verdict.detail);
+      setTestError(verdict.status === "ok" ? "" : verdict.detail);
     } catch (err) {
       setTestStatus("error");
+      setTestDetail(err.message);
       setTestError(err.message);
     }
   };
@@ -140,7 +145,13 @@ export default function AddCustomModelModal({ isOpen, providerAlias, providerDis
         {testStatus === "ok" && (
           <div className="flex items-center gap-2 text-sm text-green-600">
             <span className="material-symbols-outlined text-base">check_circle</span>
-            Model is reachable
+            {testDetail || "Model answered"}
+          </div>
+        )}
+        {testStatus === "timeout" && (
+          <div className="flex items-start gap-2 text-sm text-amber-500">
+            <span className="material-symbols-outlined text-base shrink-0">hourglass_top</span>
+            <span>{testDetail || "No answer in time — recheck before calling it broken"}</span>
           </div>
         )}
         {testStatus === "error" && (

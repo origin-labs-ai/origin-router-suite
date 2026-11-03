@@ -19,8 +19,10 @@ export default {
   transport: {
     baseUrl: "https://api3.qoder.sh/algo/api/v2/service/pro/sse/agent_chat_generation",
     headers: {},
-    timeoutMs: 120000,
-    stallTimeoutMs: 120000,
+    // Generation budgets, not connect budgets: a long agentic turn must be allowed to
+    // finish. Same 7200s as every other model path.
+    timeoutMs: 7200000,
+    stallTimeoutMs: 7200000,
     usage: {
       url: "https://openapi.qoder.sh/api/v2/quota/usage",
     },

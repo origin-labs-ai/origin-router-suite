@@ -1,11 +1,12 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
+import Link from "next/link";
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors } from "@dnd-kit/core";
 import { arrayMove, SortableContext, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { restrictToVerticalAxis, restrictToParentElement } from "@dnd-kit/modifiers";
-import { Card, Button, Modal, Input, CardSkeleton, ModelSelectModal, ConfirmModal, CapacityBadges, Select, Toggle, Badge, SmartPolicyModal } from "@/shared/components";
+import { Card, Button, Modal, Input, CardSkeleton, ModelSelectModal, ConfirmModal, CapacityBadges, Select, Toggle, Badge, SmartPolicyModal, SeatName } from "@/shared/components";
 import { useCopyToClipboard } from "@/shared/hooks/useCopyToClipboard";
 import { useModelCaps } from "@/shared/hooks/useModelCaps";
 import { aggregateComboCapabilities } from "open-sse/providers/capabilities.js";
@@ -55,9 +56,18 @@ const STRATEGY_OPTIONS = [
   { value: "fusion", label: "Fusion — panel + judge" },
 ];
 
-// Combo context ceiling presets. "0" means no ceiling; the server clamps
-// anything above 1M. Members below the selected window are hidden in the
-// picker and rejected on save.
+// Which brain orders this combo's seats. "" inherits the global setting, so the
+// normal case stays "whatever Settings says" and only the exception is pinned.
+const ROUTER_BRAIN_OPTIONS = [
+  { value: "", label: "Brain — inherit settings" },
+  { value: "merged", label: "Brain — Jev + Panda" },
+  { value: "panda", label: "Brain — Panda only" },
+  { value: "jev", label: "Brain — Jev only" },
+];
+
+// Combo context ceiling presets. "0" means no ceiling: members keep their own
+// windows and nothing is filtered or blocked by size — the gateway rotates past a
+// seat that turns out too small for a given prompt instead of refusing the combo.
 const CONTEXT_WINDOW_OPTIONS = [
   { value: "0", label: "No limit" },
   { value: "32000", label: "32K tokens" },
@@ -66,7 +76,10 @@ const CONTEXT_WINDOW_OPTIONS = [
   { value: "200000", label: "200K tokens" },
   { value: "256000", label: "256K tokens" },
   { value: "512000", label: "512K tokens" },
-  { value: "1000000", label: "1M tokens (max)" },
+  { value: "1000000", label: "1M tokens" },
+  // Claude Code's "[1m]" tier is the binary 1,048,576, not a round million: a combo
+  // capped at 1,000,000 looked 48,576 tokens short of the seats that serve it.
+  { value: "1048576", label: "1,048,576 (full 1M tier)" },
 ];
 
 function getPolicyBadgeLabel(strategy = {}) {
@@ -777,7 +790,7 @@ function ComboCard({ combo, getCaps, comboByName = {}, activeProviders = [], cop
               ) : (
                 combo.models.slice(0, 3).map((model, index) => (
                   <code key={index} className="inline-flex items-center gap-1 rounded bg-black/5 px-1.5 py-0.5 font-mono text-xs text-text-muted dark:bg-white/5">
-                    <span>{prettyModelName(model)}</span>
+                    <SeatName seat={model} showTier />
                     <CapacityBadges caps={
                       comboByName[model]
                         ? aggregateComboCapabilities(comboByName[model], comboByName, getCaps)
@@ -887,6 +900,18 @@ function ComboCard({ combo, getCaps, comboByName = {}, activeProviders = [], cop
         {/* Actions */}
         <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center sm:gap-3 sm:shrink-0">
           {/* Strategy selector — always visible */}
+          {/* Router brain for this combo only. Empty = whatever Settings → Routing
+              resilience says, so the global choice stays the normal case and one
+              combo can still be pinned to Panda-only while another runs merged. */}
+          <div className="w-full sm:w-[168px]">
+            <Select
+              options={ROUTER_BRAIN_OPTIONS}
+              value={strategy.routerBrain || ""}
+              onChange={(e) => onSetStrategy({ routerBrain: e.target.value })}
+              selectClassName="py-1.5 text-xs"
+            />
+          </div>
+
           <div className="w-full sm:w-[200px]">
             <Select
               options={STRATEGY_OPTIONS}
@@ -1096,7 +1121,7 @@ function CapacityAdapterCap({ cap, entry, onChange, activeProviders, getCaps }) 
                   </td>
                   <td className="px-3 py-2 text-text-main">
                     <div className="flex items-center gap-1.5 flex-wrap">
-                      <span className="truncate">{prettyModelName(model)}</span>
+                      <SeatName seat={model} showTier className="truncate" />
                       <CapacityBadges caps={getCaps?.(model)} />
                       {model === DEFAULT_FALLBACK_MODEL && (
                         <span className="rounded bg-emerald-500/10 px-1.5 py-0.5 font-sans text-[10px] font-medium text-emerald-600 dark:text-emerald-400">
@@ -1236,7 +1261,7 @@ function ModelItem({ id, index, model, isFirst, isLast, onEdit, onMoveUp, onMove
           onClick={() => setEditing(true)}
           title="Click to edit"
         >
-          {prettyModelName(model)}
+          <SeatName seat={model} showTier />
         </div>
       )}
 

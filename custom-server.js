@@ -70,6 +70,10 @@ function pruneStaleRouteCache() {
 
 pruneStaleRouteCache();
 
+// 7200s: the one timeout budget for the whole product. Kept here as a plain number
+// because this file runs before the Next bundle (and cannot import ESM modules).
+const GLOBAL_TIMEOUT_MS = 7_200_000;
+
 const origCreate = http.createServer.bind(http);
 
 // Per-process secret proving x-9r-real-ip was stamped below rather than sent by the client.
@@ -139,6 +143,15 @@ http.createServer = (...args) => {
     return handler(req, res);
   };
   const server = origCreate(...rest, wrapped);
+  // The node HTTP server kills a request it cannot finish inside its own budgets:
+  // requestTimeout defaults to 300s and headersTimeout to 60s, so an agent turn that
+  // legitimately takes ten minutes was being dropped by the gateway itself — before
+  // any upstream or client gave up. The project-wide budget is 7200s, so the socket
+  // layer must never be the tightest limit in the chain.
+  server.requestTimeout = GLOBAL_TIMEOUT_MS;
+  server.headersTimeout = 60000; // inbound request headers only: clients send instantly
+  server.keepAliveTimeout = GLOBAL_TIMEOUT_MS;
+  server.setTimeout(0); // no idle-kill timer on long streams
   server.once("listening", () => {
     startBackgroundTokenRefreshFromCustomServer();
   });

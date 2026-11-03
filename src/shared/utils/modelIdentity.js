@@ -1,5 +1,5 @@
 import { AI_PROVIDERS } from "@/shared/constants/providers";
-import { cleanModelLabel, modelCategoryName, prettyModelName } from "@/shared/utils/modelDisplayName";
+import { modelCategoryName, modelGroupKey, prettyModelName } from "@/shared/utils/modelDisplayName";
 
 // A routed model id can carry up to three layers:
 //
@@ -132,25 +132,16 @@ function inferVendor(model) {
 }
 
 /**
- * Group two ids that mean the same exact model. Version punctuation and case
- * are normalized (`claude-sonnet-4.6` == `claude-sonnet-4-6`); effort/variant
- * suffixes stay distinct, because the provider serves them as different models.
+ * Group two ids that mean the same model. Version punctuation and case are
+ * normalized (`claude-sonnet-4.6` == `claude-sonnet-4-6`) and deployment qualifiers
+ * (free, latest, thinking, an effort level, a build number, TEE) collapse away —
+ * whatever prefix or suffix a provider bolts on, the category is the model.
+ *
+ * The rules live in modelDisplayName.js so the picker, the combo editor, the tier
+ * classifier and the router all group a seat the same way.
  */
 export function canonicalModelId(model) {
-  // Canonicalize what the user sees: routing prefixes such as
-  // `accounts/fireworks/models/` must not create a second category for the same
-  // name.
-  return cleanModelLabel(String(model || ""))
-    .trim()
-    .toLowerCase()
-    .replace(/^~+/, "")
-    // Tags and effort suffixes describe a route, not a different model. They
-    // all collapse into the category the picker shows once.
-    .replace(/:(?:free|beta|latest|preview|thinking|extended|stable|experimental|batch)$/i, "")
-    .replace(/(?:-(?:free|latest|preview|thinking|extended|stable|experimental|batch))+$/i, "")
-    .replace(/(?:-(?:high|medium|low|max|xhigh|minimal))$/i, "")
-    .replace(/(\d)p(\d)/gi, "$1.$2")
-    .replace(/(\d)[._-](\d)/g, "$1.$2");
+  return modelGroupKey(String(model || ""));
 }
 
 /**

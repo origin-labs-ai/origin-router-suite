@@ -9,8 +9,24 @@ import os from "node:os";
 import path from "node:path";
 
 const BASE = "http://127.0.0.1:20128";
-const KEY = process.env.OR_KEY || "sk-bb77cc2e507b3ea0-fhtrtm-3d33d160";
 const AGENTS = 8;
+
+// The key is read from the router's own database instead of being written into
+// this file: a literal here ends up committed and pushed, and this dashboard API
+// key grants access to every provider account on the machine.
+function localApiKey() {
+  if (process.env.OR_KEY) return process.env.OR_KEY;
+  const db = new DatabaseSync(path.join(os.homedir(), ".or", "db", "data.sqlite"), { readOnly: true });
+  try {
+    const row = db.prepare("select key from apiKeys where isActive = 1 order by createdAt limit 1").get();
+    if (!row?.key) throw new Error("no active API key in ~/.or/db/data.sqlite");
+    return row.key;
+  } finally {
+    db.close();
+  }
+}
+
+const KEY = localApiKey();
 
 // Claude Code shape: block content, top-level system, tools, streaming.
 const body = (model) => ({

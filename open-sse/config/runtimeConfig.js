@@ -64,8 +64,11 @@ export const STREAM_FIRST_CHUNK_TIMEOUT_MS = envMs("STREAM_FIRST_CHUNK_TIMEOUT_M
 // Env: EMPTY_PEEK_DEADLINE_MS.
 export const EMPTY_PEEK_DEADLINE_MS = envMs("EMPTY_PEEK_DEADLINE_MS", 45 * 1000);
 
-// Fetch connect timeout: abort if upstream doesn't return response headers within this duration
-export const FETCH_CONNECT_TIMEOUT_MS = envMs("FETCH_CONNECT_TIMEOUT_MS", 60 * 1000);
+// Fetch connect timeout: abort if upstream doesn't return response headers within this duration.
+// Equal to the global 7200s budget. A non-streaming call sends no headers until the answer is
+// finished, so a 60s cap killed exactly the long agentic turns the owner wants served — the
+// router was the first to give up, not the client.
+export const FETCH_CONNECT_TIMEOUT_MS = envMs("FETCH_CONNECT_TIMEOUT_MS", 7200 * 1000);
 
 // Gemini native TTS fetch timeout: abort if Google does not return response headers in time.
 export const GEMINI_NATIVE_TTS_FETCH_TIMEOUT_MS = envMs("GEMINI_NATIVE_TTS_FETCH_TIMEOUT_MS", 45 * 1000);

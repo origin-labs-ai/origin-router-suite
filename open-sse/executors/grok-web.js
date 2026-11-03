@@ -432,7 +432,7 @@ export class GrokWebExecutor extends BaseExecutor {
     let response;
     try {
       response = await grokTlsFetch(GROK_CHAT_API, {
-        method: "POST", headers, body: JSON.stringify(grokPayload), timeoutMs: 120000, signal,
+        method: "POST", headers, body: JSON.stringify(grokPayload), timeoutMs: 7200000, signal,
       });
     } catch (err) {
       if (err instanceof GrokTlsUnavailableError) {

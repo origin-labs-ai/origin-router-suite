@@ -15,6 +15,7 @@ import { translate } from "@/i18n/runtime";
 import { fetchSuggestedModels } from "@/shared/utils/providerModelsFetcher";
 import { getProviderCustomModelRows } from "@/shared/utils/providerCustomModels";
 import { isHiddenModelName } from "@/shared/utils/modelDisplayName";
+import { describeModelTest } from "@/shared/utils/modelTestStatus";
 import ModelRow from "./ModelRow";
 import PassthroughModelsSection from "./PassthroughModelsSection";
 import CompatibleModelsSection from "./CompatibleModelsSection";
@@ -72,6 +73,7 @@ export default function ProviderDetailPage() {
   const [customModels, setCustomModels] = useState([]);
   const [headerImgError, setHeaderImgError] = useState(false);
   const [modelTestResults, setModelTestResults] = useState({});
+  const [modelTestDetails, setModelTestDetails] = useState({});
   const [modelsTestError, setModelsTestError] = useState("");
   const [testingModelIds, setTestingModelIds] = useState(() => new Set());
   const [showAddCustomModel, setShowAddCustomModel] = useState(false);
@@ -1166,10 +1168,13 @@ export default function ProviderDetailPage() {
         body: JSON.stringify({ model: `${providerStorageAlias}/${modelId}` }),
       });
       const data = await res.json();
-      setModelTestResults((prev) => ({ ...prev, [modelId]: data.ok ? "ok" : "error" }));
-      setModelsTestError(data.ok ? "" : (data.error || "Model not reachable"));
+      const verdict = describeModelTest(data);
+      setModelTestResults((prev) => ({ ...prev, [modelId]: verdict.status }));
+      setModelTestDetails((prev) => ({ ...prev, [modelId]: verdict.detail }));
+      setModelsTestError(verdict.status === "ok" ? "" : `${modelId}: ${verdict.detail}`);
     } catch {
       setModelTestResults((prev) => ({ ...prev, [modelId]: "error" }));
+      setModelTestDetails((prev) => ({ ...prev, [modelId]: "Network error" }));
       setModelsTestError("Network error");
     } finally {
       setTestingModelIds((prev) => { const n = new Set(prev); n.delete(modelId); return n; });
@@ -1233,6 +1238,7 @@ export default function ProviderDetailPage() {
               }
             }}
             testStatus={modelTestResults[model.id]}
+            testDetail={modelTestDetails[model.id]}
             onTest={connections.length > 0 || isFreeNoAuth ? () => handleTestModel(model.id) : undefined}
             isTesting={testingModelIds.has(model.id)}
             isCustom
@@ -1259,6 +1265,7 @@ export default function ProviderDetailPage() {
               onSetAlias={(alias) => handleSetAlias(model.id, alias, providerStorageAlias)}
               onDeleteAlias={() => handleDeleteAlias(existingAlias)}
               testStatus={modelTestResults[model.id]}
+              testDetail={modelTestDetails[model.id]}
               onTest={connections.length > 0 || isFreeNoAuth ? () => handleTestModel(model.id) : undefined}
               isTesting={testingModelIds.has(model.id)}
               isFree={model.isFree}

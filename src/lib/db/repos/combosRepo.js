@@ -1,10 +1,13 @@
 import { v4 as uuidv4 } from "uuid";
 import { getAdapter } from "../driver.js";
 import { parseJson, stringifyJson } from "../helpers/jsonCol.js";
+import { MAX_CONTEXT_WINDOW } from "@/lib/contextLimits.js";
 
-// Combo context ceiling. 1M is the product cap; anything above is clamped so a
-// typo cannot make a combo promise a window no upstream can serve.
-export const MAX_COMBO_CONTEXT_WINDOW = 1_000_000;
+// Combo context ceiling. Same cap the model windows use — Claude Code's "[1m]" tier
+// is 1,048,576, so a combo clamped to a round 1,000,000 published less than the
+// seats it is built from. Anything above the cap is clamped so a typo cannot make
+// a combo promise a window no upstream can serve.
+export const MAX_COMBO_CONTEXT_WINDOW = MAX_CONTEXT_WINDOW;
 
 function normalizeMaxContextWindow(value) {
   if (value === null || value === undefined || value === "") return null;

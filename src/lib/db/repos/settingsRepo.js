@@ -1,5 +1,6 @@
 import { getAdapter } from "../driver.js";
 import { parseJson, stringifyJson } from "../helpers/jsonCol.js";
+import { DEFAULT_ROUTING_POLICY } from "@/lib/routingPolicy.js";
 
 const DEFAULT_MITM_ROUTER_BASE = "http://localhost:20128";
 const DEFAULT_HEADROOM_URL = process.env.HEADROOM_URL || "http://localhost:8787";
@@ -76,31 +77,9 @@ const DEFAULT_SETTINGS = {
   // Routing resilience (see src/lib/routingPolicy.js). Concurrency is the
   // number of agent requests the router serves at once; the rest of the block
   // decides how long it keeps looking for a seat that answers, and the fact
-  // that an upstream error is never handed to the client.
-  routingPolicy: {
-    enabled: true,
-    maxAgentsConcurrency: 8,
-    perConnectionConcurrency: 2,
-    admissionQueueMs: 20000,
-    failoverEnabled: true,
-    hedgeMs: 12000,
-    hedgeMaxBytes: 65536,
-    maxFailoverRoutes: 12,
-    failoverDeadlineMs: 150000,
-    degradeCooldownMs: 45000,
-    trimOnPromptCap: false,
-    midStreamSilent: true,
-    lastResort: "respond",
-    panda: {
-      enabled: true,
-      baseUrl: "http://127.0.0.1:8765",
-      mode: "max_utility",
-      minPSuccess: 0.5,
-      exploreEpsilon: 0.08,
-      decideProvider: true,
-      timeoutMs: 1500,
-    },
-  },
+  // that an upstream error is never handed to the client. Taken straight from the
+  // policy module so the stored default and the runtime default cannot drift.
+  routingPolicy: structuredClone(DEFAULT_ROUTING_POLICY),
 };
 
 async function readRaw() {

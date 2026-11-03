@@ -19,13 +19,15 @@ import { upstreamResponseHeaders } from "open-sse/utils/upstreamHeaders.js";
 import { handleComboChat, handleFusionChat, detectRequiredCapabilities } from "open-sse/services/combo.js";
 import { augmentModelsWithCapacityAdapter, withCapacityAdapterStripping, getActiveAdapterStrategy } from "open-sse/services/capacityAdapter.js";
 import { handleBypassRequest, synthesizeResponse } from "open-sse/utils/bypassHandler.js";
+import { LAST_RESORT_TEXT } from "open-sse/utils/lastResortText.js";
 import { HTTP_STATUS } from "open-sse/config/runtimeConfig.js";
 import { resolveRoutingPolicy } from "@/lib/routingPolicy";
 import { setMidStreamSilent } from "open-sse/utils/midStreamPolicy.js";
 import { acquireSlot, beginConnection } from "../services/inflight.js";
 import { findAlternateRoutes } from "../services/alternateRoutes.js";
 import { orderRoutes, markDegraded, clearRoute } from "../services/routeHealth.js";
-import { rankRoutes, rankStrings, recordOutcome } from "../services/pandaRouter.js";
+import { rankRoutes, recordOutcome } from "../services/pandaRouter.js";
+import { createRouterBrain } from "../services/routerBrain.js";
 import { detectFormatByEndpoint } from "open-sse/translator/formats.js";
 import { resolveSessionIdentity } from "open-sse/utils/sessionManager.js";
 import * as log from "../utils/logger.js";
@@ -33,7 +35,19 @@ import { updateProviderCredentials, checkAndRefreshToken } from "../services/tok
 import { getProjectIdForConnection } from "open-sse/services/projectId.js";
 import { stripModelContextMarker } from "open-sse/utils/modelMarkers.js";
 import { getKeyAccessContext, enforceKeyAccess, filterAdapterModels } from "../services/keyAccess.js";
-import { resolveSmartChoice } from "../services/systemoneRouter.js";
+
+// Sent by the dashboard's model test (/api/models/test). It means "answer
+// honestly: did THIS provider serve THIS model id?". The promise that a client
+// never sees an upstream error exists for agent traffic — Claude Code, CLIs, SDK
+// calls — which must keep running through a bad seat. It was never meant for a
+// connection check, where a swallowed error turns a broken model into a green
+// checkmark. Requests carrying this header skip synthesis, failover and hedging,
+// and no connection state is written on their account.
+const MODEL_TEST_HEADER = "x-or-model-test";
+
+function isStrictModelTest(request) {
+  return request?.headers?.get?.(MODEL_TEST_HEADER) === "1";
+}
 
 /**
  * Handle chat completion request
@@ -103,6 +117,7 @@ export async function handleChat(request, clientRawRequest = null, options = {})
     apiKey,
     // The endpoint is the authority on wire format (/v1/messages ⇒ Claude).
     sourceFormat: request?.url ? detectFormatByEndpoint(new URL(request.url).pathname, body) : null,
+    strictModelTest: isStrictModelTest(request),
     tried: new Set([modelStr]),
   };
   // Wrappers so every exit of this handler passes through the same guard.
@@ -171,24 +186,25 @@ export async function handleChat(request, clientRawRequest = null, options = {})
 
     const comboStickyLimit = settings.comboStickyRoundRobinLimit;
     const comboCfg = comboStrategies[modelStr] || {};
-    // PandaOrchestrator decides which member of this combo carries the task:
-    // it profiles the actual request text and ranks the members by calibrated
-    // P(success) / expected cost / latency. Unrankable members stay in order.
-    let comboOrder = augmentedModels;
-    if (policy.panda.enabled && augmentedModels.length > 1) {
-      const ranked = await rankStrings({ items: augmentedModels, body, policy, log });
-      if (ranked?.items?.length) {
-        comboOrder = ranked.items;
-        resilience.panda = { traceId: ranked.traceId, request: ranked.request, response: ranked.response };
-        log.info("PANDA", `combo "${modelStr}" order → ${comboOrder.slice(0, 3).join(", ")}`);
-      }
+    // The router brain decides which member of this combo carries the task: Panda
+    // profiles the task text and grades each seat by calibrated P(success)/cost,
+    // Jev (System One) classifies the task semantically, and "merged" blends both
+    // into one score per seat. Which of the three runs is Settings → Routing
+    // resilience → Router brain, overridable per combo.
+    const brain = createRouterBrain({ body, policy, comboCfg, comboName: modelStr, log });
+    const preOrdered = await brain.preOrder(augmentedModels, comboStrategy);
+    const comboOrder = preOrdered.items;
+    const pandaPlan = preOrdered.plan;
+    if (pandaPlan?.traceId) {
+      resilience.panda = { traceId: pandaPlan.traceId, request: pandaPlan.request, response: pandaPlan.response };
     }
-    log.info("CHAT", `Combo "${modelStr}" with ${augmentedModels.length} models (strategy: ${comboStrategy}, sticky: ${comboStickyLimit})`);
+    resilience.brain = brain.mode;
+    log.info("CHAT", `Combo "${modelStr}" with ${augmentedModels.length} models (strategy: ${comboStrategy}, brain: ${brain.mode}, sticky: ${comboStickyLimit})`);
     return comboChat({
       body,
       models: comboOrder,
       handleSingleModel: withCapacityAdapterStripping(
-        (b, m) => handleSingleModelChat(b, m, clientRawRequest, request, apiKey, null, policy),
+        (b, m) => attemptSeat(b, m, clientRawRequest, request, apiKey, policy),
         adapterAdded
       ),
       log,
@@ -199,20 +215,20 @@ export async function handleChat(request, clientRawRequest = null, options = {})
       smartPolicy: comboCfg.smartPolicy || "smart",
       sessionSticky: comboCfg.sessionSticky !== false,
       confidenceThreshold: typeof comboCfg.confidenceThreshold === "number" ? comboCfg.confidenceThreshold : 0.8,
-      resolveSmartChoice: comboStrategy === "smart"
-        ? (b, m) => resolveSmartChoice({
-            body: b,
-            models: m,
-            routerModel: comboCfg.routerModel,
-            log,
-          })
+      resolveSmartChoice: comboStrategy === "smart" && brain.mode !== "panda"
+        ? (b, m) => brain.choose(m)
         : null,
     });
   }
 
-  // Single model request — may still switch to a capacity-adapter model if the
-  // target lacks a capability the request needs (e.g. no vision, request has an image).
-  const soloAugmented = await filterAdapterModels(keyAccess, augmentModelsWithCapacityAdapter([modelStr], requiredCapabilities, settings), [modelStr]);
+  // Single model request. `explicitModelSticky` (default on) is the owner's rule:
+  // "I am testing THIS model from THIS provider" must not be turned into a request
+  // for some other model by the capability adapter. Combos route freely; a direct
+  // target stays exactly where it was pointed, and only same-model provider
+  // rotation may move it. Turn the setting off to restore adapter switching.
+  const soloAugmented = policy.explicitModelSticky
+    ? [modelStr]
+    : await filterAdapterModels(keyAccess, augmentModelsWithCapacityAdapter([modelStr], requiredCapabilities, settings), [modelStr]);
   if (soloAugmented.length > 1) {
     const adapterAdded = soloAugmented.filter((m) => m !== modelStr);
     log.info("CHAT", `Capacity adapter for [${[...requiredCapabilities].join(",")}] on "${modelStr}" → trying ${soloAugmented.join(", ")}`);
@@ -220,7 +236,7 @@ export async function handleChat(request, clientRawRequest = null, options = {})
       body,
       models: soloAugmented,
       handleSingleModel: withCapacityAdapterStripping(
-        (b, m) => handleSingleModelChat(b, m, clientRawRequest, request, apiKey, null, policy),
+        (b, m) => attemptSeat(b, m, clientRawRequest, request, apiKey, policy),
         adapterAdded
       ),
       log,
@@ -242,6 +258,9 @@ export async function handleChat(request, clientRawRequest = null, options = {})
  */
 async function handleSingleModelChat(body, modelStr, clientRawRequest = null, request = null, apiKey = null, requestedModel = null, policy = null) {
   const activePolicy = policy || resolveRoutingPolicy(await getSettings());
+  // A test click is an observation, not an intervention: it must never cool a
+  // healthy seat down just because a probe tripped a 429.
+  const strictTest = isStrictModelTest(request);
   const modelInfo = await getModelInfo(modelStr);
 
   // If provider is null, this might be a combo name - check and handle
@@ -284,12 +303,17 @@ async function handleSingleModelChat(body, modelStr, clientRawRequest = null, re
       const comboCfg = comboStrategies[modelStr] || {};
       const nestedSession = resolveSessionIdentity({ headers: clientRawRequest?.headers, body });
       const nestedSessionId = nestedSession?.sessionId || null;
-      log.info("CHAT", `Combo "${modelStr}" with ${augmentedModels.length} models (strategy: ${comboStrategy}, sticky: ${comboStickyLimit})`);
+      // A nested combo gets the same brain treatment as a top-level one, so
+      // "claude-opus-5-5 → someCombo" is decided by the configured brains rather
+      // than falling back to raw member order.
+      const brain = createRouterBrain({ body, policy: activePolicy, comboCfg, comboName: modelStr, log });
+      const preOrdered = await brain.preOrder(augmentedModels, comboStrategy);
+      log.info("CHAT", `Combo "${modelStr}" with ${augmentedModels.length} models (strategy: ${comboStrategy}, brain: ${brain.mode}, sticky: ${comboStickyLimit})`);
       return handleComboChat({
         body,
-        models: augmentedModels,
+        models: preOrdered.items,
         handleSingleModel: withCapacityAdapterStripping(
-          (b, m) => handleSingleModelChat(b, m, clientRawRequest, request, apiKey, null, policy),
+          (b, m) => attemptSeat(b, m, clientRawRequest, request, apiKey, policy),
           adapterAdded
         ),
         log,
@@ -300,13 +324,8 @@ async function handleSingleModelChat(body, modelStr, clientRawRequest = null, re
         smartPolicy: comboCfg.smartPolicy || "smart",
         sessionSticky: comboCfg.sessionSticky !== false,
         confidenceThreshold: typeof comboCfg.confidenceThreshold === "number" ? comboCfg.confidenceThreshold : 0.8,
-        resolveSmartChoice: comboStrategy === "smart"
-          ? (b, m) => resolveSmartChoice({
-              body: b,
-              models: m,
-              routerModel: comboCfg.routerModel,
-              log,
-            })
+        resolveSmartChoice: comboStrategy === "smart" && brain.mode !== "panda"
+          ? (b, m) => brain.choose(m)
           : null,
       });
     }
@@ -431,7 +450,9 @@ async function handleSingleModelChat(body, modelStr, clientRawRequest = null, re
     // Do not persist a modelLock_* for this path.
     const shouldFallback = provider === "antigravity" && quotaResetMs
       ? true
-      : (await markAccountUnavailable(credentials.connectionId, result.status, result.error, provider, model, resetsAtMs)).shouldFallback;
+      : strictTest
+        ? false
+        : (await markAccountUnavailable(credentials.connectionId, result.status, result.error, provider, model, resetsAtMs)).shouldFallback;
 
     if (shouldFallback) {
       log.warn("FALLBACK", `⇄ ACC:${credentials.connectionName} UNAVAILABLE (${result.status}) → NEXT ACCOUNT`);
@@ -446,12 +467,8 @@ async function handleSingleModelChat(body, modelStr, clientRawRequest = null, re
   }
 }
 
-// Text of the last-resort completion. Deliberately plain prose, not an error
-// string: a CLI that parses an error envelope aborts its own run, while a short
-// answer keeps the session alive so the next turn can be served.
-const LAST_RESORT_TEXT =
-  "OriginRouter could not reach any provider for this request just now. " +
-  "Send it again and it will be routed to whichever seat is free.";
+// The last-resort completion text lives in open-sse/utils/lastResortText.js so the
+// dashboard model test can recognise it and refuse to call it a working model.
 
 /**
  * Hold an upstream slot and a connection's load counter for one dispatch.
@@ -481,6 +498,9 @@ async function withDispatchSlot(policy, connectionId, run) {
  */
 async function hedgedSingle(ctx, primary) {
   const { policy, body } = ctx;
+  // Racing a second seat would answer "is THIS model up?" with "whatever replied
+  // first", so a test never hedges.
+  if (ctx.strictModelTest) return primary;
   if (!policy.enabled || !policy.failoverEnabled || policy.hedgeMs <= 0) return primary;
 
   let bytes = 0;
@@ -573,6 +593,16 @@ async function serve(responseOrPromise, ctx) {
   }
 
   const errorText = await readErrorText(response);
+
+  // A dashboard model test asks whether THIS provider serves THIS model id. Handing
+  // it a synthesized completion, or an answer from some other provider carrying the
+  // same id, would report a broken model as a working one. The upstream answer
+  // travels back untouched; the no-error promise stays for agent traffic.
+  if (ctx.strictModelTest) {
+    log.warn("MODELTEST", `✗ ${ctx.modelStr} unserved (${response?.status || "ERR"}) — reported to the dashboard as-is`, { internal: errorText });
+    return response;
+  }
+
   log.warn("RESILIENT", `⚠ ${ctx.modelStr} unserved (${response?.status || "ERR"}) → rotating; client sees no error`, {
     internal: errorText,
   });
@@ -621,8 +651,10 @@ async function failoverAcrossProviders(ctx) {
     // scores P(success), expected cost and latency for THIS task text), then the
     // shared breaker — rotating start, seats that just refused any concurrent
     // agent pushed to the back. Neither the herd nor a repeated full sweep.
+    // Jev-only mode deliberately skips this: its brain grades models for a task,
+    // not the provider seats serving one model id.
     let queue = orderRoutes(alternates, (item) => item.route, policy.degradeCooldownMs);
-    if (policy.panda.enabled && policy.panda.decideProvider && alternates.length > 1) {
+    if (policy.panda.enabled && policy.panda.decideProvider && alternates.length > 1 && policy.routerBrain !== "jev") {
       const plan = await rankRoutes({ routes: alternates, body, policy, log });
       if (plan?.routes?.length) {
         ctx.panda = ctx.panda || { traceId: plan.traceId };
@@ -636,6 +668,11 @@ async function failoverAcrossProviders(ctx) {
       if (Date.now() > deadline || tried.has(candidate.route)) continue;
       tried.add(candidate.route);
       attempts += 1;
+      // A short, jittered rest between hops. Every agent that reaches this point
+      // failed at the same moment, so without it all eight sweep the whole fleet
+      // again in the same millisecond — the hammering the owner called "sab models
+      // par baar-baar". The first hop is immediate: no reason to delay a retry.
+      if (attempts > 1) await hopPause(policy.hopBackoffMs, attempts);
 
       let response = null;
       let candidateError = "";
@@ -686,6 +723,17 @@ function reportPandaOutcome(ctx, modelId, success) {
   recordOutcome({ traceId, modelId, success, policy: ctx.policy }).catch(() => { });
 }
 
+// Rest between failover hops, jittered and capped, so concurrent agents spread out
+// instead of retrying in lockstep. Never long enough to look like a stall.
+const HOP_PAUSE_CAP_MS = 4000;
+function hopPause(baseMs, hopNumber) {
+  const base = Math.max(0, Number(baseMs) || 0);
+  if (!base) return Promise.resolve();
+  const growth = Math.min(base * Math.max(1, hopNumber - 1), HOP_PAUSE_CAP_MS);
+  const jittered = growth * (0.5 + Math.random());
+  return new Promise((resolve) => setTimeout(resolve, Math.min(HOP_PAUSE_CAP_MS, Math.round(jittered))));
+}
+
 /**
  * What the walk should start from. A combo already rotated over its members and
  * still failed, so its members' other-provider seats are the next best guess;
@@ -697,6 +745,64 @@ async function resolveFailoverTargets(ctx) {
   if (modelStr?.includes("/")) return [modelStr];
   const members = await getComboModels(modelStr).catch(() => null);
   return members?.length ? members.slice(0, 3) : [modelStr];
+}
+
+/**
+ * A refusal that no retry can fix: the key is dead, the account has no credit or
+ * permission, or that pool simply does not carry this model. Retrying these on
+ * every request is what turns 105 seats into 400 wasted upstream attempts.
+ */
+const PERMANENT_STATUS = new Set([401, 403, 404]);
+const PERMANENT_TEXTS = [
+  "invalid_api_key", "invalid or revoked api key", "model not found",
+  "model_unpriced_or_unavailable", "not priced or available",
+  "no permission to access", "insufficient balance", "out of credits",
+  "daily check-in required", "no_entitlement",
+];
+
+function isPermanentRejection(status, text = "") {
+  const code = Number(status);
+  if (PERMANENT_STATUS.has(code)) return true;
+  const lower = String(text || "").toLowerCase();
+  return PERMANENT_TEXTS.some((needle) => lower.includes(needle));
+}
+
+/**
+ * One seat of a combo walk, with its result reported to the shared route breaker.
+ *
+ * The combo walk lives in open-sse and keeps its memory inside one request, so
+ * without this the seven other agents start fresh and walk the same dead seat from
+ * the top — the "sab models par baar-baar" hammering the owner pointed at, and the
+ * reason a broken connection can absorb a hundred attempts in a few minutes. One
+ * failure now counts for every concurrent session, for as long as the policy's
+ * escalating cooldown says so.
+ */
+async function attemptSeat(body, modelStr, clientRawRequest, request, apiKey, policy) {
+  let response = null;
+  let thrown = "";
+  try {
+    response = await handleSingleModelChat(body, modelStr, clientRawRequest, request, apiKey, null, policy);
+  } catch (error) {
+    thrown = error?.message || String(error);
+  }
+
+  if (response?.ok) {
+    clearRoute(modelStr);
+  } else {
+    const errorText = thrown || (await readErrorText(response));
+    const base = policy?.degradeCooldownMs ?? 45000;
+    markDegraded(modelStr, {
+      status: response?.status,
+      error: errorText,
+      // A permanent refusal is parked five times longer than a transient one: the
+      // seat will not become usable in the next 45 seconds, and the fleet is full of
+      // keys and pools that are simply gone.
+      cooldownMs: isPermanentRejection(response?.status, errorText) ? Math.max(base * 5, 150000) : base,
+    });
+  }
+
+  if (thrown) throw new Error(thrown);
+  return response;
 }
 
 // Upstream error text, kept inside the router for rotation decisions and logs.

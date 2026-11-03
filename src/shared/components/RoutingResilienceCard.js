@@ -45,11 +45,32 @@ const FIELDS = [
     max: 64,
   },
   {
+    key: "hopBackoffMs",
+    label: "Rest between hops (ms)",
+    help: "Base pause before each extra failover hop, jittered per agent. Keeps eight concurrent sessions from hammering the whole fleet in the same millisecond. 0 disables.",
+    min: 0,
+    max: 60000,
+  },
+  {
     key: "failoverDeadlineMs",
     label: "Failover budget (ms)",
-    help: "Total time the router may spend finding a seat that answers.",
+    help: "Total time the router may spend finding a seat that answers. 7200000 = 2 hours, so a slow answer is still an answer.",
     min: 1000,
-    max: 900000,
+    max: 21600000,
+  },
+  {
+    key: "brainTimeoutMs",
+    label: "Brain wait (ms)",
+    help: "How long the merged brain may take to decide before whatever already answered is used. A router brain must never delay generation.",
+    min: 0,
+    max: 60000,
+  },
+  {
+    key: "seatFairnessWindowMs",
+    label: "Fairness window (ms)",
+    help: "How far back a seat counts as recently used. A seat never picked inside this window is the one the fairness pass promotes.",
+    min: 1000,
+    max: 86400000,
   },
 ];
 
@@ -62,11 +83,20 @@ const DEFAULTS = {
   hedgeMs: 12000,
   hedgeMaxBytes: 65536,
   maxFailoverRoutes: 12,
-  failoverDeadlineMs: 150000,
+  hopBackoffMs: 250,
+  failoverDeadlineMs: 7200000,
   degradeCooldownMs: 45000,
   trimOnPromptCap: false,
   midStreamSilent: true,
   lastResort: "respond",
+  routerBrain: "merged",
+  jevWeight: 0.45,
+  pandaWeight: 0.55,
+  brainTimeoutMs: 3500,
+  seatFairness: 0.3,
+  seatFairnessWindowMs: 900000,
+  jevTimeoutMs: 8000,
+  explicitModelSticky: true,
   panda: {
     enabled: true,
     baseUrl: "http://127.0.0.1:8765",
@@ -74,9 +104,28 @@ const DEFAULTS = {
     minPSuccess: 0.5,
     exploreEpsilon: 0.08,
     decideProvider: true,
+    pickFromTopK: 3,
     timeoutMs: 1500,
   },
 };
+
+const BRAIN_OPTIONS = [
+  {
+    value: "merged",
+    label: "Merged — Jev + Panda",
+    help: "Both brains decide in parallel and their scores are blended into one ranking. When they disagree, the loser\u2019s pick sits right behind the winner as the next hop. Best models get used and reliability stays high.",
+  },
+  {
+    value: "panda",
+    label: "Panda only — fallback option",
+    help: "PandaOrchestrator ranks the combo seats by calibrated P(success) / cost / latency. Jev is never called, so nothing is spent on a second classifier.",
+  },
+  {
+    value: "jev",
+    label: "Jev only — System One",
+    help: "System One classifies the task and picks the seat. Panda is not consulted, so the fallback tail is your own seat order plus rotation.",
+  },
+];
 
 export default function RoutingResilienceCard() {
   const [policy, setPolicy] = useState(DEFAULTS);
@@ -84,6 +133,7 @@ export default function RoutingResilienceCard() {
   const [saving, setSaving] = useState(false);
   const [checking, setChecking] = useState(false);
   const [pandaStatus, setPandaStatus] = useState("");
+  const [brainStatus, setBrainStatus] = useState("");
   const [message, setMessage] = useState(null);
 
   const checkPanda = async () => {
@@ -91,12 +141,20 @@ export default function RoutingResilienceCard() {
     try {
       const res = await fetch("/api/panda/status?refresh=1", { cache: "no-store" });
       const data = await res.json();
+      const panda = data.panda?.ready
+        ? `Panda online: ${data.detail?.cards ?? "?"} model cards.`
+        : `Panda offline (${data.detail || "no response"}).`;
+      const jev = data.jev?.ready
+        ? `Jev ready via ${data.jev.model}.`
+        : `Jev not ready (${data.jev?.detail || "unknown"}).`;
+      setBrainStatus(`Active brain: ${data.brain || "?"}. ${panda} ${jev}${data.degraded ? " Running degraded — the router falls back to your seat order plus rotation." : ""}`);
       setPandaStatus(
         data.ok
           ? `Online: ${data.detail?.cards ?? "?"} model cards, ${data.detail?.profiler || ""}.`
           : `Offline (${data.detail || "no response"}) — the router falls back to its own order.`,
       );
     } catch (error) {
+      setBrainStatus(`Status unreachable (${error.message})`);
       setPandaStatus(`Unreachable (${error.message})`);
     } finally {
       setChecking(false);
@@ -209,6 +267,110 @@ export default function RoutingResilienceCard() {
           <Toggle
             checked={policy.trimOnPromptCap === true}
             onChange={() => patch({ trimOnPromptCap: !(policy.trimOnPromptCap === true) })}
+            disabled={loading || saving}
+          />
+        </div>
+
+        <div className="flex flex-col gap-3 pt-3 border-t border-border/50">
+          <div className="flex items-center gap-2">
+            <span className="material-symbols-outlined text-[18px] text-emerald-500">psychology</span>
+            <p className="font-medium text-sm sm:text-base">Router brain</p>
+          </div>
+          <p className="text-xs sm:text-sm text-text-muted -mt-1">
+            Who decides which combo member carries the task. This only ever applies to
+            combo targets: a request that names one exact model stays on that model.
+          </p>
+
+          <div className="flex flex-col gap-2">
+            {BRAIN_OPTIONS.map((option) => {
+              const active = (policy.routerBrain || DEFAULTS.routerBrain) === option.value;
+              return (
+                <button
+                  key={option.value}
+                  type="button"
+                  onClick={() => patch({ routerBrain: option.value })}
+                  disabled={loading || saving}
+                  className={`text-left rounded-xl border px-3 py-2.5 transition-colors disabled:opacity-50 ${active
+                    ? "border-emerald-500/60 bg-emerald-500/10"
+                    : "border-border/60 hover:border-border"}`}
+                >
+                  <span className="flex items-center gap-2">
+                    <span className={`h-2.5 w-2.5 rounded-full shrink-0 ${active ? "bg-emerald-500" : "bg-black/15 dark:bg-white/20"}`} />
+                    <span className="text-sm font-medium">{option.label}</span>
+                  </span>
+                  <span className="block mt-1 ml-[18px] text-xs text-text-muted">{option.help}</span>
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="grid grid-cols-3 gap-3">
+            <div>
+              <p className="text-xs font-medium text-text-muted mb-1">Jev weight</p>
+              <Input
+                type="number"
+                step="0.05"
+                min="0"
+                max="1"
+                value={policy.jevWeight ?? DEFAULTS.jevWeight}
+                onChange={(e) => patch({ jevWeight: Number(e.target.value) })}
+                disabled={loading || saving}
+                className="w-full text-center"
+              />
+            </div>
+            <div>
+              <p className="text-xs font-medium text-text-muted mb-1">Panda weight</p>
+              <Input
+                type="number"
+                step="0.05"
+                min="0"
+                max="1"
+                value={policy.pandaWeight ?? DEFAULTS.pandaWeight}
+                onChange={(e) => patch({ pandaWeight: Number(e.target.value) })}
+                disabled={loading || saving}
+                className="w-full text-center"
+              />
+            </div>
+            <div>
+              <p className="text-xs font-medium text-text-muted mb-1">Seat fairness</p>
+              <Input
+                type="number"
+                step="0.05"
+                min="0"
+                max="1"
+                value={policy.seatFairness ?? DEFAULTS.seatFairness}
+                onChange={(e) => patch({ seatFairness: Number(e.target.value) })}
+                disabled={loading || saving}
+                className="w-full text-center"
+              />
+            </div>
+          </div>
+          <p className="text-xs text-text-muted -mt-1">
+            Weights are used by &quot;merged&quot; and normalised, so 0.45 / 0.55 and 45 / 55 mean the same.
+            Fairness is the share of turns handed to a seat that has not run yet in the window — it is what
+            keeps a 66-seat combo from running on three seats while the rest expire unused.
+          </p>
+
+          {brainStatus && (
+            <p className="text-xs text-text-muted rounded-lg bg-black/[0.03] dark:bg-white/[0.04] px-2.5 py-2">{brainStatus}</p>
+          )}
+
+          <Button variant="outline" onClick={checkPanda} loading={checking} disabled={loading}>
+            Check brains
+          </Button>
+        </div>
+
+        <div className="flex items-start sm:items-center justify-between gap-4 pt-3 border-t border-border/50">
+          <div className="flex-1 min-w-0">
+            <p className="font-medium text-sm sm:text-base">An explicit model stays explicit</p>
+            <p className="text-xs sm:text-sm text-text-muted">
+              Testing one model from the provider page or the playground sends it to that model only
+              — no capability adapter swapping it for another model. Combos still route freely.
+            </p>
+          </div>
+          <Toggle
+            checked={policy.explicitModelSticky !== false}
+            onChange={() => patch({ explicitModelSticky: !(policy.explicitModelSticky !== false) })}
             disabled={loading || saving}
           />
         </div>

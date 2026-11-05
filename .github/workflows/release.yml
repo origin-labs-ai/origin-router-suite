@@ -75,7 +75,11 @@ jobs:
           npm run dist:win --prefix desktop
 
       - name: CLI launcher tarball
-        run: npm pack --prefix cli --pack-destination dist\installer --ignore-scripts
+        # `npm pack --prefix cli` does not read cli/package.json - it packs the
+        # repository root (a 2.4 GB tarball named origin-router-app). Pack from
+        # inside cli/ so the artifact is the launcher package.
+        working-directory: cli
+        run: npm pack --pack-destination ..\dist\installer --ignore-scripts
 
       - name: Checksums
         shell: pwsh

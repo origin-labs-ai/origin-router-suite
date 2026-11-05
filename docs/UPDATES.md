@@ -48,7 +48,7 @@ answer permanently "unknown" while the sidebar still offered `npm i -g` as the f
 |---|---|
 | `OriginRouter-Setup-<version>.exe` + `.sha256` | gateway + dashboard installer (Inno Setup) |
 | `OriginRouter-Desktop-Setup-<version>.exe` + `.sha256` | desktop window installer (electron-builder unpacked dir, then Inno) |
-| `origin-router-<version>.tgz` | CLI launcher package (`npm pack`) |
+| `originrouter-<version>.tgz` | CLI launcher package (`npm pack`, npm name `originrouter`) |
 | `checksums.sha256` | aggregate digests of all three |
 
 Version numbers must match across root, `cli/` and `desktop/` `package.json` — the Docker

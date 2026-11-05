@@ -1,5 +1,9 @@
 # OriginRouter
 
+<p align="center">
+  <img src="images/origin-router.png" alt="OriginRouter dashboard" width="800"/>
+</p>
+
 Local AI routing gateway with a dashboard and playground for every provider, combo and
 fallback you configure. One OpenAI-compatible endpoint in front of it all. Everything runs
 on your machine — chats, keys and router data stay local.
@@ -104,12 +108,27 @@ npm install --prefix desktop     # only for the window app
 npm run dist:win --prefix desktop  # -> dist\installer\OriginRouter-Desktop-Setup-<version>.exe
 
 Push-Location cli
-npm pack                          # -> cli\origin-router-<version>.tgz
+npm pack                          # -> cli\originrouter-<version>.tgz
 Pop-Location
 ```
 
 Pack the launcher from **inside** `cli/`: `npm pack --prefix cli` reads the root
 `package.json` instead and produces a tarball of the whole repository.
+
+### Publishing the launcher to npm
+
+The launcher's npm identity is **`originrouter`** (the `bin` names, the autostart entry and
+`UPDATER_CONFIG.npmPackageName` all use it; `origin-router` on the registry belongs to an
+unrelated package and cannot be taken):
+
+```powershell
+npm login            # once, in a terminal
+Push-Location cli; npm publish; Pop-Location
+```
+
+Until that is done, install from the release: run the installer, or
+`npm install -g .\originrouter-<version>.tgz` against the release tarball. The gateway's own
+self-update never depended on npm — it installs the installer from the GitHub release.
 
 The version comes from `package.json`; `build-installer.ps1` reads it from there unless you
 pass `-Version`. Lockfiles are deliberately not committed (see `.gitignore`), so installs

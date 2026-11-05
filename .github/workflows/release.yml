@@ -3,7 +3,7 @@ name: release
 # Publishes the same three artifacts the build machine produces:
 #   OriginRouter-Setup-<v>.exe            gateway + dashboard installer (Inno)
 #   OriginRouter-Desktop-Setup-<v>.exe    desktop window installer (Inno, bundles the gateway)
-#   origin-router-<v>.tgz                 CLI launcher tarball (npm install -g ./file.tgz)
+#   originrouter-<v>.tgz                  CLI launcher package (npm identity: originrouter)
 # plus a .sha256 next to every binary, which is what the updater verifies before it
 # installs anything.
 #
@@ -75,9 +75,8 @@ jobs:
           npm run dist:win --prefix desktop
 
       - name: CLI launcher tarball
-        # `npm pack --prefix cli` does not read cli/package.json - it packs the
-        # repository root (a 2.4 GB tarball named origin-router-app). Pack from
-        # inside cli/ so the artifact is the launcher package.
+        # Must be packed from inside cli/: `npm pack --prefix cli` reads the root
+        # package.json instead and produces a tarball of the entire repository.
         working-directory: cli
         run: npm pack --pack-destination ..\dist\installer --ignore-scripts
 
@@ -88,7 +87,7 @@ jobs:
           $names = @(
             "OriginRouter-Setup-$version.exe",
             "OriginRouter-Desktop-Setup-$version.exe",
-            "origin-router-$version.tgz"
+            "originrouter-$version.tgz"
           )
           $lines = @()
           foreach ($name in $names) {

@@ -57,6 +57,21 @@ worked on one machine.
 - **Attribution kept**: `LICENSE` still carries the upstream MIT copyright notice. That is
   a legal condition of using the code, not branding, so it stays.
 
+### npm packaging, decided after the cut
+
+The npm identity of the launcher is **`originrouter`** - the name its `bin` entries, the
+autostart value and `UPDATER_CONFIG.npmPackageName` already used, and the name that is free
+on the registry (`origin-router` is somebody else's package, v1.6.4). Two bugs surfaced while
+getting it publishable:
+
+- `bin: { originrouter: "./cli.js" }` - npm 10 rejects a `bin` path with the `./` prefix and
+  **silently drops the entry**: `npm publish --dry-run` reported `"bin[originrouter]" script
+  name cli.js was invalid and removed`, which would have installed the package with no
+  `originrouter` and no `or` command at all. Fixed to `cli.js`; the dry-run is clean now
+  (`originrouter@0.5.115`, 70.1 MB packed, 11762 files).
+- `npm publish` itself stops at `ENEEDAUTH`: this machine has no registry credentials, so
+  publishing waits for one `npm login` from the owner. Everything up to it is verified.
+
 ### Verified
 - `git grep -i "9router|decolua"` over docs, README, gitbook, CLAUDE.md and package
   metadata: no product-level hits left. Remaining `9router` strings are wire-protocol
@@ -66,7 +81,10 @@ worked on one machine.
 - i18n README sweep: 10 files, one token each; the first attempt was a scripting bug
   (a collapsed PowerShell array turned a string pair into `Replace('o','r')` and mangled
   the non-ASCII files). Caught on inspection, restored with `git checkout -- i18n`, redone
-  with a literal per-file replace, and confirmed by diffing a Persian and a Japanese file.
+  with a literal per-file replace. Verified afterwards: `git diff --numstat` over the shipped
+  range reports **1 insertion / 1 deletion for each of the ten files** - only the package-name
+  token moved, every other byte (including the Persian, Thai, Japanese and Russian text) is
+  unchanged from what it replaced.
 
 ---
 

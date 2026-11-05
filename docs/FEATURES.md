@@ -1,5 +1,12 @@
 # Features
 
+## Screenshots
+
+| | |
+|---|---|
+| ![OriginRouter dashboard](../images/origin-router.png) | ![Combo routing in the dashboard](../images/fusion-combo-ui.png) |
+| The gateway dashboard: providers, combos, usage. | A model combo resolving across seats, with per-member routing state. |
+
 ## Playground model selector
 
 `/dashboard/playground` opens a model menu with:

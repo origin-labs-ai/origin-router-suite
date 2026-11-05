@@ -57,14 +57,27 @@ describe("model display names", () => {
     expect(prettyModelName("cl/openai/gpt-6.1-sol-pro")).toBe("GPT-6.1 Sol Pro");
   });
 
-  it("preserves a publisher's own casing (MiniMax, TEE) instead of flattening it", () => {
+  // Deployment noise folds; publisher casing survives on the words that stay.
+  // These two assertions used to demand the opposite for TEE and snapshot dates,
+  // which contradicts the rule the naming work was built on (and the runnable
+  // contract in tests/tmp-name-rules.mjs): a TEE variant is the same model in a
+  // trusted-execution deployment, and a date is a release stamp, not a model.
+  it("preserves a publisher's own casing on the words that identify the model", () => {
     expect(prettyModelName("mm/MiniMax-M3")).toBe("MiniMax M3");
-    expect(prettyModelName("some-provider/deepseek-v3-TEE")).toContain("TEE");
     expect(prettyModelName("cbcn/minimax-m3")).toBe("MiniMax M3");
+    expect(prettyModelName("mm/MiniMax-M3.1-Flash")).toBe("MiniMax M3.1 Flash");
   });
 
-  it("glues snapshot dates into one tag", () => {
-    expect(prettyModelName("x/qwen3.6-flash-2026-04-16")).toBe("Qwen3.6 Flash 2026-04-16");
+  it("folds TEE and UC deployment tags into the model they describe", () => {
+    expect(prettyModelName("some-provider/deepseek-v3-TEE")).toBe("DeepSeek V3");
+    expect(prettyModelName("some-provider/deepseek-v3")).toBe(prettyModelName("some-provider/deepseek-v3-TEE"));
+    expect(prettyModelName("glm/glm-5.3-flash-tee")).toBe(prettyModelName("glm/glm-5.3-flash"));
+  });
+
+  it("folds snapshot dates and build stamps into the model they version", () => {
+    expect(prettyModelName("x/qwen3.6-flash-2026-04-16")).toBe("Qwen3.6 Flash");
+    expect(prettyModelName("rc/deepseek-ai/DeepSeek-V4.1-Flash-1017")).toBe("DeepSeek V4.1 Flash");
+    expect(prettyModelName("x/qwen3.6-flash")).toBe(prettyModelName("x/qwen3.6-flash-2026-04-16"));
   });
 
   it("groups the spellings of one model under a single key", () => {

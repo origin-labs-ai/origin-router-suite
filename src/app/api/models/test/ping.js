@@ -1,5 +1,6 @@
 import { getApiKeys } from "@/lib/localDb";
 import { resolveProviderId } from "@/shared/constants/providers.js";
+import { modelGroupKey } from "@/shared/utils/modelDisplayName.js";
 import { unwrapClineEnvelope } from "open-sse/shared/clineEnvelope.js";
 import { LAST_RESORT_TEXT } from "open-sse/utils/lastResortText.js";
 import { UPDATER_CONFIG } from "@/shared/constants/config";
@@ -50,11 +51,16 @@ function answeredModelOf(parsed) {
   return parsed?.model || parsed?.response?.model || parsed?.message?.model || parsed?.results?.[0]?.model || null;
 }
 
+// Does the model the upstream named actually answer to the model we asked for?
+// Compared by the repo's canonical model identity, not by substring: a snapshot
+// date or a quant tag folds away (gpt-4o-2024-11-20 IS gpt-4o), while a different
+// model in the same family does not (gpt-4o-mini is NOT gpt-4o). Substring matching
+// said they were the same and hid the fact that a cheaper model had answered.
 function sameModelEcho(answered, requested) {
-  const a = String(answered || "").toLowerCase();
-  const b = String(requested || "").split("/").pop().toLowerCase();
-  if (!a) return true;
-  return a === b || a.startsWith(b) || b.startsWith(a) || a.includes(b) || b.includes(a);
+  const a = modelGroupKey(answered);
+  const b = modelGroupKey(String(requested || "").split("/").pop());
+  if (!a || !b) return true;
+  return a === b;
 }
 
 function createSilentWavFile() {

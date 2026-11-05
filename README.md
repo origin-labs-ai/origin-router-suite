@@ -103,8 +103,13 @@ node scripts/package-cli.mjs --platform=win        # -> dist\win
 npm install --prefix desktop     # only for the window app
 npm run dist:win --prefix desktop  # -> dist\installer\OriginRouter-Desktop-Setup-<version>.exe
 
-npm pack --prefix cli            # -> cli\origin-router-<version>.tgz
+Push-Location cli
+npm pack                          # -> cli\origin-router-<version>.tgz
+Pop-Location
 ```
+
+Pack the launcher from **inside** `cli/`: `npm pack --prefix cli` reads the root
+`package.json` instead and produces a tarball of the whole repository.
 
 The version comes from `package.json`; `build-installer.ps1` reads it from there unless you
 pass `-Version`. Lockfiles are deliberately not committed (see `.gitignore`), so installs

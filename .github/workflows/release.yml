@@ -1,20 +1,105 @@
 name: release
 
+# Publishes the same three artifacts the build machine produces:
+#   OriginRouter-Setup-<v>.exe            gateway + dashboard installer (Inno)
+#   OriginRouter-Desktop-Setup-<v>.exe    desktop window installer (Inno, bundles the gateway)
+#   origin-router-<v>.tgz                 CLI launcher tarball (npm install -g ./file.tgz)
+# plus a .sha256 next to every binary, which is what the updater verifies before it
+# installs anything.
+#
+# Installs use `npm install`, not `npm ci`: the only lockfiles that ever came from
+# upstream belong to upstream's own dependency graph and are ignored here (see
+# .gitignore), and `npm ci` fails outright without one.
 on:
   push:
     tags: ["v*"]
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
-  build:
+  windows:
+    name: build (windows installers + cli tarball)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install app deps
+        run: npm install --no-audit --no-fund
+
+      - name: Build gateway (Next standalone) and copy standalone assets
+        run: |
+          npm run build
+          npm run postbuild
+        env:
+          NEXT_TELEMETRY_DISABLED: "1"
+
+      - name: Build CLI package (bundles the gateway into cli/app)
+        run: |
+          npm install --no-audit --no-fund --prefix cli
+          npm run build --prefix cli
+        env:
+          NEXT_TELEMETRY_DISABLED: "1"
+
+      - name: Package the portable win folder
+        run: node scripts/package-cli.mjs --platform=win
+
+      - name: Gateway installer (Inno Setup 6)
+        shell: pwsh
+        run: |
+          choco install innosetup --no-progress -y
+          $version = "${{ github.ref_name }}".TrimStart('v')
+          & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" "installer\origin-router.iss" "/DAppVersion=$version"
+
+      - name: Desktop installer (electron-builder unpacked dir, then Inno Setup 6)
+        shell: pwsh
+        run: |
+          $version = "${{ github.ref_name }}".TrimStart('v')
+          npm install --no-audit --no-fund --prefix desktop
+          npm run dist:win --prefix desktop
+
+      - name: CLI launcher tarball
+        run: npm pack --prefix cli --pack-destination dist\installer --ignore-scripts
+
+      - name: Checksums
+        shell: pwsh
+        run: |
+          $version = "${{ github.ref_name }}".TrimStart('v')
+          $names = @(
+            "OriginRouter-Setup-$version.exe",
+            "OriginRouter-Desktop-Setup-$version.exe",
+            "origin-router-$version.tgz"
+          )
+          $lines = @()
+          foreach ($name in $names) {
+            $file = Join-Path "dist\installer" $name
+            if (-not (Test-Path $file)) { throw "expected artifact missing: $file" }
+            $hash = (Get-FileHash $file -Algorithm SHA256).Hash.ToLower()
+            "$hash  $name" | Set-Content "$file.sha256" -Encoding ascii
+            $lines += "$((Get-FileHash $file -Algorithm SHA256).Hash.ToUpper())  $name"
+          }
+          $lines | Set-Content (Join-Path "dist\installer" "checksums.sha256") -Encoding ascii
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: OriginRouter-windows
+          path: |
+            dist/installer/*.exe
+            dist/installer/*.sha256
+            dist/installer/*.tgz
+          if-no-files-found: error
+
+  portable:
     name: build (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
         include:
-          - os: windows-latest
-            platform: win
           - os: macos-latest
             platform: mac
           - os: ubuntu-latest
@@ -24,60 +109,30 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: npm
-
       - name: Install app deps
-        run: npm ci
-
+        run: npm install --no-audit --no-fund
       - name: Install CLI deps
-        run: npm ci
+        run: npm install --no-audit --no-fund
         working-directory: cli
-
       - name: Build CLI bundle (Next standalone + assets)
         run: npm run build
         working-directory: cli
         env:
           NEXT_TELEMETRY_DISABLED: "1"
-
       - name: Package portable folder
         run: node scripts/package-cli.mjs --platform=${{ matrix.platform }}
-
-      - name: Zip portable folder (unix)
-        if: matrix.platform != 'win'
-        run: cd dist/${{ matrix.platform }} && zip -r ../OriginRouter-${{ matrix.platform }}.zip .
-
-      - name: Zip portable folder (windows)
-        if: matrix.platform == 'win'
-        shell: pwsh
-        run: Compress-Archive -Path dist\win\* -DestinationPath dist\OriginRouter-win.zip -Force
-
-      - name: Windows installer (Inno Setup 6)
-        if: matrix.platform == 'win'
-        shell: pwsh
-        run: |
-          choco install innosetup --no-progress -y
-          $version = "${{ github.ref_name }}".TrimStart('v')
-          & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" "installer\originrouter.iss" "/DAppVersion=$version"
-          $installer = Get-ChildItem dist\installer\OriginRouter-Setup-*.exe | Select-Object -First 1
-          $hash = (Get-FileHash $installer.FullName -Algorithm SHA256).Hash.ToLower()
-          "$hash  $($installer.Name)" | Set-Content "$($installer.FullName).sha256"
-          Copy-Item $installer.FullName dist\ -Force
-          Copy-Item "$($installer.FullName).sha256" dist\ -Force
-
+      - name: Zip portable folder
+        run: cd dist/${{ matrix.platform }} && zip -r ../../OriginRouter-${{ matrix.platform }}.zip .
       - uses: actions/upload-artifact@v4
         with:
           name: OriginRouter-${{ matrix.platform }}
-          path: |
-            dist/*.zip
-            dist/*.exe
+          path: dist/*.zip
           if-no-files-found: warn
 
   release:
-    needs: build
+    needs: [windows, portable]
     if: startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
     steps:
       - uses: actions/download-artifact@v4
         with:

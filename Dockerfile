@@ -33,7 +33,7 @@ COPY . ./
 ENV NEXT_TELEMETRY_DISABLED=1
 RUN npm run build
 
-# https://github.com/decolua/9router/issues/5245
+# Upstream issue #5245 (see docs/RELEASE-LOG.md for the same fix in the Windows build)
 # wreq-js and playwright-core are lazy runtime dependencies (loaded by
 # lazyRuntime.js via createRequire). Next standalone tracing does not include
 # them, so OpenCode Free fails with HTTP 502 ("resolve is undefined").
@@ -60,7 +60,7 @@ RUN if [ "$ALPINE_MIRROR" != "dl-cdn.alpinelinux.org" ]; then \
       sed -i "s|dl-cdn.alpinelinux.org|${ALPINE_MIRROR}|g" /etc/apk/repositories; \
     fi
 
-LABEL org.opencontainers.image.title="9router" \
+LABEL org.opencontainers.image.title="origin-router" \
       org.opencontainers.image.version="${APP_VERSION}"
 
 ENV NODE_ENV=production
@@ -86,7 +86,7 @@ COPY --from=builder /app/node_modules/sql.js ./node_modules/sql.js
 # node-machine-id is createRequire-loaded at runtime; tracing omits it.
 COPY --from=builder /app/node_modules/node-machine-id ./node_modules/node-machine-id
 # wreq-js + playwright-core (and deps) are lazy-loaded at runtime and omitted by
-# tracing. See https://github.com/decolua/9router/issues/5245
+# tracing. See upstream issue #5245
 COPY --from=builder /opt/lazy-runtime/node_modules/. ./node_modules/
 
 RUN mkdir -p /app/data && chown -R node:node /app && \

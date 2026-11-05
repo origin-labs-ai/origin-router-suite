@@ -42,6 +42,21 @@ export async function GET(request) {
     (active === "jev" && !jev.ready) ||
     (active === "merged" && !pandaReady && !jev.ready);
 
+  // Merged is a blend of two brains with weights 0.55 / 0.45. When one of them is
+  // down the blend is not happening — the live brain and the static seat order carry
+  // 100% of the decision — while `degraded` stays false because a fallback exists.
+  // Reporting that as "live" would be the same class of lie as a masked model test,
+  // so the response states which brains are actually contributing.
+  const jevCounts = active !== "panda" && jev.ready;
+  const liveBrains = (pandaReady && active !== "jev" ? 1 : 0) + (jevCounts ? 1 : 0);
+  const partial = active === "merged" && liveBrains === 1;
+
+  const note = degraded
+    ? "Selected brain is unavailable: routing falls back to the other brain, then to your own seat order plus rotation. Requests are never blocked by this."
+    : partial
+      ? `Merged is running on ${pandaReady ? "Panda only" : "Jev only"} — the ${policy.pandaWeight}/${policy.jevWeight} blend is not in play. Requests are unaffected; the ranking is just one-brained.`
+      : "Selected brain is live.";
+
   return NextResponse.json(
     {
       ok: health.ok,
@@ -57,10 +72,10 @@ export async function GET(request) {
       // a claim about it.
       decisions: brainStats(),
       // Which brain is actually in charge, and what happens if it is not there.
-      note: degraded
-        ? "Selected brain is unavailable: routing falls back to the other brain, then to your own seat order plus rotation. Requests are never blocked by this."
-        : "Selected brain is live.",
+      note,
       degraded: Boolean(degraded),
+      partial: Boolean(partial),
+      liveBrains,
     },
     { headers: { "Cache-Control": "no-store" } },
   );

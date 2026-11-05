@@ -3,15 +3,18 @@
 //
 //   node scripts/combo-seat-audit.mjs [comboName] [--apply]
 //   node scripts/combo-seat-audit.mjs [comboName] --drop=seatA,seatB
+//   node scripts/combo-seat-audit.mjs [comboName] --policy=free-working [--apply]
 //
 // Without --apply nothing is written: the script only reports. --drop re-probes
 // only the named seats and removes those that still refuse, so an earlier audit can
-// be acted on without hammering the whole combo a second time. The current member
+// be acted on without hammering the whole combo a second time. --policy=free-working
+// keeps a seat only when it is declared free AND answers now. The current member
 // list is always backed up to <DATA_DIR>/combo-backups before any change.
 import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
 import crypto from "node:crypto";
+import { getPricingForModel, isFreeModel } from "../open-sse/providers/pricing.js";
 
 const args = process.argv.slice(2);
 const COMBO_NAME = args.find((a) => !a.startsWith("--")) || "claude-opus-5-5";
@@ -20,6 +23,11 @@ const dropArg = args.find((a) => a.startsWith("--drop="));
 const DROP_LIST = dropArg
   ? dropArg.slice("--drop=".length).split(",").map((s) => s.trim()).filter(Boolean)
   : null;
+const policyArg = args.find((a) => a.startsWith("--policy="));
+const POLICY = policyArg ? policyArg.slice("--policy=".length) : null;
+const ALL_COMBOS = args.includes("--all-combos");
+const restoreArg = args.find((a) => a.startsWith("--restore="));
+const RESTORE = restoreArg ? restoreArg.slice("--restore=".length) : null;
 
 const BASE = process.env.OR_BASE || "http://127.0.0.1:20127";
 const DATA_DIR = process.env.ORIGINROUTER_DATA_DIR || path.join(os.homedir(), ".or");
@@ -78,6 +86,39 @@ const HEADERS = { "Content-Type": "application/json", "x-9r-cli-token": cliToken
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const classifyText = (haystack, needles) => needles.some((n) => haystack.includes(n));
+
+/**
+ * Is this seat free? Declared evidence only, in this order:
+ *   1. the pricing table's declared free namespace (isFreeModel),
+ *   2. a free-variant id handed out by the upstream catalog (`:free`, `-free`,
+ *      `…0731free`): the aggregator names and meters these at $0. This must be
+ *      checked before any rate lookup — getPricingForModel() strips the vendor
+ *      prefix, so "deepseek/deepseek-v4-flash-free" would otherwise inherit the
+ *      PAID rate of "deepseek-v4-flash" and a free seat would look expensive.
+ *      (Exactly the trap open-sse/providers/pricing.js documents for cline-free/.)
+ *   3. the merged pricing config — the owner's stored rates, then the app's default
+ *      table (provider overrides + glob patterns).
+ * Anything left over is treated as paid: a seat is never kept by this policy on a
+ * guess about its price.
+ */
+function freenessOf(bareModel, providerKey, storedPricing) {
+  const model = String(bareModel || "");
+
+  if (isFreeModel(model)) return { free: true, basis: "declared free namespace" };
+  if (/[:-]free\b/i.test(model) || /free\d*$/i.test(model)) {
+    return { free: true, basis: "free-variant id from upstream catalog" };
+  }
+
+  const row = storedPricing?.[providerKey]?.[model] ?? getPricingForModel(providerKey, model);
+  if (row) {
+    const input = Number(row.input) || 0;
+    const output = Number(row.output) || 0;
+    if (input === 0 && output === 0) return { free: true, basis: "pricing table 0/0 per 1M" };
+    return { free: false, basis: `paid $${input} in / $${output} out per 1M` };
+  }
+
+  return { free: false, basis: "no declared pricing → treated as paid" };
+}
 
 async function api(pathname, init) {
   const res = await fetch(`${BASE}${pathname}`, { ...init, headers: HEADERS, signal: AbortSignal.timeout(CLIENT_TIMEOUT_MS) });
@@ -180,38 +221,109 @@ const nested = seats.filter((s) => !String(s).includes("/") && comboNames.has(s)
 
 console.log(`\nCombo "${COMBO_NAME}" (id ${combo.id}) — ${seats.length} seats`);
 console.log(`kind=${combo.kind || "-"} maxContextWindow=${combo.maxContextWindow || "-"} nestedComboMembers=${nested.length ? nested.join(", ") : "none"}`);
-console.log(`mode=${DROP_LIST ? `DROP ${DROP_LIST.length} named seat(s)` : APPLY ? "APPLY (members will be removed)" : "DRY RUN (nothing is written)"}\n`);
+console.log(`mode=${DROP_LIST ? `DROP ${DROP_LIST.length} named seat(s)` : POLICY ? `POLICY ${POLICY}` : RESTORE ? "RESTORE from backup" : APPLY ? "APPLY (members will be removed)" : "DRY RUN (nothing is written)"}\n`);
+
+if (RESTORE) {
+  // Undo a prune: write back the member list from a backup this tool took.
+  const file = path.isAbsolute(RESTORE) ? RESTORE : path.join(DATA_DIR, "combo-backups", RESTORE);
+  let backup;
+  try {
+    backup = JSON.parse(fs.readFileSync(file, "utf8"));
+  } catch (error) {
+    console.error(`Cannot read backup ${file}: ${error.message}`);
+    console.error(`Available: ${fs.readdirSync(path.join(DATA_DIR, "combo-backups")).join(", ")}`);
+    process.exit(1);
+  }
+  // A single-combo backup restores that combo; the ALL-combos snapshot restores
+  // every combo it contains, skipping ones that no longer exist.
+  for (const entry of Array.isArray(backup) ? backup : [backup]) {
+    const models = Array.isArray(entry.models) ? entry.models : [];
+    if (!models.length) {
+      console.log(`${entry.name || "?"}: backup has no members, skipped`);
+      continue;
+    }
+    const target = allCombos.find((c) => c.id === entry.id) || allCombos.find((c) => c.name === entry.name);
+    if (!target) {
+      console.log(`${entry.name}: combo no longer exists, skipped`);
+      continue;
+    }
+    const put = await api(`/api/combos/${target.id}`, {
+      method: "PUT",
+      body: JSON.stringify({ ...target, models }),
+    });
+    console.log(`${target.name}: ${(target.models || []).length} → ${models.length} seats (from ${path.basename(file)}) → HTTP ${put.status}`);
+    if (!put.ok) console.error(`  update failed: ${put.text.slice(0, 200)}`);
+  }
+  process.exit(0);
+}
 
 /**
  * Back up the current member list, then write the combo without the removed seats.
  * The backup is written first and its path printed, so any removal is undoable.
  */
-async function writeCombo(removeList) {
+async function writeCombo(removeList, target = combo, currentSeats = seats) {
   const remove = new Set(removeList.map((r) => r.seat));
-  const keep = seats.filter((s) => !remove.has(s));
+  const keep = currentSeats.filter((s) => !remove.has(s));
   if (remove.size === 0) {
-    console.log("\nNothing to remove — every candidate either answered or stayed unresolved.");
+    console.log(`  ${target.name}: nothing to remove — every candidate answered or stayed unresolved.`);
     return null;
   }
 
   const backupDir = path.join(DATA_DIR, "combo-backups");
   fs.mkdirSync(backupDir, { recursive: true });
   const stamp = new Date().toISOString().replace(/[:.]/g, "-");
-  const backupFile = path.join(backupDir, `${COMBO_NAME}.${stamp}.json`);
-  fs.writeFileSync(backupFile, JSON.stringify({ ...combo, models: seats }, null, 2), "utf8");
-  console.log(`\nBackup of the ${seats.length}-seat list: ${backupFile}`);
+  const backupFile = path.join(backupDir, `${target.name}.${stamp}.json`);
+  fs.writeFileSync(backupFile, JSON.stringify({ ...target, models: currentSeats }, null, 2), "utf8");
+  console.log(`  backup: ${backupFile}`);
 
-  const put = await api(`/api/combos/${combo.id}`, {
+  const put = await api(`/api/combos/${target.id}`, {
     method: "PUT",
-    body: JSON.stringify({ ...combo, models: keep }),
+    body: JSON.stringify({ ...target, models: keep }),
   });
-  console.log(`PUT /api/combos/${combo.id} → HTTP ${put.status}`);
+  console.log(`  PUT /api/combos/${target.id} → HTTP ${put.status}`);
   if (!put.ok) {
     console.error("Update failed:", put.text.slice(0, 400));
     process.exit(1);
   }
-  console.log(`"${COMBO_NAME}" now has ${keep.length} seats (removed ${remove.size}): ${[...remove].join(", ")}`);
+  console.log(`  "${target.name}" now has ${keep.length} seats (removed ${remove.size}): ${[...remove].join(", ")}`);
   return keep;
+}
+
+if (POLICY === "keep-serving") {
+  // The owner's rule, and the root of every symptom in this session: a combo is a
+  // fallback list, so it must contain only routes that answer in reality. A seat
+  // that is refused, capped, unconnected, or behind a dead key is not a fallback —
+  // it is a wasted hop that ends the walk with the last-resort answer.
+  const isNestedComboName = (s) => !String(s).includes("/") && comboNames.has(String(s));
+  const targets = ALL_COMBOS ? allCombos : [combo];
+  for (const target of targets) {
+    const current = Array.isArray(target.models) ? target.models : [];
+    console.log(`\n=== ${target.name} (${current.length} seats) ===`);
+    if (!current.length) {
+      console.log("  empty combo, nothing to check");
+      continue;
+    }
+    const verdicts = await runPool(current, CONCURRENCY, auditSeat);
+    const keep = [];
+    const dropped = [];
+    for (const v of verdicts) {
+      // A nested combo is a pool of its own; pruning it as if it were a seat would
+      // delete the whole pool because one of its members was busy.
+      if (v.verdict === "served" || isNestedComboName(v.seat)) keep.push(v);
+      else dropped.push(v);
+    }
+    console.log(`  answering: ${keep.length} · removing: ${dropped.length}`);
+    dropped.forEach((d) => console.log(`  DROP ${d.seat}  (${d.verdict}: ${String(d.detail).replace(/\s+/g, " ").slice(0, 110)})`));
+    if (!APPLY) {
+      console.log(`  dry run: ${current.length} → ${current.length - dropped.length} seats`);
+      continue;
+    }
+    await writeCombo(dropped, target, current);
+    if (keep.length === dropped.length) {
+      console.log(`  NOTE ${target.name} is now EMPTY — anything naming it gets the last-resort answer.`);
+    }
+  }
+  process.exit(0);
 }
 
 if (DROP_LIST) {
@@ -229,6 +341,59 @@ if (DROP_LIST) {
     else console.log(`  kept ${seat}: now ${verdict.verdict} — not removing`);
   }
   await writeCombo(confirmed);
+  process.exit(0);
+}
+
+if (POLICY === "free-working") {
+  // Owner's rule: the combo carries only seats that are free AND answer right now.
+  // Price comes from declared data (pricing config/table, then the upstream's own
+  // free-variant id), never from a name guess about the model's class.
+  const catalog = await api("/api/models", { method: "GET" });
+  const rows = catalog.data?.models || [];
+  const bySeat = new Map(rows.map((m) => [m.routedModel || `${m.provider}/${m.model}`, m]));
+  const storedPricing = (await api("/api/pricing", { method: "GET" })).data || {};
+
+  const classified = seats.map((seat) => {
+    const row = bySeat.get(seat);
+    const bare = row?.model ?? String(seat).split("/").slice(1).join("/");
+    // Try the catalog's provider id first, then the seat's own prefix: aggregators
+    // price the same model under either key.
+    for (const key of [row?.provider, String(seat).split("/")[0]].filter(Boolean)) {
+      const v = freenessOf(bare, key, storedPricing);
+      if (v.free) return { seat, bare, providerKey: key, ...v, inCatalog: Boolean(row) };
+    }
+    return { seat, bare, ...freenessOf(bare, row?.provider || String(seat).split("/")[0], storedPricing), inCatalog: Boolean(row) };
+  });
+
+  const freeSeats = classified.filter((c) => c.free);
+  console.log(`declared free: ${freeSeats.length}/${classified.length} (catalog rows: ${classified.filter((c) => c.inCatalog).length})`);
+
+  const working = new Map((await runPool(freeSeats.map((c) => c.seat), CONCURRENCY, auditSeat)).map((v) => [v.seat, v]));
+
+  const keep = [];
+  const removeList = [];
+  for (const c of classified) {
+    if (!c.free) {
+      removeList.push({ ...c, why: `not free (${c.basis})` });
+      continue;
+    }
+    const v = working.get(c.seat);
+    if (v?.verdict === "served") {
+      keep.push({ ...c, detail: v.detail });
+      continue;
+    }
+    removeList.push({ ...c, why: `free but not answering (${v?.verdict}: ${String(v?.detail).replace(/\s+/g, " ").slice(0, 130)})` });
+  }
+
+  console.log(`\nKEEP ${keep.length} · REMOVE ${removeList.length}`);
+  keep.forEach((k) => console.log(`  KEEP   ${k.seat}  [${k.basis}] ${k.detail}`));
+  removeList.forEach((r) => console.log(`  REMOVE ${r.seat}  ${r.why}`));
+
+  if (!APPLY) {
+    console.log(`\nDRY RUN — would go ${seats.length} → ${keep.length} seats. Re-run with --apply to write.`);
+    process.exit(0);
+  }
+  await writeCombo(removeList);
   process.exit(0);
 }
 

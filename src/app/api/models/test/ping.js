@@ -7,6 +7,11 @@ import { getConsistentMachineId } from "@/shared/utils/machineId";
 
 const CLI_TOKEN_SALT = "9r-cli-auth";
 const PING_TIMEOUT_MS = 15000;
+// A combo target is not one call: the router walks its seats until one answers, and
+// the first seats may be capped or slow. Giving up at 15 s turned a perfectly served
+// combo into a false "timeout" verdict — the router's own promise is "a slow answer is
+// fine, a stall is not", so the probe waits longer than one seat would need.
+const LLM_PING_TIMEOUT_MS = 40000;
 
 // A test must never be the reason a seat goes cold: the strict header tells the
 // router to report the upstream answer verbatim and write no connection state,
@@ -30,12 +35,12 @@ async function timedFetch(url, init) {
   }
 }
 
-function timeoutResult(start, kind) {
+function timeoutResult(start, kind, budgetMs = PING_TIMEOUT_MS) {
   return {
     ok: false,
     timedOut: true,
     latencyMs: Date.now() - start,
-    error: `Timed out after ${Math.round(PING_TIMEOUT_MS / 1000)}s (${kind}) — recheck, this is not a refusal`,
+    error: `Timed out after ${Math.round(budgetMs / 1000)}s (${kind}) — recheck, this is not a refusal`,
   };
 }
 
@@ -228,9 +233,9 @@ export async function pingModelByKind(model, kind, baseUrl = `http://127.0.0.1:$
       stream: false,
       messages: [{ role: "user", content: "hi" }],
     }),
-    signal: AbortSignal.timeout(PING_TIMEOUT_MS),
+    signal: AbortSignal.timeout(LLM_PING_TIMEOUT_MS),
   });
-  if (!res) return timeoutResult(start, "llm");
+  if (!res) return timeoutResult(start, "llm", LLM_PING_TIMEOUT_MS);
   const latencyMs = Date.now() - start;
 
   const rawText = await res.text().catch(() => "");

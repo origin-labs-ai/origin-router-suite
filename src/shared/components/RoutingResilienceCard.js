@@ -147,7 +147,13 @@ export default function RoutingResilienceCard() {
       const jev = data.jev?.ready
         ? `Jev ready via ${data.jev.model}.`
         : `Jev not ready (${data.jev?.detail || "unknown"}).`;
-      setBrainStatus(`Active brain: ${data.brain || "?"}. ${panda} ${jev}${data.degraded ? " Running degraded — the router falls back to your seat order plus rotation." : ""}`);
+      // A merged brain with one half down is not a blend any more, and the card has
+      // to say so: the weights shown on this panel (panda/jev) would otherwise read
+      // as if both were steering.
+      const half = data.partial
+        ? ` Half merged: only ${data.liveBrains === 1 && data.panda?.ready ? "Panda" : "Jev"} is contributing, the panda/jev blend is not in play.`
+        : "";
+      setBrainStatus(`Active brain: ${data.brain || "?"}. ${panda} ${jev}${data.degraded ? " Running degraded — the router falls back to your seat order plus rotation." : ""}${half}`);
       setPandaStatus(
         data.ok
           ? `Online: ${data.detail?.cards ?? "?"} model cards, ${data.detail?.profiler || ""}.`

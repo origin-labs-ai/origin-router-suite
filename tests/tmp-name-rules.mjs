@@ -132,6 +132,19 @@ check("tiers: Pro and Flash, with DeepSeek-Flash inside Flash", () => {
   assert.equal(modelTier("cc/claude-opus-5.5").subcategory, "Pro / Claude");
 });
 
+check("a free deployment sits in the Flash pool, not Pro", () => {
+  // `free` is folded out of the grouping key on purpose, so the tier has to read it
+  // off the raw id: these are $0 seats and the brain must not spend hard work on them.
+  assert.equal(modelTier("or/tencent/hy4-preview-free").tier, "flash");
+  assert.equal(modelTier("or/tencent/hy4-preview-free").subcategory, "Flash / Hunyuan-Flash");
+  assert.equal(modelTier("bzl/deepseek/deepseek-v4-flash-0731free").tier, "flash");
+  assert.equal(modelTier("cl/z-ai/glm-5.3:free").subcategory, "Flash / GLM-Flash");
+  // The paid twin of the same model stays Pro.
+  assert.equal(modelTier("or/tencent/hy4-preview").tier, "pro");
+  // A model whose own name starts with "free" is not a free deployment.
+  assert.equal(modelTier("x/freewill-7b").tier, "pro");
+});
+
 check("an opaque provider id is labelled by the catalog name it ships with", () => {
   // qd/qfmodel is Qwen3.8-Flash; the name is the only honest way to say it.
   const seat = "qd/qfmodel";

@@ -29,6 +29,22 @@ const FLASH_WORDS = new Set([
   "economy", "economics", "cheap", "fast", "swift", "quick", "basic", "free",
 ]);
 
+// A free deployment IS the cheap end of a model line: upstream meters it at $0
+// precisely because it is the reduced variant. That has to be read off the raw id,
+// because modelGroupKey() folds `free` away as deployment noise — by design, so
+// `glm-5.3` and `GLM-5.3:free` stay one model — which otherwise hides the marker
+// from the tier and drops a $0 seat like `tencent/hy4-preview-free` into the Pro
+// pool, telling the brain to spend hard work on the free tier.
+// Matches `-free`, `:free`, `_free`, a lone `free`, and a stamp welded onto it
+// (`deepseek-v4-flash-0731free`). Never matches a model actually named free-something.
+const FREE_BOUNDED = /(?:^|[^a-z0-9])free(?![a-z0-9])/i;
+const FREE_WELDED_STAMP = /[^a-z0-9]\d{2,}free(?![a-z0-9])/i;
+
+function isFreeDeployment(text = "") {
+  const tail = String(text || "").split("/").pop() || "";
+  return FREE_BOUNDED.test(tail) || FREE_WELDED_STAMP.test(tail);
+}
+
 // Vendor/family spellings folded onto one family name, in display case.
 const FAMILY_NAMES = new Map([
   ["deepseek", "DeepSeek"], ["deep", "DeepSeek"], ["dmodel", "DeepSeek"], ["dfmodel", "DeepSeek"],
@@ -71,7 +87,11 @@ export function modelTier(seatOrId, catalogName = "") {
 
   // A flash word anywhere in the identity means a reduced variant. `pro` inside a
   // flash name (`hy3-flash-pro`) still reads as flash: the variant is the point.
-  const isFlash = tokens.some((token) => FLASH_WORDS.has(token));
+  // A free deployment counts too, read off the raw seat id as well as the catalog
+  // name — the name usually drops the `-free` marker that the pricing carries.
+  const isFlash = tokens.some((token) => FLASH_WORDS.has(token))
+    || isFreeDeployment(seatOrId)
+    || isFreeDeployment(source);
   const family = familyOf(tokens);
 
   const tier = isFlash ? TIER_FLASH : TIER_PRO;

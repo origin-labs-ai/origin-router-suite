@@ -31,6 +31,13 @@ const FIELDS = [
     max: 900000,
   },
   {
+    key: "seatSilenceMs",
+    label: "Silence before a seat is replaced (ms)",
+    help: "A combo member gets this long to send its first real frame. Silent that long means it is queued or dead, so the turn moves on (max twice) — nothing reached the client, so nothing is truncated. A member that is already streaming is never cut, however slow it is: that would pay for the prompt twice and chop an answer in half. Lower spends free quota faster on retries, higher waits longer on a jammed free lane.",
+    min: 10000,
+    max: 600000,
+  },
+  {
     key: "hedgeMs",
     label: "Hedge after (ms)",
     help: "Short requests still silent this long are raced against another provider; the first answer wins. 0 disables.",
@@ -86,6 +93,7 @@ const DEFAULTS = {
   hopBackoffMs: 250,
   failoverDeadlineMs: 7200000,
   degradeCooldownMs: 45000,
+  seatSilenceMs: 45000,
   trimOnPromptCap: false,
   midStreamSilent: true,
   lastResort: "respond",

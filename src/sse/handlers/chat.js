@@ -121,7 +121,9 @@ export async function handleChat(request, clientRawRequest = null, options = {})
     tried: new Set([modelStr]),
   };
   // Wrappers so every exit of this handler passes through the same guard.
-  const comboChat = (args) => serve(handleComboChat(args), resilience);
+  // The seat-silence budget is injected here so every combo entry point — top level,
+  // capacity adapter, nested — walks on the same rule without repeating the knob.
+  const comboChat = (args) => serve(handleComboChat({ seatSilenceMs: policy.seatSilenceMs, ...args }), resilience);
   const fusionChat = (args) => serve(handleFusionChat(args), resilience);
   if (settings.requireApiKey && options.internal !== true) {
     if (!apiKey) {
@@ -311,6 +313,7 @@ async function handleSingleModelChat(body, modelStr, clientRawRequest = null, re
       log.info("CHAT", `Combo "${modelStr}" with ${augmentedModels.length} models (strategy: ${comboStrategy}, brain: ${brain.mode}, sticky: ${comboStickyLimit})`);
       return handleComboChat({
         body,
+        seatSilenceMs: activePolicy.seatSilenceMs,
         models: preOrdered.items,
         handleSingleModel: withCapacityAdapterStripping(
           (b, m) => attemptSeat(b, m, clientRawRequest, request, apiKey, policy),

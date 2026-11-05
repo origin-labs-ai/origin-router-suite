@@ -164,6 +164,13 @@ export async function peekStreamForContent(body, { deadlineMs = EMPTY_PEEK_DEADL
   const settle = (ret) => { if (timer) { clearTimeout(timer); timer = null; } return ret; };
 
   let pendingRead = null;
+  // Did the upstream send a real frame (data:/event:) yet? Comment lines (`: ...`)
+  // are aggregator keepalives: OpenRouter-style lanes emit them every few seconds
+  // while a request sits QUEUED behind a busy free tier. Counting those as life
+  // would keep us waiting on a seat that has not started generating at all, so
+  // liveness means a frame, not a byte.
+  let sawFrame = false;
+  const FRAME_LINE = /(?:^|\n)[ \t]*(?:data:|event:)/;
   while (true) {
     if (!pendingRead) pendingRead = reader.read();
     let res;
@@ -173,25 +180,28 @@ export async function peekStreamForContent(body, { deadlineMs = EMPTY_PEEK_DEADL
       // Upstream errored mid-peek. Body is locked to this reader; hand it back so the caller
       // can reconstruct (the replay will surface the same error). The failed read is consumed.
       pendingRead = null;
-      return settle({ outcome: state.sawContent ? "content" : "empty", timedOut: false, head: headChunks, reader, pendingRead: null, finishReason: state.finishReason, error: err });
+      return settle({ outcome: state.sawContent ? "content" : "empty", timedOut: false, sawFrame, head: headChunks, reader, pendingRead: null, finishReason: state.finishReason, error: err });
     }
     if (res === "__deadline__") {
       // Fail-open: commit whatever we have. Hand the STILL-PENDING read to the caller so its
       // chunk is replayed, not dropped (fixes the content-dropping deadline race).
-      return settle({ outcome: "content", timedOut: true, head: headChunks, reader, pendingRead, finishReason: state.finishReason });
+      // sawFrame is what lets the caller tell "slow, generating" from "queued and
+      // silent": only the second is worth re-spending the prompt on the next member.
+      return settle({ outcome: "content", timedOut: true, sawFrame, head: headChunks, reader, pendingRead, finishReason: state.finishReason });
     }
     const { done, value } = res;
     pendingRead = null;
     if (done) {
       if (textBuf) scanSSEBuffer(textBuf + "\n", state); // final line without a trailing newline
-      return settle({ outcome: state.sawContent ? "content" : "empty", timedOut: false, head: headChunks, reader, pendingRead: null, finishReason: state.finishReason });
+      return settle({ outcome: state.sawContent ? "content" : "empty", timedOut: false, sawFrame, head: headChunks, reader, pendingRead: null, finishReason: state.finishReason });
     }
     headChunks.push(value);
     textBuf += decoder.decode(value, { stream: true });
+    if (!sawFrame && FRAME_LINE.test(textBuf)) sawFrame = true;
     scanSSEBuffer(textBuf, state);
     textBuf = state.pending; // only the not-yet-complete line carries over
     if (state.sawContent) {
-      return settle({ outcome: "content", timedOut: false, head: headChunks, reader, pendingRead: null, finishReason: state.finishReason });
+      return settle({ outcome: "content", timedOut: false, sawFrame, head: headChunks, reader, pendingRead: null, finishReason: state.finishReason });
     }
   }
 }

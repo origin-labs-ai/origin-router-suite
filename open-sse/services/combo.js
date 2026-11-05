@@ -8,6 +8,7 @@ import { getCapabilitiesForModel } from "../providers/capabilities.js";
 import { parseModel } from "./model.js";
 import { extractTextContent } from "../translator/formats/gemini.js";
 import { peekStreamForContent, reconstructStream, isNoRetryFinish } from "./emptyFailover.js";
+import { EMPTY_PEEK_DEADLINE_MS } from "../config/runtimeConfig.js";
 import {
   getStickyComboModel,
   setStickyComboModel,
@@ -18,16 +19,25 @@ import {
 // Peek a 2xx combo response for real content. Returns null for non-SSE responses (leave
 // them untouched). For SSE, returns { outcome: "content"|"empty", finishReason, response }
 // where `response` is a faithful replay of the original stream (head buffer + live reader).
-async function peekComboResponse(result, log) {
+async function peekComboResponse(result, log, deadlineMs = EMPTY_PEEK_DEADLINE_MS) {
   const ct = (result.headers.get("content-type") || "").toLowerCase();
   if (!result.body || !ct.includes("text/event-stream")) return null;
-  const peeked = await peekStreamForContent(result.body);
+  const peeked = await peekStreamForContent(result.body, { deadlineMs });
   const response = new Response(reconstructStream(peeked.head, peeked.reader, peeked.pendingRead), {
     status: result.status,
     statusText: result.statusText,
     headers: result.headers,
   });
-  return { outcome: peeked.outcome, finishReason: peeked.finishReason, timedOut: peeked.timedOut, response };
+  return {
+    outcome: peeked.outcome,
+    finishReason: peeked.finishReason,
+    timedOut: peeked.timedOut,
+    // Did the upstream send a real frame (data:/event:), or only keepalive comments?
+    // This is the quota decision: a seat that has not produced a frame is queued or
+    // dead and can be replaced, while one that is streaming is worth waiting for.
+    sawFrame: peeked.sawFrame,
+    response,
+  };
 }
 
 // Hard capabilities = input modalities; missing one drops request data (e.g. image
@@ -404,6 +414,9 @@ export async function handleComboChat({
   sessionSticky = true,
   confidenceThreshold = 0.8,
   resolveSmartChoice = null,
+  // How long a member may hold the turn without sending a single byte before the
+  // walk cuts it and advances. Tunable from Settings → Routing resilience.
+  seatSilenceMs = EMPTY_PEEK_DEADLINE_MS,
 }) {
   let rotatedModels = models;
   let activeStickyModel = null;
@@ -506,6 +519,17 @@ export async function handleComboChat({
   let earliestRetryAfter = null;
   let lastStatus = null;
   let requestScopedResult = null;
+  // Quota is the constraint that decides everything here. Advancing to another
+  // member re-sends the whole prompt, so it is only ever worth doing when the
+  // current member is provably dead — a stream that has not delivered a single
+  // frame in seatSilenceMs. A member that IS delivering (thinking deltas, SSE
+  // keepalives) is left alone for the full stall budget: cutting a live generation
+  // would burn the prompt twice and buy nothing.
+  // Cuts are also capped per turn. Without a cap, a walk across a pool of quiet
+  // lanes would pay for the prompt once per member, which is the quota burn this
+  // whole rule exists to avoid. After the cap the next member is committed to.
+  let silenceCuts = 0;
+  const MAX_SILENCE_CUTS = 2;
 
   for (let i = 0; i < rotatedModels.length; i++) {
     const modelStr = rotatedModels[i];
@@ -521,7 +545,7 @@ export async function handleComboChat({
       if (result.ok) {
         let peeked = null;
         try {
-          peeked = await peekComboResponse(result, log);
+          peeked = await peekComboResponse(result, log, seatSilenceMs);
         } catch (peekErr) {
           // peekStreamForContent is written not to throw; if reconstruction/Response
           // construction ever does, result.body is already locked by getReader() and can no
@@ -563,7 +587,28 @@ export async function handleComboChat({
         }
 
         if (peeked.outcome === "content") {
-          log.info("COMBO", `Model ${modelStr} succeeded${peeked.timedOut ? " (peek deadline; committed)" : ""}`);
+          // "content" on a peek that hit its deadline only means "the window ended".
+          // A seat that has produced a real frame is generating — waiting costs
+          // nothing extra and cutting it would pay for the prompt twice AND truncate
+          // an answer the client is already reading. A seat that sent not even a
+          // keepalive comment inside seatSilenceMs is queued or dead: nothing has
+          // reached the client, so closing it loses no output and is strictly
+          // cheaper than holding the turn open for it.
+          if (peeked.timedOut && !peeked.sawFrame && silenceCuts < MAX_SILENCE_CUTS && i < rotatedModels.length - 1) {
+            const silenceSec = Math.round(seatSilenceMs / 1000);
+            silenceCuts += 1;
+            log.warn("COMBO", `Model ${modelStr} produced no frame in ${silenceSec}s (queued/dead) — cut ${silenceCuts}/${MAX_SILENCE_CUTS}, trying the next member`);
+            peeked.response.body?.cancel?.().catch(() => {});
+            lastError = `no response frame in ${silenceSec}s`;
+            if (!lastStatus) lastStatus = 504;
+            if (comboStrategy === "smart" && sessionId && modelStr === activeStickyModel) {
+              clearStickyComboSession(comboName, sessionId);
+            }
+            continue;
+          }
+          // Committed. From here the answer belongs to the client: the remaining
+          // budget is the caller's 7200s, and no further member is ever asked.
+          log.info("COMBO", `Model ${modelStr} succeeded${peeked.timedOut ? " (peek deadline; generating, waiting it out)" : ""}`);
           return peeked.response;
         }
 

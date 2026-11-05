@@ -1,43 +1,57 @@
 # Docker
 
-Run OriginRouter in a container. Published image: [`origin-labs-ai/originrouter`](https://hub.docker.com/r/origin-labs-ai/originrouter) — multi-platform `linux/amd64` + `linux/arm64`.
+Run the OriginRouter gateway in a container. Nothing is published to a registry today, so
+the supported path is **build from this repository**; the `docker-publish` workflow exists
+to publish GHCR images once its credentials are configured.
 
 ---
 
 # 👤 For Users
 
-## Quick start
+## Quick start (compose)
 
 ```bash
-docker run -d \
-  -p 20128:20128 \
-  -v "$HOME/.originrouter:/app/data" \
-  -e DATA_DIR=/app/data \
-  --name originrouter \
-  origin-labs-ai/originrouter:latest
+cp .env.example .env      # set INITIAL_PASSWORD - the shipped default is a placeholder
+docker compose up -d --build
 ```
 
-App listens on port `20128`. Open: http://localhost:20128
+App on port `20128` → http://localhost:20128. State lands in the named volume
+`origin-router-data`, and an optional `headroom` sidecar is defined for the token saver.
 
-## Manage container
+## Quick start (plain docker)
 
 ```bash
-docker logs -f originrouter        # view logs
-docker stop originrouter           # stop
-docker start originrouter          # start again
-docker rm -f originrouter          # remove
+docker build -t origin-router:local .
+
+docker run -d \
+  -p 20128:20128 \
+  -v "$HOME/.or:/app/data" \
+  -e DATA_DIR=/app/data \
+  --name origin-router \
+  origin-router:local
+```
+
+## Manage the container
+
+```bash
+docker logs -f origin-router        # view logs
+docker stop origin-router           # stop
+docker start origin-router          # start again
+docker rm -f origin-router          # remove
 ```
 
 ## Data persistence
 
 ```bash
--v "$HOME/.originrouter:/app/data" \
+-v "$HOME/.or:/app/data" \
 -e DATA_DIR=/app/data
 ```
 
-Without `DATA_DIR`, the app falls back to `~/.originrouter/` (macOS/Linux) or `%APPDATA%\originrouter\` (Windows). In the container, `DATA_DIR=/app/data` makes the bind mount work.
+Without `DATA_DIR` the app falls back to `~/.or` on macOS/Linux and `%LOCALAPPDATA%`
+equivalents on Windows. Inside the container `DATA_DIR=/app/data` is what makes the bind
+mount authoritative.
 
-Data layout under `$DATA_DIR/`:
+Layout under `$DATA_DIR/`:
 
 ```text
 $DATA_DIR/
@@ -47,141 +61,89 @@ $DATA_DIR/
 └── ...                   # certs, logs, runtime configs
 ```
 
-Host path: `$HOME/.originrouter/db/data.sqlite`
-Container path: `/app/data/db/data.sqlite`
-
 ## Optional env vars
 
 ```bash
 docker run -d \
   -p 20128:20128 \
-  -v "$HOME/.originrouter:/app/data" \
+  -v "$HOME/.or:/app/data" \
   -e DATA_DIR=/app/data \
   -e PORT=20128 \
   -e HOSTNAME=0.0.0.0 \
   -e DEBUG=true \
-  --name originrouter \
-  origin-labs-ai/originrouter:latest
+  --name origin-router \
+  origin-router:local
 ```
+
+The full environment contract lives in `.env.example` and
+[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). `INITIAL_PASSWORD` must be overridden on
+anything reachable from outside the machine.
 
 ## Optional Headroom sidecar
 
-The OriginRouter image does not bundle Python or Headroom. To use Headroom in Docker, run it as a separate service and point OriginRouter at that proxy:
+The image bundles neither Python nor Headroom. Run Headroom as a second service and point
+the gateway at it (`HEADROOM_URL: http://headroom:8787`) — `docker-compose.yml` already
+does this. In the dashboard: `Endpoint` → `Token Saver` → `Headroom`, confirm the URL,
+recheck status, then enable it. Headroom on the Docker host itself is reachable as
+`http://host.docker.internal:8787`; on Linux add
+`--add-host=host.docker.internal:host-gateway` (or the compose `extra_hosts` equivalent).
+Without a reachable Headroom the gateway keeps using its own RTK compressor — nothing else
+changes.
 
-```yaml
-services:
-  originrouter:
-    image: origin-labs-ai/originrouter:latest
-    ports:
-      - "20128:20128"
-    volumes:
-      - "$HOME/.originrouter:/app/data"
-    environment:
-      DATA_DIR: /app/data
-      HEADROOM_URL: http://headroom:8787
-    depends_on:
-      - headroom
+## Updating
 
-  headroom:
-    image: ghcr.io/chopratejas/headroom:latest
-    ports:
-      - "8787:8787"
-```
-
-In the dashboard, open `Endpoint` → `Token Saver` → `Headroom`, confirm the URL is `http://headroom:8787`, recheck status, then enable Headroom.
-
-If Headroom runs on the Docker host instead of as a sidecar, use `http://host.docker.internal:8787` on macOS/Windows. On Linux, add `--add-host=host.docker.internal:host-gateway` or the equivalent compose `extra_hosts` entry.
-
-## Update to latest
+Rebuild the image and recreate the container; the volume keeps your data:
 
 ```bash
-docker pull origin-labs-ai/originrouter:latest
-docker rm -f originrouter
-# re-run the quick start command
+docker build -t origin-router:local .
+docker rm -f origin-router
+# re-run the start command above
 ```
 
-To pin a specific version instead of following `latest`, use a numbered image tag:
-
-```bash
-docker pull origin-labs-ai/originrouter:0.5.81
-```
+The in-app self-updater is for the Windows installer builds and does not run inside a
+container.
 
 ---
 
 # 🛠 For Developers
 
-## Build image locally (test)
-
-```bash
-docker build -t originrouter .
-
-docker run --rm -p 20128:20128 \
-  -v "$HOME/.originrouter:/app/data" \
-  -e DATA_DIR=/app/data \
-  originrouter
-```
-
-The Dockerfile uses the official Alpine and npm registries by default. Regional mirrors can be supplied when needed:
+## Regional mirrors
 
 ```bash
 docker build \
   --build-arg ALPINE_MIRROR=mirrors.aliyun.com \
   --build-arg NPM_REGISTRY=https://registry.npmmirror.com/ \
-  -t originrouter .
+  -t origin-router:local .
 ```
 
-## Publish (automatic via CI)
+## Publishing (CI)
 
-Push a Docker-safe semver git tag `vX.Y.Z` (or a prerelease such as `vX.Y.Z-rc.1`) → GitHub Actions builds `linux/amd64` and `linux/arm64` on native runners, health-checks each platform image, verifies the resulting manifest and `/api/health`, then publishes:
+`.github/workflows/docker-publish.yml` triggers on a `vX.Y.Z` tag (or a prerelease such as
+`vX.Y.Z-rc.1`) and on manual dispatch. It builds `linux/amd64` and `linux/arm64` on native
+runners, health-checks each platform image, verifies the resolved manifest and
+`/api/health`, then publishes:
 
-- `ghcr.io/origin-labs-ai/originrouter:X.Y.Z` + `:latest`
-- `origin-labs-ai/originrouter:X.Y.Z` + `:latest`
+- `ghcr.io/<owner>/<repository-lowercase>:X.Y.Z`, plus `:latest` for a stable tag
+- Docker Hub only when `DOCKERHUB_USERNAME` and `DOCKERHUB_TOKEN` exist as repository
+  secrets — without them the job skips Docker Hub instead of failing on it
 
-The `v` prefix is used only for the git tag; image tags omit it. A stable tag push promotes `latest`, but a prerelease tag such as `vX.Y.Z-rc.1` publishes only its numbered image by default. Prereleases require an explicit manual `promote_latest` opt-in. Promotion happens only after both native platform builds, both platform health checks, manifest inspection, and the resolved-manifest smoke test succeed. A failed or timed-out platform build therefore cannot move `latest`.
+Notes that matter in practice:
 
-The workflow rejects SemVer build metadata such as `v1.2.3+build.7` because the `+` form is not a valid Docker image tag. The git tag and both `package.json` versions must match exactly.
-
-```bash
-# Use scripts/release.js (recommended)
-node scripts/release.js "Release title" "Notes"
-
-# Or manually
-git tag v0.5.81 && git push origin v0.5.81
-```
-
-To republish an existing tag, run the `Build and Push Docker Image` workflow manually and provide the exact tag, for example `v0.5.81`, in the `release_tag` input. Manual runs publish the numbered tag but leave `latest` unchanged by default:
-
-```text
-release_tag:     v0.5.81
-promote_latest:  false
-```
-
-The `promote_latest` checkbox is an explicit opt-in for changing `latest`. Use it when a deliberate rollback or recovery should make that version the current default:
-
-```text
-release_tag:     v0.5.75
-promote_latest:  true
-```
-
-Numbered image tags are mutable because a republish can replace their manifest. For a deployment that must be immutable, pin the image digest instead:
-
-```bash
-docker pull origin-labs-ai/originrouter@sha256:<verified-digest>
-```
-
-The release workflow runs `/api/health` on each native `amd64` and `arm64` platform image before it uploads the digest artifact or assembles the multi-platform manifest. It then runs a second health check against the resolved version manifest before any requested `latest` promotion.
-
-During recovery, the selected tag remains the application source while the Dockerfile from the workflow revision is used, so an older tag can be rebuilt with the current publishing fixes.
-
-The workflow is tag-driven. Creating a git tag does not automatically create a GitHub Release, so the Releases page and the published package/image tags can be at different versions unless a maintainer creates a release separately.
-
-The upstream repository needs these repository secrets for Docker Hub publishing:
-
-- `DOCKERHUB_USERNAME`
-- `DOCKERHUB_TOKEN`
-
-GHCR publishing uses the workflow's `GITHUB_TOKEN` with package write permission. Forks can publish to their own GHCR namespace, but Docker Hub publication is restricted to the upstream `origin-labs-ai/originrouter` repository.
-
-The optional repository variables `ALPINE_MIRROR` and `NPM_REGISTRY` can override the default package mirrors used by the CI Docker build.
+- Image tags omit the `v`; the git tag and the root, `cli/` and `desktop/`
+  `package.json` versions must match exactly, and SemVer build metadata (`+build.7`) is
+  rejected because it is not a valid image tag.
+- A stable tag push promotes `latest` only after both platform builds, both platform
+  health checks, manifest inspection and the resolved-manifest smoke test succeed.
+  Prereleases publish their numbered tag only; moving `latest` for one needs the explicit
+  `promote_latest` opt-in on a manual run.
+- Numbered tags are mutable (a republish replaces the manifest), so pin a digest for an
+  immutable deployment: `docker pull ghcr.io/<owner>/<repo>@sha256:<digest>`.
+- Creating a git tag does **not** create a GitHub Release. The Windows installers are
+  published by `.github/workflows/release.yml` on the same tag; the CLI tarball and the
+  desktop installer are attached to that release.
+- GHCR uses the workflow's `GITHUB_TOKEN` with `packages: write`. Docker Hub publication
+  additionally needs the two secrets above.
+- Optional repository variables `ALPINE_MIRROR` and `NPM_REGISTRY` override the package
+  mirrors used by the CI build.
 
 Workflow: `.github/workflows/docker-publish.yml`

@@ -95,7 +95,7 @@ Configurações do Claude Code/Codex/OpenClaw/Cursor/Cline:
 
 **Alternativa: executar a partir do código-fonte (este repositório):**
 
-Este pacote de repositório é privado (`originrouter-app`), portanto, a execução pelo código-fonte/Docker é o caminho de desenvolvimento local esperado.
+Este pacote de repositório é privado (`origin-router-app`), portanto, a execução pelo código-fonte/Docker é o caminho de desenvolvimento local esperado.
 
 ```bash
 cp .env.example .env

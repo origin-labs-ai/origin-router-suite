@@ -1,3 +1,18 @@
+# v0.5.115 (2026-11-05)
+
+Naming, docs and the machinery around releases. Full working log: [docs/RELEASE-LOG.md](docs/RELEASE-LOG.md).
+
+## Changes
+- **Packages are named `origin-router`**: `origin-router-app` (gateway), `origin-router` (CLI launcher), `origin-router-desktop` (window app), with the installer scripts now `installer/origin-router.iss` and `installer/origin-router-desktop.iss`. The `or` / `originrouter` commands, the `Programs\OriginRouter` install paths and the Inno `AppId`s are unchanged so an existing install keeps its PATH shims, autostart entry and upgrade path.
+- **The dashboard's version check asks the release feed, not npm** (`/api/version`): the npm package it looked for has never been published, so the update banner could never appear while the UI still offered `npm i -g` as the answer.
+- **Release CI works**: `release.yml` no longer installs with `npm ci` against ignored lockfiles (every CI release had failed in 18 seconds), and one Windows job now builds and publishes everything the release needs — gateway installer, desktop installer, CLI tarball, each with its `.sha256`, plus `checksums.sha256`.
+- **Docker**: `docker-compose.yml` builds this repository instead of pulling another project's image, and `docker-publish.yml` decides Docker Hub publishing by credential presence rather than by comparing the repository to upstream's name.
+- **Docs rewritten without machine-specific paths or frozen version numbers**: README, [docs/INSTALL.md](docs/INSTALL.md), [docs/UPDATES.md](docs/UPDATES.md), [DOCKER.md](DOCKER.md); `CLAUDE.md` corrected about the data directory (`~/.or`) and about usage/request details living in SQLite; the docs site branding repointed; the Pages deploy workflow for someone else's site removed.
+- **Upstream branding removed from everything user-facing** — docs, gitbook, package metadata, i18n READMEs. Wire-protocol identifiers providers actually check (`X-Msh-Platform`, `x-9router-*` response headers, the legacy data-folder migration) stay, and `LICENSE` keeps its upstream MIT notice because that is a licence condition, not branding.
+
+## Fixes
+- `tests/__baseline__/snapshot-providers.mjs` no longer writes OAuth client secrets into the committed baseline: credential fields are stripped at generation time (`verify-providers.mjs` never compared them, so the gate loses nothing).
+
 # v0.5.114 (2026-11-05)
 
 ## Changes

@@ -233,10 +233,10 @@ export function getNavigation(lang) {
 
 // Static config (logo, urls, default English nav for backward compatibility).
 export const DOCS_CONFIG = {
-  title: "9Router Documentation",
-  description: "Smart AI model router - Maximize subscriptions, minimize costs",
-  logo: "9Router",
-  appUrl: "https://9router.com",
-  githubUrl: "https://github.com/decolua/9router",
+  title: "OriginRouter Documentation",
+  description: "Local AI routing gateway - one endpoint in front of every provider, combo and fallback you configure",
+  logo: "OriginRouter",
+  appUrl: "https://github.com/origin-labs-ai/origin-router-suite",
+  githubUrl: "https://github.com/origin-labs-ai/origin-router-suite",
   navigation: getNavigation(DEFAULT_LANG)
 };

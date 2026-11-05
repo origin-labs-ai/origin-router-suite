@@ -4,7 +4,7 @@ Connect a Codex OAuth account under **Providers → OpenAI Codex**. Speech To Te
 
 ```sh
 curl http://localhost:20128/v1/audio/transcriptions \
-  -H "Authorization: Bearer YOUR_9ROUTER_KEY" \
+  -H "Authorization: Bearer YOUR_ORIGINROUTER_KEY" \
   -F "model=cx/transcribe" \
   -F "file=@audio.wav" \
   -F "response_format=json"

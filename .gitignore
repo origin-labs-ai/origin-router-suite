@@ -51,6 +51,10 @@ source/*
 .cursor/*
 docs/*
 !docs/ARCHITECTURE.md
+# Markdown under docs/ is documentation the README links to; the blanket ignore above
+# silently kept INSTALL/UPDATES/FEATURES/RELEASE-LOG off the remote, so every link in
+# the README 404'd for anyone who cloned it.
+!docs/*.md
 test/*
 open-sse/test/*
 RM.vn.md

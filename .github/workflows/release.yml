@@ -134,7 +134,7 @@ jobs:
       - name: Package portable folder
         run: node scripts/package-cli.mjs --platform=${{ matrix.platform }}
       - name: Zip portable folder
-        run: cd dist/${{ matrix.platform }} && zip -r ../../OriginRouter-${{ matrix.platform }}.zip .
+        run: cd dist/${{ matrix.platform }} && zip -r ../OriginRouter-${{ matrix.platform }}.zip .
       - uses: actions/upload-artifact@v4
         with:
           name: OriginRouter-${{ matrix.platform }}

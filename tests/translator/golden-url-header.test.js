@@ -23,8 +23,19 @@ const SPECIALIZED = new Set([
   "xiaomi-tokenplan", "mimo-free",
 ]);
 
-// Per-process / per-request values: kimi's random device name, minimax's session UUID.
-const VOLATILE_HEADERS = new Set(["x-msh-device-name", "x-mavis-session-id"]);
+// Per-process / per-request values: kimi's random device name, minimax's session UUID,
+// minimax's timezone offset (same header set, different machine).    
+const VOLATILE_HEADERS = new Set(["x-msh-device-name", "x-mavis-session-id", "x-mavis-timezone-offset"]);
+
+// The golden locks the SHAPE of every provider's headers: which names are sent, in
+// what scheme, with what client identity. It must not lock the machine it was
+// generated on, so the values that describe the host rather than the code are folded:
+//   <UUID>      per-request ids (CodeBuddy's channel check sends four per call)
+//   <VERSION>   the app version riding in User-Agent / X-*-Version (it changes every cut)
+//   <PLATFORM>  OS / arch / node version (linux vs win32 is a checkout detail, not a contract)
+const UUID_RE = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi;
+const SEMVER_RE = /\bv?\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?\b/g;
+const PLATFORM_RE = /\b(?:linux|win32|darwin|windows|macos|freebsd|x64|x86|arm64|aarch64)\b/gi;
 
 // Sanitize header: khử token + field thời gian động (kimi X-Msh-Device-Id) để snapshot ổn định.
 function sanitize(headers) {
@@ -35,6 +46,9 @@ function sanitize(headers) {
       ? v.replace(/Bearer .+/, "Bearer <TOK>")
           .replace(/sk-test-APIKEY|tok-test-ACCESS/g, "<CRED>")
           .replace(/kimi-\d{10,}/g, "kimi-<TS>")
+          .replace(UUID_RE, "<UUID>")
+          .replace(SEMVER_RE, "<VERSION>")
+          .replace(PLATFORM_RE, "<PLATFORM>")
       : v;
   }
   return out;

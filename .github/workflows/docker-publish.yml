@@ -24,7 +24,7 @@ concurrency:
   queue: max
 
 env:
-  DOCKERHUB_IMAGE: decolua/9router
+  DOCKERHUB_IMAGE: origin-labs-ai/origin-router
 
 jobs:
   prepare:
@@ -54,6 +54,11 @@ jobs:
         env:
           RELEASE_TAG: ${{ inputs.release_tag || github.ref_name }}
           REPOSITORY: ${{ github.repository }}
+          # Presence, not the repository name, decides this now: a hard-coded "is this
+          # upstream's repo" check left the fork building a Docker Hub image it could
+          # never push, and a red job every release. No credentials -> GHCR only.
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
           EVENT_NAME: ${{ github.event_name }}
           PROMOTE_LATEST_INPUT: ${{ inputs.promote_latest && 'true' || 'false' }}
         run: |
@@ -104,7 +109,7 @@ jobs:
           }
 
           const commit = execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).trim();
-          const publishDockerHub = process.env.REPOSITORY === "decolua/9router";
+          const publishDockerHub = Boolean(process.env.DOCKERHUB_USERNAME && process.env.DOCKERHUB_TOKEN);
           const ghcrImage = `ghcr.io/${process.env.REPOSITORY.toLowerCase()}`;
           const isPrerelease = version.includes("-");
           const promoteLatest = (process.env.EVENT_NAME === "push" && !isPrerelease)
@@ -187,8 +192,8 @@ jobs:
             org.opencontainers.image.source=https://github.com/${{ github.repository }}
             org.opencontainers.image.revision=${{ needs.prepare.outputs.commit }}
             org.opencontainers.image.version=${{ needs.prepare.outputs.version }}
-          cache-from: type=gha,scope=9router-${{ matrix.suffix }}
-          cache-to: type=gha,mode=max,scope=9router-${{ matrix.suffix }}
+          cache-from: type=gha,scope=origin-router-${{ matrix.suffix }}
+          cache-to: type=gha,mode=max,scope=origin-router-${{ matrix.suffix }}
           provenance: false
           sbom: false
 
@@ -201,7 +206,7 @@ jobs:
           set -Eeuo pipefail
           [[ "$IMAGE_DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]]
 
-          container="9router-platform-smoke-${GITHUB_RUN_ID}-${{ matrix.suffix }}"
+          container="origin-router-platform-smoke-${GITHUB_RUN_ID}-${{ matrix.suffix }}"
           trap 'docker rm -f "$container" >/dev/null 2>&1 || true' EXIT
 
           docker run --detach \
@@ -317,7 +322,7 @@ jobs:
           VERSION: ${{ needs.prepare.outputs.version }}
         run: |
           set -Eeuo pipefail
-          container="9router-manifest-smoke-${GITHUB_RUN_ID}"
+          container="origin-router-manifest-smoke-${GITHUB_RUN_ID}"
           trap 'docker rm -f "$container" >/dev/null 2>&1 || true' EXIT
 
           docker run --detach \

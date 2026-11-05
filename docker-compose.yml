@@ -1,12 +1,16 @@
 services:
-  9router:
-    image: decolua/9router:latest
-    container_name: 9router
+  # OriginRouter gateway + dashboard, built from this repository.
+  # The `docker-publish` workflow also pushes the same image to
+  # ghcr.io/<owner>/<repo>:<version> for tag pushes.
+  origin-router:
+    image: origin-router:local
+    build: .
+    container_name: origin-router
     restart: always
     ports:
       - "20128:20128"
     volumes:
-      - 9router-data:/app/data
+      - origin-router-data:/app/data
     env_file:
       - .env
     environment:
@@ -18,6 +22,8 @@ services:
     depends_on:
       - headroom
 
+  # Optional token-saver companion; the gateway runs fine without it and falls
+  # back to its own RTK compressor when this is unreachable.
   headroom:
     image: ghcr.io/chopratejas/headroom:latest
     container_name: headroom
@@ -26,5 +32,5 @@ services:
       - "127.0.0.1:8787:8787"
 
 volumes:
-  9router-data:
-    name: 9router-data
+  origin-router-data:
+    name: origin-router-data

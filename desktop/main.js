@@ -4,6 +4,7 @@ const { app, BrowserWindow, ipcMain, screen, shell, Tray, Menu, nativeImage } = 
 const { spawn, execFile } = require("child_process");
 const fs = require("fs");
 const http = require("http");
+const net = require("net");
 const os = require("os");
 const path = require("path");
 
@@ -24,9 +25,34 @@ const ROUTER_LOG = path.join(os.homedir(), ".or", "logs", "router.log");
 const PANDA_HOME = path.join(os.homedir(), ".or", "panda");
 const PANDA_LOG = path.join(PANDA_HOME, "panda.log");
 const PANDA_ERR_LOG = path.join(PANDA_HOME, "panda.err.log");
-const PANDA_SERVE = "C:\\Users\\thaku\\Tools\\PandaOrchestrator\\.venv-panda\\Scripts\\panda-router-serve.exe";
-const PANDA_ARTIFACTS = "C:\\Users\\thaku\\Tools\\PandaOrchestrator\\artifacts\\panda-router-v4";
 const PANDA_PORT = 8765;
+
+// PandaOrchestrator is the router's other brain. It is a local Python service, not
+// part of this package, so its location is resolved rather than hardcoded: an owner
+// that sets OR_PANDA_SERVE wins, then the standard per-user install folder, then a
+// copy shipped next to the app. A hardcoded absolute path (it used to be
+// C:\\Users\\thaku\\…) is exactly how a best feature quietly stops being available:
+// the check failed on every machine but the one it was written on, and the merged
+// brain silently degraded to Jev-only.
+const PANDA_CANDIDATES = [
+  process.env.OR_PANDA_SERVE,
+  path.join(os.homedir(), "Tools", "PandaOrchestrator", ".venv-panda", "Scripts", "panda-router-serve.exe"),
+  path.join(process.env.LOCALAPPDATA || "", "Programs", "PandaOrchestrator", ".venv-panda", "Scripts", "panda-router-serve.exe"),
+  path.join(process.resourcesPath || "", "panda", ".venv-panda", "Scripts", "panda-router-serve.exe"),
+].filter(Boolean);
+
+function findPandaServe() {
+  return PANDA_CANDIDATES.find((candidate) => candidate && fs.existsSync(candidate)) || null;
+}
+
+// The ONNX profiler/artifacts live next to the venv they came from:
+// <pandaHome>/.venv-panda/Scripts/panda-router-serve.exe → <pandaHome>/artifacts/…
+function pandaArtifactsFor(servePath) {
+  if (process.env.OR_PANDA_ARTIFACTS) return process.env.OR_PANDA_ARTIFACTS;
+  if (!servePath) return null;
+  const pandaRoot = path.dirname(path.dirname(path.dirname(servePath)));
+  return path.join(pandaRoot, "artifacts", "panda-router-v4");
+}
 const TRAY_ICON_PATH = app.isPackaged
   ? path.join(process.resourcesPath, "icon.ico")
   : path.join(__dirname, "assets", "icon.ico");
@@ -39,6 +65,7 @@ app.setPath("userData", ORIGIN_HOME);
 let mainWindow = null;
 let serverChild = null;
 let startedServer = false;
+let pandaChild = null;
 let tray = null;
 let quitting = false;
 
@@ -192,29 +219,64 @@ function powershellPath() {
  * Start the PandaOrchestrator model picker if port 8765 is not answering.
  * Fully hidden: no console flashes, its output goes to ~/.or/panda/panda.log.
  * The router works without it (it falls back to its own ordering), so a failure
- * here is logged and ignored.
+ * here is logged and ignored — but it is logged, because "the brain is missing"
+ * used to be invisible: the spawn was a detached PowerShell round-trip whose every
+ * error path was swallowed, so the merged brain ran Jev-only and nobody could tell
+ * from the outside why. Now the orchestrator is started the same way the gateway
+ * is: a direct child with its output piped to its own log file.
  */
-function ensurePandaOrchestrator() {
-  const script = [
-    "$ErrorActionPreference='SilentlyContinue';",
-    `if (-not (Get-NetTCPConnection -LocalPort ${PANDA_PORT} -State Listen)) {`,
-    `  if (Test-Path '${PANDA_SERVE}') {`,
-    `    $env:PANDA_ROUTER_ARTIFACTS='${PANDA_ARTIFACTS}';`,
-    `    $env:PANDA_ROUTER_DB='${path.join(PANDA_HOME, "router_log.sqlite")}';`,
-    `    Start-Process -FilePath '${PANDA_SERVE}' -ArgumentList '--port','${PANDA_PORT}','--db','${path.join(PANDA_HOME, "router_log.sqlite")}' -WindowStyle Hidden -RedirectStandardOutput '${PANDA_LOG}' -RedirectStandardError '${PANDA_ERR_LOG}'`,
-    "  }",
-    "}",
-  ].join(" ");
+function isPortOpen(port, timeoutMs = 600) {
+  return new Promise((resolve) => {
+    const socket = net.connect({ host: "127.0.0.1", port });
+    const settle = (value) => {
+      socket.removeAllListeners();
+      socket.destroy();
+      resolve(value);
+    };
+    socket.setTimeout(timeoutMs);
+    socket.on("connect", () => settle(true));
+    socket.on("error", () => settle(false));
+    socket.on("timeout", () => settle(false));
+  });
+}
+
+async function ensurePandaOrchestrator() {
   try {
+    if (await isPortOpen(PANDA_PORT)) return;
+    const serve = findPandaServe();
     fs.mkdirSync(PANDA_HOME, { recursive: true });
-    const child = spawn(powershellPath(), ["-NoProfile", "-ExecutionPolicy", "Bypass", "-WindowStyle", "Hidden", "-Command", script], {
-      detached: true,
-      stdio: "ignore",
+    const out = fs.createWriteStream(PANDA_LOG, { flags: "a" });
+    const err = fs.createWriteStream(PANDA_ERR_LOG, { flags: "a" });
+    if (!serve) {
+      err.write(`[panda] no panda-router-serve.exe found. Looked in:\n  ${PANDA_CANDIDATES.join("\n  ")}\n`);
+      return;
+    }
+    const db = path.join(PANDA_HOME, "router_log.sqlite");
+    const artifacts = pandaArtifactsFor(serve);
+    if (artifacts && !fs.existsSync(artifacts)) {
+      err.write(`[panda] artifacts missing at ${artifacts} — starting anyway, the service will report it\n`);
+    }
+    pandaChild = spawn(serve, ["--port", String(PANDA_PORT), "--db", db], {
+      env: { ...process.env, PANDA_ROUTER_ARTIFACTS: artifacts || "", PANDA_ROUTER_DB: db },
+      cwd: path.dirname(serve),
       windowsHide: true,
+      stdio: ["ignore", "pipe", "pipe"],
     });
-    child.on("error", () => {});
-    child.unref();
-  } catch {}
+    pandaChild.stdout?.pipe(out);
+    pandaChild.stderr?.pipe(err);
+    pandaChild.on("error", (error) => err.write(`[panda][spawn] ${error.message}\n`));
+    pandaChild.on("exit", (code, signal) => {
+      err.write(`[panda][exit] code=${code} signal=${signal} — the gateway will keep routing without the Panda brain\n`);
+      pandaChild = null;
+    });
+    // The service outlives the window on purpose (the router only asks it while it
+    // is up), so the app is not the owner of its lifecycle once it is listening.
+    pandaChild.unref();
+  } catch (error) {
+    try {
+      fs.appendFileSync(PANDA_ERR_LOG, `[panda] ${error?.message || String(error)}\n`);
+    } catch {}
+  }
 }
 
 // A visible terminal that follows one of the background services' logs.
@@ -345,7 +407,7 @@ function createWindow() {
   });
   app.on("before-quit", () => { quitting = true; });
   createTray();
-  ensurePandaOrchestrator();
+  void ensurePandaOrchestrator();
   mainWindow.on("maximize", sendMaximizedState);
   mainWindow.on("unmaximize", sendMaximizedState);
   mainWindow.on("restore", sendMaximizedState);

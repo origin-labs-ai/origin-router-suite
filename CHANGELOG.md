@@ -1,3 +1,28 @@
+# v0.5.113 (2026-11-05)
+
+OriginRouter's own cut on top of everything 9router v0.5.112 shipped. The upstream
+change set was taken as the v0.5.111..v0.5.112 delta (`git apply -3`); every fork
+modification — branding, the gutted Skills page, combo and model behaviour, the naming
+system, the resilience budgets — stayed, and nothing of theirs that was only branding
+was allowed in.
+
+## Features
+- **Router brain**: one gate in front of both decision-makers — Panda (calibrated P(success)/cost/latency from the local ONNX profiler), Jev / System One (semantic task classification), or `merged` (both in parallel, scores blended, disagreement puts the loser's pick next in line). Global in Settings → Routing resilience, overridable per combo. Every mode fails open: a brain that is down, slow, or unsure never costs a request.
+- **Seat fairness + tier steering**: merit alone would run three seats and let 60 expire unused, so a pick ledger rotates the load, and `tierBias` steers hard tasks to Pro and light ones to Flash.
+- **Honest model tests**: a dashboard test now answers only "did THIS provider serve THIS model id". A router-synthesized last-resort completion is a failure, an empty completion is a failure, a timeout is a `timeout` verdict (recheck) rather than an `error` (delete the seat), and an answer that came back under a different model id says so — `answered by: gpt-4o-mini`.
+- **Naming system**: one canonical identity per model across every surface. Publisher casing survives, deployment noise (TEE/UC), snapshot dates, quant tags and build stamps fold into the model they describe, and every seat is labelled by model class rather than by raw provider id.
+- **Context ceilings**: declared windows are stated on the capability rows themselves, so a table's 200K floor is never presented as a model's limit; combo seats publish their real ceiling.
+- **Combo add from the provider page**, and combos pruned to seats that actually answer.
+
+## Fixes
+- **Combo stall**: a seat that sits in an aggregator queue and never produces a frame is replaced instead of holding the turn for 200s+, while a seat that has produced any frame is waited on for the full budget — nothing is truncated and the prompt is never paid twice. Keepalive comments are not liveness. `seatSilenceMs` (Settings → Routing resilience, `OR_SEAT_SILENCE_MS`).
+- **Resilience budgets**: 8-agent concurrency, least-loaded fan-out, one breaker shared per seat, no upstream error handed to the client, 7200s generation budgets on every model path.
+- **Upgrade path**: Inno-only packaging for both products with updater channels, and a stale Next route cache purge so an upgraded app stopped serving the previous build's pages.
+- **build-installer.ps1**: `${env:ProgramFiles(x86)}` instead of `$env:ProgramFiles(x86)` — the parentheses are literal text, so the ISCC lookup missed a real Inno Setup install.
+- **Golden header test**: the snapshot now locks the *shape* of every provider's headers instead of the machine it was generated on — per-request UUIDs, the app version riding in `User-Agent`/`X-*-Version`, OS/arch and timezone offset are folded to placeholders. It passes on any host and on any cut, including CodeBuddy's new channel-verification ids.
+- **Provider baseline**: refreshed to the fork's deliberate state (7200s budgets on the qoder lanes, the providers we added), so `verify-providers` is a green gate again instead of a standing red one.
+- **Desktop → Panda auto-start**: the desktop app launched PandaOrchestrator through a detached PowerShell whose every failure path was swallowed, and looked for it at one hardcoded absolute path — so a missing brain was invisible and `merged` silently ran Jev-only. It is now started the same way the gateway is (a direct hidden child with its output in `~/.or/panda/panda.log`), the service is resolved from `OR_PANDA_SERVE`, the per-user Tools folder, `%LOCALAPPDATA%`, or a copy shipped with the app, and every failure is written to that log instead of hidden.
+
 # v0.5.112 (2026-10-28)
 
 ## Features

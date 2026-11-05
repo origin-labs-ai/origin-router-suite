@@ -3,7 +3,9 @@
 #   1. packages cli/app into dist/win
 #   2. compiles installer/originrouter.iss with Inno Setup 6
 param(
-  [string]$Version = "0.5.111"
+  # Keep in step with package.json — a build that silently labels itself with an
+  # old version is an updater that will never offer the real one.
+  [string]$Version = "0.5.113"
 )
 
 $ErrorActionPreference = "Stop"

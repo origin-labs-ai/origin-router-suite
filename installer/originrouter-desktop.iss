@@ -6,7 +6,7 @@
 ; the gateway and the window app.
 #define AppName "OriginRouter Desktop"
 #define AppPublisher "Origin Labs AI"
-#define AppURL "https://github.com/origin-labs-ai/originrouter"
+#define AppURL "https://github.com/origin-labs-ai/origin-router-suite"
 #define SourceDir "..\desktop\dist\win-unpacked"
 
 [Setup]

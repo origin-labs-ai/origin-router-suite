@@ -35,7 +35,7 @@ fs.writeFileSync(path.join(outDir, "install.json"), JSON.stringify({
   mode: "installer",
   name: pkg.name,
   version: pkg.version,
-  updateRepo: "origin-labs-ai/originrouter",
+  updateRepo: "origin-labs-ai/origin-router-suite",
 }, null, 2));
 
 if (platform === "win") {

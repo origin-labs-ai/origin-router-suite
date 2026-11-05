@@ -1,3 +1,11 @@
+# v0.5.114 (2026-11-05)
+
+## Changes
+- **Release home is now `origin-labs-ai/origin-router-suite`.** Every place that decides where an installed build looks for its next version moved with it: the dashboard's GitHub/About links and changelog fetch, the CLI updater's default repo and the `install.json` marker written by `package-cli.mjs`, the desktop app's Issues/Releases links, both Inno `AppURL` fields, and the pinned darwin-arm64 tray release. The old `origin-labs-ai/originrouter` repository no longer resolves (`git ls-remote` → repository not found), so an installed build was pointing its auto-update, its changelog modal and its tray-binary gate at a dead URL; the `tray-binaries` workflow re-derives the repo from that pinned constant, so it follows this move and needs one run there to re-upload the asset.
+- **build-installer.ps1 takes its default version from package.json** instead of a literal, so a build cannot silently label itself with a stale version again (pass `-Version` to override).
+- **README corrected against reality**: installer names, the release-check URL and the repository path (it still said `Workspaces\9router`, two folders ago), plus a note that the desktop installer and CLI tarball are attached to the tag's release from the build machine.
+- Publisher string unified to **Origin Labs AI** in the gateway installer, matching the desktop installer, so the two products no longer report different publishers.
+
 # v0.5.113 (2026-11-05)
 
 OriginRouter's own cut on top of everything 9router v0.5.112 shipped. The upstream

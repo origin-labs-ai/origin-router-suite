@@ -9,13 +9,13 @@ There are **two** per-user Windows installers, both built from this repository:
 
 | Installer | What it installs |
 |---|---|
-| `OriginRouter-Setup-0.5.111.exe` | Gateway + dashboard. Starts with Windows, self-updates, runs `or` / `originrouter`. |
-| `OriginRouter-Desktop-Setup-0.5.111.exe` | Separate desktop window with the same dashboard UI. Bundles its own gateway copy and starts it with the system Node runtime. |
+| `OriginRouter-Setup-0.5.114.exe` | Gateway + dashboard. Starts with Windows, self-updates, runs `or` / `originrouter`. |
+| `OriginRouter-Desktop-Setup-0.5.114.exe` | Separate desktop window with the same dashboard UI. Bundles its own gateway copy and starts it with the system Node runtime. |
 
 ```powershell
-cd C:\Users\thaku\Workspaces\9router
-.\dist\installer\OriginRouter-Setup-0.5.111.exe           # server + dashboard
-.\dist\installer\OriginRouter-Desktop-Setup-0.5.111.exe   # desktop window
+cd C:\Users\thaku\Workspaces\side-projects\origin-router
+.\dist\installer\OriginRouter-Setup-0.5.114.exe           # server + dashboard
+.\dist\installer\OriginRouter-Desktop-Setup-0.5.114.exe   # desktop window
 ```
 
 The desktop window title is simply **OriginRouter**; no “AI Infrastructure Management” tagline
@@ -44,7 +44,7 @@ the server installer/tray is left running.
 Silent install/update:
 
 ```powershell
-Start-Process -FilePath "C:\Users\thaku\Workspaces\9router\dist\installer\OriginRouter-Setup-0.5.111.exe" `
+Start-Process -FilePath "C:\Users\thaku\Workspaces\side-projects\origin-router\dist\installer\OriginRouter-Setup-0.5.114.exe" `
   -ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART','/SP-' -Wait
 ```
 
@@ -72,7 +72,7 @@ The old startup VBS entry is removed during install and upgrade.
 
 ### Auto-update
 
-Installed builds check `https://api.github.com/repos/origin-labs-ai/originrouter/releases/latest`
+Installed builds check `https://api.github.com/repos/origin-labs-ai/origin-router-suite/releases/latest`
 at startup. When a newer release with a Windows installer is available, the app:
 
 1. downloads `OriginRouter-Setup-<version>.exe` to `%TEMP%`,
@@ -96,7 +96,7 @@ Run these commands **inside the repository** — `cd cli` fails if you start in
 `C:\Users\thaku`, because `cli` is not in your home directory.
 
 ```powershell
-cd C:\Users\thaku\Workspaces\9router
+cd C:\Users\thaku\Workspaces\side-projects\origin-router
 
 # 1. Build the bundled app
 node cli/scripts/build-cli.js
@@ -107,7 +107,7 @@ npm pack
 Pop-Location
 
 # 3. Install the tarball using its full path
-npm install -g "C:\Users\thaku\Workspaces\9router\cli\originrouter-0.5.111.tgz"
+npm install -g "C:\Users\thaku\Workspaces\side-projects\origin-router\cli\originrouter-0.5.114.tgz"
 
 # 4. Start
 originrouter
@@ -117,9 +117,9 @@ Common mistakes:
 
 | Error | Cause / fix |
 |---|---|
-| `cd : Cannot find path 'C:\Users\thaku\cli'` | You are not in the repo. Run `cd C:\Users\thaku\Workspaces\9router` first. |
+| `cd : Cannot find path 'C:\Users\thaku\cli'` | You are not in the repo. `cd` into `C:\Users\thaku\Workspaces\side-projects\origin-router` first. |
 | `npm error Invalid package, must have name and version` | `npm pack` ran in a folder without `package.json`. Run it inside `cli\`. |
-| `ENOENT ... C:\Users\thaku\originrouter-0.5.111.tgz` | Use the full path to the tarball created in `cli\`. |
+| `ENOENT ... C:\Users\thaku\originrouter-0.5.114.tgz` | Use the full path to the tarball created in `cli\`. |
 | `EADDRINUSE 0.0.0.0:20128` | An old server was still running. Current CLI kills it automatically; if you use an old build, close the tray/or run `originrouter` from the new install. |
 | `'powershell' is not recognized` / `'netstat' is not recognized` | Fixed in the current launcher: Windows tools are resolved from `%SystemRoot%\System32` by absolute path. |
 
@@ -182,15 +182,16 @@ publish that ceiling; member filtering and API validation use the same value.
 ## Build the installer
 
 ```powershell
-cd C:\Users\thaku\Workspaces\9router
+cd C:\Users\thaku\Workspaces\side-projects\origin-router
 node cli/scripts/build-cli.js
 node scripts/package-cli.mjs --platform win
-& "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer\originrouter.iss /DAppVersion=0.5.111
+& "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer\originrouter.iss /DAppVersion=0.5.114
 ```
 
 The installer includes the app bundle, CLI source, `or.cmd`, `install.json` marker and the
 silent-updater metadata. Release CI (`.github/workflows/release.yml`) builds the same artifact
-on a `v*` tag and publishes the `.exe` plus its `.sha256` checksum.
+on a `v*` tag and publishes the `.exe` plus its `.sha256` checksum; the desktop installer and
+the CLI tarball are added to that release from the machine that built them.
 
 ## Docs
 

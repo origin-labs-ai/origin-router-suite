@@ -56,7 +56,7 @@ function pandaArtifactsFor(servePath) {
 const TRAY_ICON_PATH = app.isPackaged
   ? path.join(process.resourcesPath, "icon.ico")
   : path.join(__dirname, "assets", "icon.ico");
-const REPO_URL = "https://github.com/origin-labs-ai/originrouter";
+const REPO_URL = "https://github.com/origin-labs-ai/origin-router-suite";
 
 app.setName("OriginRouter");
 app.setAppUserModelId("ai.originlabs.originrouter.desktop");

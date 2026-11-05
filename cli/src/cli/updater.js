@@ -78,7 +78,7 @@ function sha256(file) {
   return crypto.createHash("sha256").update(fs.readFileSync(file)).digest("hex");
 }
 
-async function fetchLatestRelease(repo = "origin-labs-ai/originrouter") {
+async function fetchLatestRelease(repo = "origin-labs-ai/origin-router-suite") {
   const release = await fetchJson(`https://api.github.com/repos/${repo}/releases/latest`);
   if (!release || !release.tag_name) throw new Error("Latest release has no tag");
   return {

@@ -7,8 +7,8 @@
 #endif
 
 #define AppName "OriginRouter"
-#define AppPublisher "Origin Labs"
-#define AppURL "https://github.com/origin-labs-ai/originrouter"
+#define AppPublisher "Origin Labs AI"
+#define AppURL "https://github.com/origin-labs-ai/origin-router-suite"
 #define AppExe "originrouter.cmd"
 #define SourceDir "..\dist\win"
 

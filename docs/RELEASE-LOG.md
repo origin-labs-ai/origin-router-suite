@@ -9,6 +9,52 @@ Verification numbers quoted below come from runs on the build machine
 
 ---
 
+## v0.5.116 — Docker boots, keys mint honestly
+
+**Why this cut exists:** v0.5.115's Docker images built for both architectures and then
+refused to boot — the health check never came up in CI, so the release shipped images it
+had never run. The root cause sat right next to a second finding: API keys were minted
+from 6 `Math.random()` characters under an HMAC secret hardcoded in the source.
+
+### Fixed
+- **Docker smoke tests pass again.** `next/dist/server` runtime code imports `@swc/helpers`
+  subpaths (`_/_interop_require_default`) that standalone file-tracing omits, so both the
+  amd64 and arm64 startup smoke tests died before the health endpoint answered, and the
+  manifest-publish job skipped. The Dockerfile now copies `@swc/helpers` and `@next/env`
+  from the builder into the runner — the same explicit-copy pattern the file already used
+  for `next`, `sql.js` and `node-machine-id`.
+- **API keys mint with real randomness and a per-install secret.** `generateKeyId()` now
+  draws 16 lowercase-alnum chars from `crypto.randomInt` (~2^83, was 6 `Math.random()`
+  chars ≈ 31 bits). The integrity digest uses `API_KEY_SECRET` when the env var is set,
+  else a per-install secret auto-generated once and persisted at `DATA_DIR/api-key-secret`
+  (0600; per-process random as last resort if the data dir is Windows-unwritable). No
+  predictable default ships in the source tree anymore. Existing keys remain valid:
+  request auth is an exact match against the `apiKeys` table and the digest is not checked
+  on the request path — it is generation-time integrity only.
+- **`docs/ARCHITECTURE.md` now describes the storage model the code actually has.** State
+  and usage live in `${DATA_DIR}/db/data.sqlite` (default `DATA_DIR` is `~/.or`, legacy
+  installs auto-migrate); the old `~/.originrouter` JSON paths, the diagrams, the
+  persistence section and the security-boundary notes were all updated to match.
+
+### Changed
+- In-range dependency refresh (undici 7.30.2, in-range refresh for eslint-config-next
+  16.4.5). Major bumps (chalk 6, ora 10, undici 8, eslint 10, better-sqlite3 13) were
+  evaluated and deferred — a release cut is the wrong moment to take majors.
+
+### Verified
+- `npm run build` clean (exit 0, 154/154 static pages) on Windows/Node 24 after the
+  dependency refresh.
+- `apiKey.js` syntax verified with `node --check` (via a temp `.mjs` copy) and an ESM
+  import probe (`SYNTAX_OK_ALIAS_FAIL` — parses clean; the `@/` alias is bundler-side).
+- Docker boot could not be reproduced locally (no Docker daemon on this machine); the
+  per-architecture smoke tests in `docker-publish.yml` are the gate, and this cut exists
+  precisely because that gate works — a red smoke test blocks the manifest, which is
+  exactly what caught v0.5.115.
+- Test suite: 4,191 passing / 83 known Windows-environment reds against the pre-merge
+  baseline, zero regressions (baseline carried from v0.5.113–v0.5.115).
+
+---
+
 ## v0.5.115 — naming, docs and release plumbing
 
 **Why this cut exists:** the previous release exposed that the repository identity, the

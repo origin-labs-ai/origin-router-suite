@@ -1,3 +1,15 @@
+# v0.5.116 (2026-11-05)
+
+Docker boot fix, API-key hardening, and architecture docs that describe reality. Full working log: [docs/RELEASE-LOG.md](docs/RELEASE-LOG.md).
+
+## Fixes
+- **Docker boot fix.** v0.5.115's GHCR images built for both architectures but died on startup — the standalone bundle ships `next/dist/server` code that imports `@swc/helpers` subpaths at runtime, file tracing omits the package, the health check never came up, and manifest publishing skipped. The Dockerfile now copies `@swc/helpers` + `@next/env` into the runner stage (same explicit-copy pattern already used for `next`, `sql.js` and `node-machine-id`).
+- **API keys minted with real randomness + per-install secret.** `keyId` went from 6 `Math.random()` chars (~31 bits, predictable) to 16 `crypto.randomInt` chars (~2^83); the HMAC integrity digest uses `API_KEY_SECRET` if set, else an auto-generated secret persisted at `DATA_DIR/api-key-secret` (0600), instead of a constant baked into the source tree. Existing keys stay valid — request auth is an exact match against the `apiKeys` table; the digest is integrity-only.
+- **`docs/ARCHITECTURE.md` describes the current storage model** — state and usage live in `${DATA_DIR}/db/data.sqlite` (default `DATA_DIR` is `~/.or`), not the doc's old `~/.originrouter` JSON files; the per-install API-key secret file is documented too.
+
+## Changed
+- In-range dependency updates: undici 7.30.2, eslint-config-next 16.4.5. Major bumps deferred deliberately — a release cut is the wrong time to take chalk 6 / undici 8 / eslint 10 / better-sqlite3 13.
+
 # Unreleased
 
 ## Changes

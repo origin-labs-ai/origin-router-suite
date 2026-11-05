@@ -80,6 +80,11 @@ COPY --from=builder /app/src/mitm ./src/mitm
 COPY --from=builder /app/node_modules/node-forge ./node_modules/node-forge
 # Ensure `next` is available at runtime in case tracing did not include it.
 COPY --from=builder /app/node_modules/next ./node_modules/next
+# next/dist/server imports @swc/helpers subpaths (e.g. _/_interop_require_default)
+# at runtime; standalone tracing omits the package and the container dies on boot
+# (the v0.5.115 smoke-test failure on both architectures).
+COPY --from=builder /app/node_modules/@swc/helpers ./node_modules/@swc/helpers
+COPY --from=builder /app/node_modules/@next/env ./node_modules/@next/env
 # sql.js loads dist/sql-wasm.wasm by path at runtime; tracing only follows JS imports,
 # so the last-resort DB driver would abort with ENOENT on the missing binary.
 COPY --from=builder /app/node_modules/sql.js ./node_modules/sql.js

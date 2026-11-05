@@ -1,12 +1,35 @@
 # OriginRouter
 
 <p align="center">
-  <img src="images/origin-router.png" alt="OriginRouter dashboard" width="800"/>
+  <img src="images/origin-router.png" alt="OriginRouter dashboard — every AI provider in one grid" width="800"/>
 </p>
 
-Local AI routing gateway with a dashboard and playground for every provider, combo and
-fallback you configure. One OpenAI-compatible endpoint in front of it all. Everything runs
-on your machine — chats, keys and router data stay local.
+<p align="center">
+  <a href="https://github.com/origin-labs-ai/origin-router-suite/releases/latest"><img alt="Release" src="https://img.shields.io/github/v/release/origin-labs-ai/origin-router-suite?label=release&color=blue"></a>
+  <a href="https://github.com/origin-labs-ai/origin-router-suite/blob/main/LICENSE"><img alt="License" src="https://img.shields.io/badge/license-MIT-green"></a>
+  <a href="https://github.com/origin-labs-ai/origin-router-suite/pkgs/container/origin-router-suite"><img alt="Docker GHCR" src="https://img.shields.io/badge/docker-ghcr.io-blue?logo=docker"></a>
+  <a href="https://github.com/origin-labs-ai/origin-router-suite/stargazers"><img alt="GitHub stars" src="https://img.shields.io/github/stars/origin-labs-ai/origin-router-suite?style=social"></a>
+</p>
+
+**OriginRouter is one local endpoint in front of every AI provider you use.** Point Claude
+Code, Codex CLI, Cline, or any OpenAI-compatible tool at `http://127.0.0.1:20128/v1` and
+route across **90+ providers** — Claude, Codex, Gemini, GLM, Kimi, Grok, Copilot, Cursor,
+OpenRouter, Bedrock, Azure, free tiers and your own OpenAI/Anthropic-compatible nodes —
+with automatic format translation, multi-account and multi-model fallback, usage/cost
+tracking, and a full playground dashboard. **Everything runs on your machine — chats, keys
+and router data stay local.**
+
+**Why it's useful:** one subscription unused is fine; ten of them unused while your CLI
+rate-limits is not. OriginRouter fans a request out across every account and model you
+own, retries on the next seat when one is rate-limited, and answers in whatever format the
+client asked for. Add a combo (`glm-5.3, kimi-k2.6, opencode-free`) and your agent keeps
+working when a provider dies mid-answer.
+
+**In 30 seconds:**
+1. Install the gateway (`or` starts it — tray icon, auto-updates)
+2. Connect a provider (OAuth click-through or API key)
+3. Point your CLI at `http://127.0.0.1:20128/v1` — done; or open
+   `http://127.0.0.1:20128/dashboard` and chat in the Playground first
 
 ## Install (recommended)
 
@@ -46,6 +69,18 @@ Both start the gateway and the tray icon. Add `--tray` to start without the menu
 | Desktop window state (bounds, profile) | `~/.or/desktop` |
 | PandaOrchestrator brain state + logs | `~/.or/panda` |
 | Update log | `~/.or/updates.log` |
+
+## Docker
+
+```bash
+docker run -d --name origin-router \
+  -p 20128:20128 \
+  -v origin-router-data:/app/data \
+  ghcr.io/origin-labs-ai/origin-router-suite:latest
+```
+
+Multi-arch (amd64 + arm64), published to GHCR on every release, smoke-tested on both
+architectures before the manifest is published. Full runbook: [DOCKER.md](DOCKER.md).
 
 ## Auto-update
 

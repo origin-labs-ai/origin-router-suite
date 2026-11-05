@@ -1,6 +1,6 @@
 # OriginRouter Architecture
 
-_Last updated: 2026-02-06_
+_Last updated: 2026-11-05_
 
 ## Executive Summary
 
@@ -56,8 +56,8 @@ flowchart LR
         API[V1 Compatibility API\n/v1/*]
         DASH[Dashboard + Management API\n/api/*]
         CORE[SSE + Translation Core\nopen-sse + src/sse]
-        DB[(db.json)]
-        UDB[(usage.json + log.txt)]
+        DB[(SQLite data.sqlite)]
+        UDB[(SQLite usage tables)]
     end
 
     subgraph Upstreams[Upstream Providers]
@@ -137,15 +137,15 @@ Main flow modules:
 
 Primary state DB:
 
-- `src/lib/localDb.js`
-- file: `${DATA_DIR}/db.json` (or `~/.originrouter/db.json` when `DATA_DIR` is unset)
-- entities: providerConnections, providerNodes, modelAliases, combos, apiKeys, settings, pricing
+- `src/lib/db/*` (driver + adapters over better-sqlite3 / bun-sqlite / node:sqlite / sql.js)
+- file: `${DATA_DIR}/db/data.sqlite` (default `DATA_DIR` is `~/.or`; legacy installs are migrated automatically)
+- entities: providerConnections, providerNodes, modelAliases, combos, apiKeys, settings, pricing, usage
 
-Usage DB:
+Usage and request logging:
 
-- `src/lib/usageDb.js`
-- files: `~/.originrouter/usage.json`, `~/.originrouter/log.txt`
-- note: currently independent from `DATA_DIR`
+- `src/lib/usageDb.js` + `src/lib/db/repos/usageRepo.js`
+- SQLite tables under the same `DATA_DIR` — usage aggregates and request details follow `DATA_DIR`
+- rolling request log also surfaced through `/api/usage/*` for the dashboard
 
 ## 4) Auth + Security Surfaces
 
@@ -377,9 +377,9 @@ erDiagram
 
 Physical storage files:
 
-- main state: `${DATA_DIR}/db.json` (or `~/.originrouter/db.json`)
-- usage stats: `~/.originrouter/usage.json`
-- request log lines: `~/.originrouter/log.txt`
+- main state: `${DATA_DIR}/db/data.sqlite` (default `DATA_DIR` is `~/.or`)
+- usage aggregates + request details: SQLite tables inside the same `data.sqlite`
+- per-install API-key HMAC secret: `${DATA_DIR}/api-key-secret` (0600, auto-generated)
 - optional translator/request debug sessions: `<repo>/logs/...`
 
 ## Deployment Topology
@@ -394,8 +394,8 @@ flowchart LR
     subgraph ContainerOrProcess[OriginRouter Runtime]
         Next[Next.js Server\nPORT=20128]
         Core[SSE Core + Executors]
-        MainDB[(db.json)]
-        UsageDB[(usage.json/log.txt)]
+        MainDB[(SQLite data.sqlite)]
+        UsageDB[(SQLite usage tables)]
     end
 
     subgraph External[External Services]
@@ -515,8 +515,8 @@ Translations are selected dynamically based on source payload shape and provider
 Runtime visibility sources:
 
 - console logs from `src/sse/utils/logger.js`
-- per-request usage aggregates in `usage.json`
-- textual request status log in `log.txt`
+- per-request usage aggregates in SQLite (usageRepo)
+- request status entries in SQLite, surfaced via `/api/usage/*`
 - optional deep request/translation logs under `logs/` when `ENABLE_REQUEST_LOGS=true`
 - dashboard usage endpoints (`/api/usage/*`) for UI consumption
 
@@ -524,7 +524,7 @@ Runtime visibility sources:
 
 - JWT secret (`JWT_SECRET`) secures dashboard session cookie verification/signing
 - Initial password fallback (`INITIAL_PASSWORD`, default `123456`) must be overridden in real deployments
-- API key HMAC secret (`API_KEY_SECRET`) secures generated local API key format
+- API key HMAC secret (`API_KEY_SECRET` env, or a per-install secret auto-generated at `${DATA_DIR}/api-key-secret`) secures generated local API key format — no predictable default ships in the source tree
 - Provider secrets (API keys/tokens) are persisted in local DB and should be protected at filesystem level
 - Cloud sync endpoints rely on API key auth + machine id semantics
 
@@ -542,7 +542,7 @@ Environment variables actively used by code:
 
 ## Known Architectural Notes
 
-1. `usageDb` currently stores under `~/.originrouter` and does not follow `DATA_DIR`.
+1. All state lives in `${DATA_DIR}/db/data.sqlite` (default `~/.or`); legacy `~/.originrouter` / `~/.9router` locations are auto-migrated on first run.
 2. `/api/v1/route.js` returns a static model list and is not the main models source used by `/v1/models`.
 3. Request logger writes full headers/body when enabled; treat log directory as sensitive.
 4. Cloud behavior depends on correct `NEXT_PUBLIC_BASE_URL` and cloud endpoint reachability.

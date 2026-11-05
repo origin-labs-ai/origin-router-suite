@@ -8,16 +8,29 @@ export const APP_CONFIG = {
 };
 
 // GitHub configuration
+//
+// One place decides where an installed build looks for itself. The repository slug
+// keeps the "-suite" suffix only because GitHub retired the shorter name for this
+// organisation and refuses to hand it back; everything the user installs, reads or
+// types is OriginRouter, and no product, package or artifact name carries the suffix.
 export const GITHUB_CONFIG = {
+  repo: "origin-labs-ai/origin-router-suite",
   repoUrl: "https://github.com/origin-labs-ai/origin-router-suite",
   changelogUrl: "https://raw.githubusercontent.com/origin-labs-ai/origin-router-suite/refs/heads/main/CHANGELOG.md",
+  releasesUrl: "https://github.com/origin-labs-ai/origin-router-suite/releases/latest",
+  releasesApiUrl: "https://api.github.com/repos/origin-labs-ai/origin-router-suite/releases/latest",
 };
 
 // Updater configuration
 export const UPDATER_CONFIG = {
+  // Nothing is published to npm (the name `originrouter` is unused, and `origin-router`
+  // belongs to an unrelated package), so the update feed is the GitHub release - the
+  // same source cli/src/cli/updater.js downloads and checksum-verifies. npmPackageName
+  // stays for the manual global-npm path, which is a source install, not this build.
   npmPackageName: "originrouter",
-  installCmd: "npm i -g originrouter",
-  installCmdLatest: "npm i -g originrouter@latest --prefer-online",
+  installCmd: GITHUB_CONFIG.releasesUrl,
+  installCmdLatest: GITHUB_CONFIG.releasesUrl,
+  releasesApiUrl: GITHUB_CONFIG.releasesApiUrl,
   shutdownCountdownSec: 3,
   exitDelayMs: 500,
   statusPort: 20129,

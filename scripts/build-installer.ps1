@@ -1,7 +1,7 @@
 #!/usr/bin/env pwsh
 # Build the Windows installer locally.
 #   1. packages cli/app into dist/win
-#   2. compiles installer/originrouter.iss with Inno Setup 6
+#   2. compiles installer/origin-router.iss with Inno Setup 6
 param(
   # Deliberately not a literal: a hardcoded default is a version that drifts, and a
   # mislabelled build is an update that the installed app will never offer. Pass
@@ -36,5 +36,5 @@ if (-not $iscc) {
   throw "Inno Setup 6 not found. Install it from https://jrsoftware.org/isdl.php"
 }
 
-& $iscc "installer\originrouter.iss" "/DAppVersion=$Version"
+& $iscc "installer\origin-router.iss" "/DAppVersion=$Version"
 Write-Host "Installer written to dist\installer" -ForegroundColor Green

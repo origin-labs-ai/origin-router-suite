@@ -1,5 +1,5 @@
 ; OriginRouter — Inno Setup 6 installer script
-; Build: ISCC.exe installer\originrouter.iss /DAppVersion=0.5.111
+; Build: ISCC.exe installer\origin-router.iss /DAppVersion=<version> (see scripts/build-installer.ps1)
 ; Expects a packaged CLI at dist\win\ (produced by scripts/package-cli.mjs).
 
 #ifndef AppVersion

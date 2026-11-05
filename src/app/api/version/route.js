@@ -1,24 +1,28 @@
 import https from "https";
 import pkg from "../../../../package.json" with { type: "json" };
+import { UPDATER_CONFIG } from "@/shared/constants/config";
 
-const NPM_PACKAGE_NAME = "originrouter";
-const VERSION_CACHE_TTL_MS = 3600000; // cache npm latest lookup for 1h
+const VERSION_CACHE_TTL_MS = 3600000; // cache the release lookup for 1h
 
 // Survive hot reload; one cache per process
-const versionCache = (global.__npmVersionCache ??= { value: null, fetchedAt: 0 });
+const versionCache = (global.__releaseVersionCache ??= { value: null, fetchedAt: 0 });
 
-// Fetch latest version from npm registry
+// The latest published version, from the release the app actually updates from.
+// This used to ask the npm registry for a package that has never been published,
+// which made the answer permanently "unknown" - and the sidebar's update banner
+// then told people to run `npm i -g` for software that does not exist there.
 function fetchLatestVersion() {
   return new Promise((resolve) => {
     const req = https.get(
-      `https://registry.npmjs.org/${NPM_PACKAGE_NAME}/latest`,
-      { timeout: 4000 },
+      UPDATER_CONFIG.releasesApiUrl,
+      { timeout: 4000, headers: { "User-Agent": "originrouter-version-check", Accept: "application/vnd.github+json" } },
       (res) => {
         let data = "";
         res.on("data", (chunk) => (data += chunk));
         res.on("end", () => {
           try {
-            resolve(JSON.parse(data).version || null);
+            const tag = JSON.parse(data)?.tag_name || "";
+            resolve(tag ? tag.replace(/^v/, "") : null);
           } catch {
             resolve(null);
           }

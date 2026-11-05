@@ -10,6 +10,30 @@
  */
 import fs from "node:fs";
 import path from "node:path";
+import { spawnSync } from "node:child_process";
+
+// Node's recursive copy walks an npm tree one file at a time and hits Windows'
+// 260-character path limit on deep dependency folders - which is what killed the
+// CI windows job silently after 20 minutes. robocopy takes long paths, copies
+// multithreaded and ships with every Windows install, so on win32 the big trees go
+// through it; anything else (or a machine without it) keeps cpSync.
+function copyTree(src, dest) {
+  const robocopy = path.join(process.env.SystemRoot || "C:\\Windows", "System32", "Robocopy.exe");
+  if (process.platform !== "win32" || !fs.existsSync(robocopy)) {
+    return fs.cpSync(src, dest, { recursive: true });
+  }
+  const result = spawnSync(
+    robocopy,
+    [src, dest, "/E", "/COPY:DAT", "/DCOPY:DAT", "/R:1", "/W:1", "/NFL", "/NDL", "/NJH", "/NJS", "/NP", "/MT:16"],
+    { encoding: "utf8" }
+  );
+  // robocopy reports results in the exit code: 0-7 is success (1 = files copied),
+  // 8 and above is a real failure.
+  if (result.status >= 8) {
+    throw new Error(`robocopy ${src} -> ${dest} failed with code ${result.status}:\n${result.stdout || result.stderr}`);
+  }
+  return undefined;
+}
 
 const platformArg = process.argv.find((a) => a.startsWith("--platform="));
 const platform = platformArg ? platformArg.split("=")[1] : process.platform.replace("win32", "win").replace("darwin", "mac");
@@ -23,11 +47,11 @@ if (!fs.existsSync(cliApp)) {
 
 fs.rmSync(outDir, { recursive: true, force: true });
 fs.mkdirSync(outDir, { recursive: true });
-fs.cpSync(cliApp, path.join(outDir, "app"), { recursive: true });
+copyTree(cliApp, path.join(outDir, "app"));
 fs.cpSync(path.resolve("cli", "cli.js"), path.join(outDir, "cli.js"));
-fs.cpSync(path.resolve("cli", "src"), path.join(outDir, "src"), { recursive: true });
-fs.cpSync(path.resolve("cli", "hooks"), path.join(outDir, "hooks"), { recursive: true });
-fs.cpSync(path.resolve("cli", "node_modules"), path.join(outDir, "node_modules"), { recursive: true });
+copyTree(path.resolve("cli", "src"), path.join(outDir, "src"));
+copyTree(path.resolve("cli", "hooks"), path.join(outDir, "hooks"));
+copyTree(path.resolve("cli", "node_modules"), path.join(outDir, "node_modules"));
 
 const pkg = JSON.parse(fs.readFileSync(path.resolve("cli", "package.json"), "utf8"));
 fs.writeFileSync(path.join(outDir, "package.json"), JSON.stringify({ ...pkg, bin: { originrouter: "./cli.js", or: "./cli.js" } }, null, 2));

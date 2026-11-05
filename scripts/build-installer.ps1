@@ -17,8 +17,10 @@ if (-not (Test-Path "cli\app")) {
 node scripts/package-cli.mjs --platform=win
 
 $iscc = @(
-  "$env:ProgramFiles(x86)\Inno Setup 6\ISCC.exe",
-  "$env:ProgramFiles\Inno Setup 6\ISCC.exe"
+  # ${env:...} is required: "$env:ProgramFiles(x86)" expands to "C:\Program Files(x86)"
+  # (the parentheses are literal text), so the lookup always missed a real install.
+  "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe",
+  "${env:ProgramFiles}\Inno Setup 6\ISCC.exe"
 ) | Where-Object { Test-Path $_ } | Select-Object -First 1
 
 if (-not $iscc) {

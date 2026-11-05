@@ -104,6 +104,24 @@ describe("model test honesty", () => {
     expect(result.note).toMatch(/answered by: gpt-4o-mini/);
   });
 
+  // The other direction of the same rule: a release stamp, quant tag, or vendor
+  // suffix is still the model we asked for. Flagging those would bury the one
+  // note the owner acts on (a cheaper model answered) under false alarms.
+  it("does not call a dated or tagged build of the same model a different model", async () => {
+    for (const echoed of ["gpt-4o-2024-11-20", "gpt-4o:latest"]) {
+      fetchMock.mockResolvedValue(chatResponse({
+        model: echoed,
+        choices: [{ finish_reason: "stop", message: { content: "Hello!" } }],
+      }));
+
+      const result = await pingModelByKind("openai/gpt-4o", "llm", BASE);
+
+      expect(result.ok).toBe(true);
+      expect(result.answeredModel).toBe(echoed);
+      expect(result.note).toBeUndefined();
+    }
+  });
+
   it("surfaces an upstream refusal instead of masking it", async () => {
     fetchMock.mockResolvedValue(chatResponse({
       __status: 404,

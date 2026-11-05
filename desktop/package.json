@@ -1,6 +1,6 @@
 {
-  "name": "originrouter-desktop",
-  "version": "0.5.114",
+  "name": "origin-router-desktop",
+  "version": "0.5.115",
   "private": true,
   "description": "OriginRouter Desktop window",
   "main": "main.js",

@@ -12,7 +12,7 @@ const path = require("node:path");
 
 const pkg = require("../package.json");
 const repoRoot = path.resolve(__dirname, "..", "..");
-const script = path.join(repoRoot, "installer", "originrouter-desktop.iss");
+const script = path.join(repoRoot, "installer", "origin-router-desktop.iss");
 const unpacked = path.join(__dirname, "..", "dist", "win-unpacked");
 
 const candidates = [

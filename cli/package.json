@@ -1,6 +1,6 @@
 {
-  "name": "originrouter",
-  "version": "0.5.114",
+  "name": "origin-router",
+  "version": "0.5.115",
   "description": "OriginRouter CLI - start and manage the OriginRouter server",
   "bin": {
     "originrouter": "./cli.js",

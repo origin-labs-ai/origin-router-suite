@@ -9,8 +9,8 @@ export const APP_CONFIG = {
 
 // GitHub configuration
 export const GITHUB_CONFIG = {
-  repoUrl: "https://github.com/origin-labs-ai/originrouter",
-  changelogUrl: "https://raw.githubusercontent.com/origin-labs-ai/originrouter/refs/heads/main/CHANGELOG.md",
+  repoUrl: "https://github.com/origin-labs-ai/origin-router-suite",
+  changelogUrl: "https://raw.githubusercontent.com/origin-labs-ai/origin-router-suite/refs/heads/main/CHANGELOG.md",
 };
 
 // Updater configuration

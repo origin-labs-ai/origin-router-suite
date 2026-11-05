@@ -549,7 +549,7 @@ function checkForUpdate() {
 
     const installInfo = updater.readInstallInfo();
     if (installInfo?.mode === "installer") {
-      updater.fetchLatestRelease(installInfo.updateRepo || "origin-labs-ai/originrouter")
+      updater.fetchLatestRelease(installInfo.updateRepo || "origin-labs-ai/origin-router-suite")
         .then((release) => {
           if (updater.isNewer(release.version, pkg.version)) {
             pendingInstallerUpdate = release;

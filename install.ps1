@@ -1,5 +1,5 @@
 # OriginRouter installer (Windows)
-# Usage: irm https://raw.githubusercontent.com/origin-labs-ai/originrouter/main/install.ps1 | iex
+# Usage: irm https://raw.githubusercontent.com/origin-labs-ai/origin-router-suite/main/install.ps1 | iex
 
 $ErrorActionPreference = "Stop"
 

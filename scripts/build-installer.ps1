@@ -3,14 +3,21 @@
 #   1. packages cli/app into dist/win
 #   2. compiles installer/originrouter.iss with Inno Setup 6
 param(
-  # Keep in step with package.json — a build that silently labels itself with an
-  # old version is an updater that will never offer the real one.
-  [string]$Version = "0.5.113"
+  # Deliberately not a literal: a hardcoded default is a version that drifts, and a
+  # mislabelled build is an update that the installed app will never offer. Pass
+  # -Version to override (CI names the installer after the tag instead).
+  [string]$Version = ""
 )
 
 $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $PSScriptRoot
 Set-Location $root
+
+if (-not $Version) {
+  $Version = (Get-Content package.json -Raw | ConvertFrom-Json).version
+  if (-not $Version) { throw "Could not read a version from package.json and none was passed." }
+  Write-Host "Version taken from package.json: $Version" -ForegroundColor Cyan
+}
 
 if (-not (Test-Path "cli\app")) {
   throw "cli/app is missing. Run `npm run build` inside cli/ first."

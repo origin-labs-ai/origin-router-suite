@@ -4,11 +4,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-OriginRouter (`originrouter-app`) — a local AI routing gateway + Next.js dashboard. It exposes one OpenAI-compatible endpoint (`/v1/*`) and routes traffic across 40+ upstream providers with format translation, model-combo fallback, multi-account fallback, OAuth/API-key credential management, token refresh, quota/usage tracking, and optional cloud sync.
+OriginRouter (`origin-router-app`) — a local AI routing gateway + Next.js dashboard. It exposes one OpenAI-compatible endpoint (`/v1/*`) and routes traffic across 40+ upstream providers with format translation, model-combo fallback, multi-account fallback, OAuth/API-key credential management, token refresh, quota/usage tracking, and optional cloud sync.
 
 Two published artifacts live in this one repo:
-- The **dashboard + gateway** (root `package.json`, `originrouter-app`) — the Next.js server that does the actual routing.
-- The **CLI launcher** (`cli/`, published to npm as `originrouter`) — a separate package that installs/starts the server and manages the tray. It has its own `package.json`, version, and build.
+- The **dashboard + gateway** (root `package.json`, `origin-router-app`) — the Next.js server that does the actual routing.
+- The **CLI launcher** (`cli/`, package `origin-router`) — installs/starts the server, manages the tray and performs the self-update. Not published to npm: it ships inside both Windows installers and as `origin-router-<version>.tgz` on the release. It has its own `package.json`, version, and build.
 
 The code lives in `src/` (Next.js app + dashboard/compat APIs), `open-sse/` (the provider-agnostic routing/translation engine), `cli/` (the launcher package), and `tests/`.
 
@@ -76,8 +76,8 @@ Two authoritative docs already exist — read them before working in these areas
 ### Persistence — IMPORTANT (ARCHITECTURE.md is stale here)
 State is **no longer `db.json`**. It's a SQLite layer under `src/lib/db/` with an adapter fallback chain (`driver.js`): `bun:sqlite` → `better-sqlite3` (optional native dep) → `node:sqlite` (Node ≥22.5) → `sql.js` (pure-JS fallback, always works). `better-sqlite3` is deliberately in `optionalDependencies` so install never fails without build tools.
 - `src/lib/localDb.js` is a **backward-compat shim** re-exporting `src/lib/db/index.js`. New code should import from `@/lib/db/index.js`; per-entity logic lives in `src/lib/db/repos/*`. Schema/migrations in `src/lib/db/migrations/`.
-- DB file location resolves via `src/lib/db/paths.js` (`DATA_DIR`, else `~/.originrouter/`).
-- Usage/logs (`src/lib/usageDb.js`, `usage.json` + `log.txt`) still live under `~/.originrouter` and do **not** follow `DATA_DIR`.
+- Data location resolves via `src/lib/dataDir.js` → `DATA_DIR`, else **`~/.or`** (`src/lib/db/paths.js` builds `db/data.sqlite` + `db/backups/` under it). A first run migrates the old folders (`~/.originrouter`, `~/.9router`, `%APPDATA%\originrouter`, `%APPDATA%\9router`), newest database winning, and `dataMirror.js` keeps a second copy at `~/.fusion/.or`.
+- Usage, request details and logs are SQLite tables in the same database (`src/lib/usageDb.js` is a shim over `db/repos/usageRepo.js` and `requestDetailsRepo.js`) — they follow `DATA_DIR`; the old `usage.json` / `log.txt` files are gone.
 
 ### RTK token saver (`open-sse/rtk/`)
 Pre-translate hooks that compress `tool_result` content in-place to cut tokens. **Fail-open**: any error returns null and leaves the body untouched — never throw out of them. Skips `is_error`/`status:"error"` results to preserve traces.

@@ -1,200 +1,160 @@
 # OriginRouter
 
-Local AI gateway with a dashboard and playground for every connected provider, combo and
-fallback. Everything runs on your machine; chats and router data stay local.
+Local AI routing gateway with a dashboard and playground for every provider, combo and
+fallback you configure. One OpenAI-compatible endpoint in front of it all. Everything runs
+on your machine — chats, keys and router data stay local.
 
 ## Install (recommended)
 
-There are **two** per-user Windows installers, both built from this repository:
+Two per-user Windows installers, both built from this repository and published on the
+[releases page](https://github.com/origin-labs-ai/origin-router-suite/releases/latest):
 
 | Installer | What it installs |
 |---|---|
-| `OriginRouter-Setup-0.5.114.exe` | Gateway + dashboard. Starts with Windows, self-updates, runs `or` / `originrouter`. |
-| `OriginRouter-Desktop-Setup-0.5.114.exe` | Separate desktop window with the same dashboard UI. Bundles its own gateway copy and starts it with the system Node runtime. |
+| `OriginRouter-Setup-<version>.exe` | Gateway + dashboard. Starts with Windows, self-updates, adds `or` / `originrouter` to your `PATH`. |
+| `OriginRouter-Desktop-Setup-<version>.exe` | Desktop window with the same UI. Bundles its own gateway copy, starts it with the system Node runtime, and starts the PandaOrchestrator brain if it is installed. |
+
+Double-click either one, or run it silently:
 
 ```powershell
-cd C:\Users\thaku\Workspaces\side-projects\origin-router
-.\dist\installer\OriginRouter-Setup-0.5.114.exe           # server + dashboard
-.\dist\installer\OriginRouter-Desktop-Setup-0.5.114.exe   # desktop window
+.\OriginRouter-Setup-<version>.exe /VERYSILENT /SUPPRESSMSGBOXES /NORESTART
 ```
 
-The desktop window title is simply **OriginRouter**; no “AI Infrastructure Management” tagline
-is appended and no tagline is written into the window title. The server installer installs under
-`%LOCALAPPDATA%\Programs\OriginRouter`; the desktop app installs under
-`%LOCALAPPDATA%\Programs\OriginRouter Desktop`. No admin prompt and no manual `npm` commands are
-required.
+No admin prompt. The gateway installs under `%LOCALAPPDATA%\Programs\OriginRouter` and the
+window app under `%LOCALAPPDATA%\Programs\OriginRouter Desktop`; the window's title bar says
+**OriginRouter** and nothing else.
 
-### Desktop window
-
-- Same dashboard UI in a native Electron window.
-- Bundles a copy of the gateway at `resources\server` and starts it on
-  `http://127.0.0.1:20128` using the installed **system Node** (not Electron's embedded Node),
-  which keeps `node:sqlite`/`sql.js` available and avoids the
-  `[DB] No SQLite driver available` error.
-- If the gateway is already running (server installer/tray), the window simply attaches to it.
-- Window bounds are remembered in `~/.or/desktop/window-bounds.json`.
-- Adds itself to login items on first run; the Start Menu shortcut is
-  **OriginRouter Desktop**.
-
-### Stop the desktop app's gateway
-
-Closing the desktop window stops only the gateway copy it started itself. A gateway started by
-the server installer/tray is left running.
-
-Silent install/update:
+After installing, open a **new** terminal (the installer adds its folder to your user `PATH`):
 
 ```powershell
-Start-Process -FilePath "C:\Users\thaku\Workspaces\side-projects\origin-router\dist\installer\OriginRouter-Setup-0.5.114.exe" `
-  -ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART','/SP-' -Wait
+or               # short form
+originrouter     # same launcher, menu + tray
 ```
 
-After installing, use the Start Menu shortcut or open a **new** terminal (the installer adds
-the app folder to your user `PATH`):
+Both start the gateway and the tray icon. Add `--tray` to start without the menu, and
+`--skip-update` to keep the launcher from checking the release feed for that run.
 
-```powershell
-or            # shortcut for originrouter
-originrouter
-```
-
-Both commands start the gateway and tray icon. The old `9router` command is gone.
-
-### Auto-start
-
-The installer writes:
-
-```text
-HKCU\Software\Microsoft\Windows\CurrentVersion\Run
-Name:  OriginRouter
-Value: "...\OriginRouter\originrouter.cmd" --tray
-```
-
-The old startup VBS entry is removed during install and upgrade.
-
-### Auto-update
-
-Installed builds check `https://api.github.com/repos/origin-labs-ai/origin-router-suite/releases/latest`
-at startup. When a newer release with a Windows installer is available, the app:
-
-1. downloads `OriginRouter-Setup-<version>.exe` to `%TEMP%`,
-2. verifies `<installer>.sha256` when the release publishes it,
-3. stops the old server/helper processes,
-4. runs the per-user installer silently (`/VERYSILENT`),
-5. relaunches the new build in tray mode.
-
-No terminal command and no UAC prompt is needed. Progress is written to:
-
-```text
-~/.or/updates.log
-```
-
-`--skip-update` disables the check for that launch. Auto-update is only active for the
-installer build; global npm copies keep the manual update path.
-
-## Install from source (development)
-
-Run these commands **inside the repository** — `cd cli` fails if you start in
-`C:\Users\thaku`, because `cli` is not in your home directory.
-
-```powershell
-cd C:\Users\thaku\Workspaces\side-projects\origin-router
-
-# 1. Build the bundled app
-node cli/scripts/build-cli.js
-
-# 2. Pack the CLI (must run inside cli/, which has its own package.json)
-Push-Location cli
-npm pack
-Pop-Location
-
-# 3. Install the tarball using its full path
-npm install -g "C:\Users\thaku\Workspaces\side-projects\origin-router\cli\originrouter-0.5.114.tgz"
-
-# 4. Start
-originrouter
-```
-
-Common mistakes:
-
-| Error | Cause / fix |
-|---|---|
-| `cd : Cannot find path 'C:\Users\thaku\cli'` | You are not in the repo. `cd` into `C:\Users\thaku\Workspaces\side-projects\origin-router` first. |
-| `npm error Invalid package, must have name and version` | `npm pack` ran in a folder without `package.json`. Run it inside `cli\`. |
-| `ENOENT ... C:\Users\thaku\originrouter-0.5.114.tgz` | Use the full path to the tarball created in `cli\`. |
-| `EADDRINUSE 0.0.0.0:20128` | An old server was still running. Current CLI kills it automatically; if you use an old build, close the tray/or run `originrouter` from the new install. |
-| `'powershell' is not recognized` / `'netstat' is not recognized` | Fixed in the current launcher: Windows tools are resolved from `%SystemRoot%\System32` by absolute path. |
-
-## LAN access (phones / other PCs)
-
-Endpoint page → **Allow access from this network**.
-
-- ON: devices on the same Wi-Fi/LAN can open the dashboard via the shown URL, e.g.
-  `http://10.117.175.241:20128`. Login is still required.
-- OFF: LAN requests get `403 — LAN access is disabled`; only this computer can connect.
-- Tunnel/Tailscale access stays controlled by the separate **Allow dashboard access via tunnel**
-  toggle.
-- The URL is chosen from the real Wi-Fi/Ethernet adapter, not VMware, Bluetooth, WSL or
-  `169.254.x.x` link-local addresses.
-
-If the page does not open on the phone:
-
-1. Make sure both devices are on the same Wi-Fi/LAN.
-2. Allow **Node.js** or TCP port **20128** through Windows Defender Firewall
-   (Private networks). The LAN toggle blocks application requests but does not create a
-   firewall rule.
-3. If the server was started with `--host 127.0.0.1`, restart without that flag.
-
-## Playground
-
-`/dashboard/playground` includes:
-
-- **Model menu** grouped by provider, with every connected provider visible and
-  **Show all N models** per group.
-- **Thinking** and **Extended thinking** switches inside the model menu.
-- **Max context limit** filter (`Any`, `32K`, `64K`, `128K`, `200K`, `256K`, `512K`, `1M`).
-- Human-readable model names derived from ids (`glm-5.3-flash` → `GLM 5.3 Flash`); provider
-  pages keep raw ids until you set a name.
-- Compact composer, 12px user bubble, edit/delete/regenerate/copy actions.
-- History with per-chat rename/delete and **Clear all** for every stored chat.
-- Open-in-new-window button opens the standalone `/playground`.
-
-## Models and context windows
-
-Every model is advertised with a **1,000,000-token context floor** so combos can be built at
-1M regardless of the conservative provider catalogue. Combos with an explicit ceiling still
-publish that ceiling; member filtering and API validation use the same value.
-
-## API keys and logs
-
-- Endpoint → API Keys → pencil icon renames a key (the secret value does not change).
-- Usage → Logs includes an **API Key** column with the current key name.
-- Provider and account columns use the names you configured, not raw
-  `openai-compatible-chat-…` ids.
-
-## Data locations
+### Where it lives
 
 | Data | Path |
 |---|---|
-| Router DB / settings | `~/.or` (mirrored to `~/.fusion/.or`) |
+| Router DB, settings, logs, cache | `~/.or` |
+| Desktop window state (bounds, profile) | `~/.or/desktop` |
+| PandaOrchestrator brain state + logs | `~/.or/panda` |
 | Update log | `~/.or/updates.log` |
-| Installer build | `%LOCALAPPDATA%\Programs\OriginRouter` |
-| Installer output | `dist\installer\OriginRouter-Setup-<version>.exe` |
 
-## Build the installer
+## Auto-update
 
-```powershell
-cd C:\Users\thaku\Workspaces\side-projects\origin-router
-node cli/scripts/build-cli.js
-node scripts/package-cli.mjs --platform win
-& "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer\originrouter.iss /DAppVersion=0.5.114
+Installed builds ask the GitHub release feed for the newest version at startup:
+
+```text
+https://api.github.com/repos/origin-labs-ai/origin-router-suite/releases/latest
 ```
 
-The installer includes the app bundle, CLI source, `or.cmd`, `install.json` marker and the
-silent-updater metadata. Release CI (`.github/workflows/release.yml`) builds the same artifact
-on a `v*` tag and publishes the `.exe` plus its `.sha256` checksum; the desktop installer and
-the CLI tarball are added to that release from the machine that built them.
+When a newer release carries a Windows installer, the app downloads
+`OriginRouter-Setup-<version>.exe` to `%TEMP%`, verifies it against the release's
+`<installer>.sha256` (or `checksums.sha256`) before running anything, stops its own
+processes, installs silently, and relaunches in tray mode. No terminal, no UAC prompt.
+Progress goes to `~/.or/updates.log`.
+
+Auto-update is only active for installer builds. A source or global-npm copy updates
+manually, and `--skip-update` disables the check for one launch.
+
+## What it does
+
+- **One endpoint, many providers** — `/v1/chat/completions`, `/v1/messages`,
+  `/v1/responses`, embeddings, images, TTS/STT and video, translated to each provider's
+  own format, with OAuth, API-key, cookie and desktop-lease credentials side by side.
+- **Router brain** — Panda (calibrated P(success) / cost / latency from a local ONNX
+  profiler), Jev / System One (semantic task classification), or `merged` (both, blended,
+  disagreement hedged). Global in **Settings → Routing resilience**, overridable per combo.
+  Every mode fails open: a brain that is down, slow or unsure never costs a request, and
+  the status panel says which brains are actually contributing.
+- **Combos and fallback** — ordered seat pools, least-loaded fan-out, one breaker shared
+  per seat across concurrent agents, provider failover, hedging, and a last-resort
+  completion so an agent never receives a raw upstream error.
+- **Honest model tests** — a dashboard test answers only "did THIS provider serve THIS
+  model id": a synthesized last-resort completion is a failure, a timeout is a
+  *recheck* verdict rather than a *broken* one, and an answer that came back under a
+  different model id reports `answered by: <id>`.
+- **Naming system** — every seat is labelled by the model itself: provider heads, vendor
+  namespaces, deployment tags (TEE/UC), snapshot dates, quant and build stamps fold away,
+  while class words (`flash`, `pro`, `mini`) survive, so `GLM-5.3` and `GLM-5.3 Flash`
+  stay two models and every spelling of one model searches as one.
+- **Context ceilings** — declared windows are stated per row, so a table's floor is
+  never presented as a model's limit.
+
+Feature walkthroughs: [docs/FEATURES.md](docs/FEATURES.md), architecture:
+[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+
+## Build from source
+
+Requires Node 22+ and, for the Windows installers,
+[Inno Setup 6](https://jrsoftware.org/isdl.php). Run everything from the repository root.
+
+```powershell
+npm install                      # app deps
+npm run build                    # Next standalone build + postbuild asset copy
+npm install --prefix cli
+npm run build --prefix cli       # bundles the gateway into cli/app
+node scripts/package-cli.mjs --platform=win        # -> dist\win
+.\scripts\build-installer.ps1    # -> dist\installer\OriginRouter-Setup-<version>.exe
+
+npm install --prefix desktop     # only for the window app
+npm run dist:win --prefix desktop  # -> dist\installer\OriginRouter-Desktop-Setup-<version>.exe
+
+npm pack --prefix cli            # -> cli\origin-router-<version>.tgz
+```
+
+The version comes from `package.json`; `build-installer.ps1` reads it from there unless you
+pass `-Version`. Lockfiles are deliberately not committed (see `.gitignore`), so installs
+use `npm install`.
+
+Then start the built server directly:
+
+```powershell
+$env:PORT = "20128"; $env:HOSTNAME = "0.0.0.0"; npm run start
+```
+
+| Path | Default |
+|---|---|
+| Dashboard | `http://127.0.0.1:20128/dashboard` |
+| API | `http://127.0.0.1:20128/v1` |
+| Ports in dev | `20127` (`npm run dev`) |
+
+Environment: copy `.env.example` to `.env` first — `INITIAL_PASSWORD` defaults to `123456`
+and **must** be overridden on anything that is not on localhost. The full contract is in
+`.env.example` and [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+
+## Tests
+
+`tests/` is its own package (vitest) and is not wired into `npm test`:
+
+```powershell
+npm install                      # root deps first - tests import from src/
+cd tests; npm install            # then the suite's own deps
+npx vitest run unit/model-test-strict-honesty.test.js
+npx vitest run                   # whole suite
+```
+
+The suite is not expected to be green on a fresh checkout of any OS; judge changes with
+the baselines in `tests/__baseline__/` (`verify-providers.mjs`, `verify-alias.mjs`,
+`verify-oauth-urls.mjs`) plus the runnable contracts `tests/tmp-name-rules.mjs` (naming),
+`tests/tmp-stall-rule.mjs` (combo stall) and `tests/tmp-router-proof.mjs` (brain modes).
+Release evidence for each cut lives in [docs/RELEASE-LOG.md](docs/RELEASE-LOG.md).
+
+## LAN access
+
+Endpoint page → **Allow access from this network**. Devices on the same network can then
+open the dashboard at the printed URL; the gateway keeps deriving the client IP from the
+socket so a spoofed `X-Forwarded-For` cannot fake a loopback request.
 
 ## Docs
 
-- [docs/INSTALL.md](docs/INSTALL.md) — installer, silent update, PATH, firewall, troubleshooting
-- [docs/FEATURES.md](docs/FEATURES.md) — LAN toggle, context filter, API keys and playground
-- [docs/UPDATES.md](docs/UPDATES.md) — release feed, checksums and update logs
+- [docs/INSTALL.md](docs/INSTALL.md) — installers, silent update, `PATH`, firewall, troubleshooting
+- [docs/FEATURES.md](docs/FEATURES.md) — LAN toggle, context filter, API keys, playground
+- [docs/UPDATES.md](docs/UPDATES.md) — release feed, checksums, update logs
+- [docs/RELEASE-LOG.md](docs/RELEASE-LOG.md) — what shipped in each cut and how it was verified
+- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — request lifecycle, combo/account fallback, OAuth, data model
+- [DOCKER.md](DOCKER.md) — container build and runtime
+- [gitbook/](gitbook/) — multilingual documentation site source

@@ -95,7 +95,7 @@ Paramètres de Claude Code/Codex/OpenClaw/Cursor/Cline :
 
 **Alternative : exécuter depuis le code source (ce dépôt) :**
 
-Le paquet de ce dépôt est privé (`originrouter-app`), donc l'exécution depuis le code source/Docker est le chemin de développement local attendu.
+Le paquet de ce dépôt est privé (`origin-router-app`), donc l'exécution depuis le code source/Docker est le chemin de développement local attendu.
 
 ```bash
 cp .env.example .env

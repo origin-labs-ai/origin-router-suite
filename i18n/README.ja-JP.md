@@ -90,7 +90,7 @@ Claude Code/Codex/Gemini CLI/OpenClaw/Cursor/Clineの設定:
 
 **代替方法: ソースから実行（このリポジトリ）：**
 
-このリポジトリパッケージはプライベート（`originrouter-app`）のため、ソース/Docker実行がローカル開発の想定パスです。
+このリポジトリパッケージはプライベート（`origin-router-app`）のため、ソース/Docker実行がローカル開発の想定パスです。
 
 ```bash
 cp .env.example .env

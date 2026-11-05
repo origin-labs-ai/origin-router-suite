@@ -92,6 +92,13 @@ export const DEFAULT_ROUTING_POLICY = {
   // Never trim the prompt. A seat that cannot take the context is the wrong
   // seat; the answer is another seat, not a shortened conversation.
   trimOnPromptCap: false,
+  // Quota vs speed dial for combo traffic. How long a member may hold the turn
+  // without producing a single SSE frame (keepalive comments do not count) before
+  // the walk closes it and advances to the next member. Advancing re-sends the
+  // prompt, so a low value spends free quota on duplicate prompts, and a high one
+  // lets a queued lane stall the turn (200s was observed on a capped free seat).
+  // 45s sits past any honest prefill and well before a stall hurts.
+  seatSilenceMs: 45000,
   // A stream that dies after HTTP 200 (stall, upstream reset, provider abort)
   // closes with a valid terminal frame instead of an error frame, so the caller
   // never receives an API error even mid-answer.
@@ -200,6 +207,7 @@ export function resolveRoutingPolicy(settings = {}) {
     hopBackoffMs: envInt("OR_HOP_BACKOFF_MS", DEFAULT_ROUTING_POLICY.hopBackoffMs),
     failoverDeadlineMs: envInt("OR_FAILOVER_DEADLINE_MS", DEFAULT_ROUTING_POLICY.failoverDeadlineMs),
     degradeCooldownMs: envInt("OR_DEGRADE_COOLDOWN_MS", DEFAULT_ROUTING_POLICY.degradeCooldownMs),
+    seatSilenceMs: envInt("OR_SEAT_SILENCE_MS", DEFAULT_ROUTING_POLICY.seatSilenceMs),
     routerBrain: envStr("OR_ROUTER_BRAIN", DEFAULT_ROUTING_POLICY.routerBrain),
     jevWeight: float(envStr("OR_JEV_WEIGHT", DEFAULT_ROUTING_POLICY.jevWeight), DEFAULT_ROUTING_POLICY.jevWeight, 0, 1),
     pandaWeight: float(envStr("OR_PANDA_WEIGHT", DEFAULT_ROUTING_POLICY.pandaWeight), DEFAULT_ROUTING_POLICY.pandaWeight, 0, 1),
@@ -227,6 +235,10 @@ export function resolveRoutingPolicy(settings = {}) {
     hopBackoffMs: int(merged.hopBackoffMs, DEFAULT_ROUTING_POLICY.hopBackoffMs, 0, 60000),
     failoverDeadlineMs: int(merged.failoverDeadlineMs, DEFAULT_ROUTING_POLICY.failoverDeadlineMs, 1000, GLOBAL_TIMEOUT_MS * 3),
     degradeCooldownMs: int(merged.degradeCooldownMs, DEFAULT_ROUTING_POLICY.degradeCooldownMs, 0, 900000),
+    // Floor 10s: below that a normal prefill starts looking like a dead lane and
+    // the walk would re-send prompts on healthy seats, which is the quota burn the
+    // owner is guarding against. Ceiling is the global budget.
+    seatSilenceMs: int(merged.seatSilenceMs, DEFAULT_ROUTING_POLICY.seatSilenceMs, 10000, GLOBAL_TIMEOUT_MS),
     trimOnPromptCap: merged.trimOnPromptCap === true,
     midStreamSilent: merged.midStreamSilent !== false,
     // Per-combo choice wins over the global brain, so one combo can run merged

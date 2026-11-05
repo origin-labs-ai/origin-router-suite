@@ -89,12 +89,13 @@ Node.js in Windows Defender Firewall on **Private** networks, make sure the serv
 started with `--host 127.0.0.1`, and remember that guest/isolated Wi-Fi often blocks
 client-to-client traffic.
 
-## Installing the CLI launcher from a tarball
+## Installing the CLI launcher
 
-Nothing is published to npm, so a global npm install comes from the release asset:
+The launcher's npm name is `originrouter`. Until it is published (`npm login`, then
+`npm publish` from `cli/`), install it from the release tarball:
 
 ```powershell
-npm install -g ".\origin-router-<version>.tgz"
+npm install -g ".\originrouter-<version>.tgz"
 ```
 
 Or build it from the repository root:
@@ -102,8 +103,10 @@ Or build it from the repository root:
 ```powershell
 npm install --prefix cli
 npm run build --prefix cli
-Push-Location cli; npm pack; Pop-Location   # -> cli\origin-router-<version>.tgz
+Push-Location cli; npm pack; Pop-Location   # -> cli\originrouter-<version>.tgz
 ```
+
+Either way the commands it puts on your `PATH` are `originrouter` and `or`.
 
 ## Building the installers locally
 

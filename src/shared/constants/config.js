@@ -23,10 +23,11 @@ export const GITHUB_CONFIG = {
 
 // Updater configuration
 export const UPDATER_CONFIG = {
-  // Nothing is published to npm (the name `originrouter` is unused, and `origin-router`
-  // belongs to an unrelated package), so the update feed is the GitHub release - the
-  // same source cli/src/cli/updater.js downloads and checksum-verifies. npmPackageName
-  // stays for the manual global-npm path, which is a source install, not this build.
+  // The launcher's npm identity is `originrouter`, but the gateway's own updates have
+  // never come from npm: the installer build downloads and checksum-verifies
+  // OriginRouter-Setup-<version>.exe from the release below, which is why the version
+  // check asks the same feed. npmPackageName stays for a global `npm install -g` copy,
+  // where the updater instead runs `npx originrouter` after the install.
   npmPackageName: "originrouter",
   installCmd: GITHUB_CONFIG.releasesUrl,
   installCmdLatest: GITHUB_CONFIG.releasesUrl,

@@ -8,7 +8,7 @@ OriginRouter (`origin-router-app`) — a local AI routing gateway + Next.js dash
 
 Two published artifacts live in this one repo:
 - The **dashboard + gateway** (root `package.json`, `origin-router-app`) — the Next.js server that does the actual routing.
-- The **CLI launcher** (`cli/`, package `origin-router`) — installs/starts the server, manages the tray and performs the self-update. Not published to npm: it ships inside both Windows installers and as `origin-router-<version>.tgz` on the release. It has its own `package.json`, version, and build.
+- The **CLI launcher** (`cli/`, npm identity `originrouter`) — installs/starts the server, manages the tray and performs the self-update. It ships inside both Windows installers and as `originrouter-<version>.tgz` on the release; publishing it to the registry is a manual `npm publish` from `cli/`. It has its own `package.json`, version, and build.
 
 The code lives in `src/` (Next.js app + dashboard/compat APIs), `open-sse/` (the provider-agnostic routing/translation engine), `cli/` (the launcher package), and `tests/`.
 

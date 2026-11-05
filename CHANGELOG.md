@@ -1,3 +1,12 @@
+# Unreleased
+
+## Changes
+- **The launcher's npm identity is `originrouter`** (`cli/package.json`), matching the `originrouter` / `or` commands, the autostart entry and `UPDATER_CONFIG.npmPackageName`; `origin-router` was checked and is already someone else's package on the registry. The release tarball is therefore `originrouter-<version>.tgz`, and `release.yml` expects that name.
+
+## Fixes
+- **`bin` paths dropped by npm**: `"originrouter": "./cli.js"` is rejected by npm 10's publish validation, which removed *both* bin entries from the published package — a global install would have had no `originrouter` and no `or`. Now `"cli.js"`, verified with `npm publish --dry-run` (clean, `originrouter@0.5.115`).
+- **Docs**: README gained the dashboard banner it had lost and a "publishing the launcher" section; `docs/FEATURES.md` now shows the two screenshots that were sitting unreferenced in `images/`.
+
 # v0.5.115 (2026-11-05)
 
 Naming, docs and the machinery around releases. Full working log: [docs/RELEASE-LOG.md](docs/RELEASE-LOG.md).

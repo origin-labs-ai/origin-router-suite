@@ -28,6 +28,19 @@ jobs:
         with:
           node-version: 22
 
+      - name: Resolve version
+        id: ver
+        shell: pwsh
+        run: |
+          # A tag push names the version; a manual dispatch builds whatever
+          # package.json says, because "main" is not a version and TrimStart('v')
+          # would happily turn it into one.
+          $ref = "${{ github.ref_name }}"
+          $version = if ($ref -like 'v*') { $ref.TrimStart('v') } else { (Get-Content package.json -Raw | ConvertFrom-Json).version }
+          if (-not ($version -match '^\d+\.\d+\.\d+$')) { throw "unusable version: '$version'" }
+          "version=$version" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+          Write-Host "building version $version"
+
       - name: Install app deps
         run: npm install --no-audit --no-fund
 
@@ -52,13 +65,12 @@ jobs:
         shell: pwsh
         run: |
           choco install innosetup --no-progress -y
-          $version = "${{ github.ref_name }}".TrimStart('v')
+          $version = "${{ steps.ver.outputs.version }}"
           & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" "installer\origin-router.iss" "/DAppVersion=$version"
 
       - name: Desktop installer (electron-builder unpacked dir, then Inno Setup 6)
         shell: pwsh
         run: |
-          $version = "${{ github.ref_name }}".TrimStart('v')
           npm install --no-audit --no-fund --prefix desktop
           npm run dist:win --prefix desktop
 
@@ -68,7 +80,7 @@ jobs:
       - name: Checksums
         shell: pwsh
         run: |
-          $version = "${{ github.ref_name }}".TrimStart('v')
+          $version = "${{ steps.ver.outputs.version }}"
           $names = @(
             "OriginRouter-Setup-$version.exe",
             "OriginRouter-Desktop-Setup-$version.exe",

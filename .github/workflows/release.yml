@@ -115,11 +115,26 @@ jobs:
           subst W: "$env:GITHUB_WORKSPACE"
           try {
             Push-Location W:\
-            node scripts/package-cli.mjs --platform=win
+            node scripts/package-cli.mjs --platform=win --skip-deps
+            # The exit code used to be swallowed by the finally block below,
+            # which is how a packaging step that died halfway still looked
+            # green. A failed copy must fail the job.
+            if ($LASTEXITCODE -ne 0) { throw "packaging failed with exit code $LASTEXITCODE" }
             Pop-Location
           } finally {
             subst W: /d
           }
+
+      - name: Install the runtime dependencies into the package
+        shell: pwsh
+        run: |
+          # The dependency tree is installed, not copied. Copying it was the one
+          # step that reliably ran this job out of storage, and npm does the
+          # same work faster, with the lockfile's exact versions - and without
+          # the dev dependencies, which the released app does not need.
+          Copy-Item "cli\package-lock.json" "dist\win\package-lock.json" -Force
+          npm ci --omit=dev --ignore-scripts --no-audit --no-fund --prefix dist\win
+          if ($LASTEXITCODE -ne 0) { throw "npm ci failed with exit code $LASTEXITCODE" }
 
       - name: Verify the portable folder
         shell: pwsh
@@ -128,15 +143,15 @@ jobs:
           # ended early, the installer was built from an incomplete tree, and
           # the release shipped an app that could not start. Check the tree
           # before anything is built from it.
-          $expected = @("app\server.js", "package.json", "install.json", "cli.js")
+          $expected = @("app\server.js", "package.json", "install.json", "cli.js", "node_modules")
           foreach ($file in $expected) {
             if (-not (Test-Path (Join-Path "dist\win" $file))) {
-              throw "dist\win\$file is missing - the copy did not finish"
+              throw "dist\win\$file is missing - the package did not finish"
             }
           }
           $count = (Get-ChildItem "dist\win" -Recurse -File | Measure-Object).Count
           Write-Host ("dist\win holds {0} files" -f $count)
-          if ($count -lt 5000) { throw "dist\win holds only $count files - the copy was cut short" }
+          if ($count -lt 5000) { throw "dist\win holds only $count files - the package was cut short" }
 
       - name: Portable win zip (beta)
         # The portable zip is the no-installer build: unzip it anywhere and run

@@ -119,6 +119,32 @@ Everything runs **locally**. The brain never sends your prompt to a service you 
 
 ---
 
+## ⚡ Concurrency & failover
+
+Eight agents can hit the router at once — the router is built for that, not around it.
+
+| Knob | Default | What it does |
+|---|---|---|
+| **Max agents in flight** | `8` | Upstream requests served at once. The next one **queues** — it is never rejected, because a queue is slow and a rejection is an error your client would see. |
+| **Requests per credential** | `2` | How many parallel requests one account may carry before the selector moves to the next connection. `1` = strict fan-out across your accounts. |
+| **Admission queue** | `20 s` | How long a request may wait for a free slot before it is served anyway. Fail-open on purpose. |
+| **Least-loaded selection** | on | Connections are ranked by the load they are actually carrying, not by their order in the list. |
+| **Hop backoff** | `250 ms` | Jittered rest between fallback hops. Without it, eight agents walk the fleet in lockstep and hammer the same seat in the same millisecond. |
+| **Failover routes** | `12` | How many alternate routes one request may try. |
+| **Hedged start** | `12 s` | A client still waiting for headers this long is answered by a second seat tried in parallel — first answer wins. Small payloads only (< 64 KB), so a slow reasoning turn is never duplicated. |
+| **Degrade cooldown / seat silence** | `45 s` | A seat that just refused is skipped by every concurrent request for that long. No "everyone falls back from the top" stampede. |
+
+Tune it in **Settings → Profile → Routing resilience**, or per deployment:
+
+```bash
+OR_MAX_AGENTS_CONCURRENCY=8
+OR_PER_CONNECTION_CONCURRENCY=2
+OR_ADMISSION_QUEUE_MS=20000
+OR_FAILOVER_ENABLED=1
+```
+
+The idea behind the whole block: **a slow answer is fine, a rejected request is not.** The router queues, spreads the load, backs off between hops, and gives up only when every route is genuinely gone — and then the last-resort policy answers, labelled as a last resort.
+
 ## 🧩 Combos
 
 A **combo** is one name that stands for several models, with a strategy that decides how a request is served.
@@ -196,6 +222,7 @@ The dashboard is available in **37 languages** and follows the light/dark theme 
 | Surface | What it is |
 |---|---|
 | **Gateway + dashboard** | The Next.js app on port 20128 — providers, combos, usage, quota, playground, CLI tools, skills, proxy pools, media providers, translator. |
+| **Built for concurrency** | Eight agents in flight by default, a queue instead of a rejection, per-credential limits, least-loaded selection, jittered failover hops, hedged starts. |
 | **CLI launcher** | `originrouter` (or `or`) — install, start, tray, update, logs, doctor. Publishable to npm as `@origin-labs-ai/origin-router`. |
 | **Desktop app** | A native window around the gateway (`OriginRouter-Desktop-Setup-<version>.exe`), built with electron-builder and packaged with Inno Setup. |
 | **Windows installer** | `OriginRouter-Setup-<version>.exe` — the gateway, the dashboard, the tray and the uninstaller. |

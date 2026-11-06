@@ -3,7 +3,7 @@ name: release
 # Publishes the same three artifacts the build machine produces:
 #   OriginRouter-Setup-<v>.exe            gateway + dashboard installer (Inno)
 #   OriginRouter-Desktop-Setup-<v>.exe    desktop window installer (Inno, bundles the gateway)
-#   originrouter-<v>.tgz                  CLI launcher package (npm identity: originrouter)
+#   origin-router-<v>.tgz                  CLI launcher package (npm identity: @origin-labs-ai/origin-router)
 # plus a .sha256 next to every binary, which is what the updater verifies before it
 # installs anything.
 #
@@ -129,12 +129,41 @@ jobs:
         shell: pwsh
         run: |
           # The dependency tree is installed, not copied. Copying it was the one
-          # step that reliably ran this job out of storage, and npm does the
-          # same work faster, with the lockfile's exact versions - and without
-          # the dev dependencies, which the released app does not need.
+          # step that reliably ran this job out of storage: npm's .bin entries
+          # are junctions, and robocopy followed them.
+          #
+          # It has to run *inside* the package. With --prefix, npm still read
+          # the package.json and the lockfile in the working directory - the
+          # repository root - and installed the whole application as a
+          # dependency of itself, nesting a second copy of the app (and its own
+          # node_modules) inside node_modules. The installer could not compress
+          # paths that deep and died with "the system cannot find the path
+          # specified".
           Copy-Item "cli\package-lock.json" "dist\win\package-lock.json" -Force
-          npm ci --omit=dev --ignore-scripts --no-audit --no-fund --prefix dist\win
-          if ($LASTEXITCODE -ne 0) { throw "npm ci failed with exit code $LASTEXITCODE" }
+          Push-Location "dist\win"
+          try {
+            npm ci --omit=dev --ignore-scripts --no-audit --no-fund
+            if ($LASTEXITCODE -ne 0) { throw "npm ci failed with exit code $LASTEXITCODE" }
+          } finally {
+            Pop-Location
+          }
+
+          # The runtime dependencies the launcher actually loads.
+          foreach ($dep in @("enquirer", "node-forge", "node-machine-id", "react", "react-dom", "confbox")) {
+            if (-not (Test-Path "dist\win\node_modules\$dep")) {
+              throw "dist\win\node_modules\$dep is missing - the package would not start"
+            }
+          }
+          # No nested copy of the application: the installer cannot compress it.
+          Get-ChildItem "dist\win\node_modules" -Directory -ErrorAction SilentlyContinue | ForEach-Object {
+            if (Test-Path (Join-Path $_.FullName "win")) {
+              Write-Host "removing the nested app copy $($_.Name)"
+              cmd /c "rd /s /q `"$($_.FullName)`"" | Out-Null
+            }
+          }
+          $deps = (Get-ChildItem "dist\win\node_modules" -Directory -ErrorAction SilentlyContinue | Measure-Object).Count
+          Write-Host ("dist\win\node_modules holds {0} packages" -f $deps)
+          if ($deps -lt 6) { throw "the runtime dependencies are missing - the package would not start" }
 
       - name: Verify the portable folder
         shell: pwsh
@@ -149,9 +178,38 @@ jobs:
               throw "dist\win\$file is missing - the package did not finish"
             }
           }
+          # No nested copy of the app: the installer cannot compress it.
+          Get-ChildItem "dist\win\node_modules" -Directory -ErrorAction SilentlyContinue | ForEach-Object {
+            if (Test-Path (Join-Path $_.FullName "win")) {
+              throw "dist\win\node_modules\$($_.Name) still holds a nested copy of the app"
+            }
+          }
           $count = (Get-ChildItem "dist\win" -Recurse -File | Measure-Object).Count
           Write-Host ("dist\win holds {0} files" -f $count)
           if ($count -lt 5000) { throw "dist\win holds only $count files - the package was cut short" }
+
+      - name: Portable win zip (beta)
+        # The portable zip is the no-installer build: unzip it anywhere and run
+        # originrouter.cmd. It asks once whether to live in the system tray,
+        # because there is no installer task to ask.
+        shell: pwsh
+        run: |
+          $out = "dist\portable"
+          New-Item -ItemType Directory -Force -Path $out | Out-Null
+          $zip = Join-Path $out "OriginRouter-win-portable.zip"
+          $sevenZip = Join-Path ${env:ProgramFiles} "7-Zip\7z.exe"
+          if (Test-Path $sevenZip) {
+            # -mx=3 and -mmt=on: the maximum compression spent half an hour on
+            # this archive for a few percent of size. A portable zip that takes
+            # half an hour to build is not a portable zip.
+            & $sevenZip a -tzip -mx=3 -mmt=on $zip "dist\win\*" | Out-Null
+          } else {
+            Compress-Archive -Path "dist\win\*" -DestinationPath $zip
+          }
+          if (-not (Test-Path $zip)) { throw "the portable zip was not created" }
+          $hash = (Get-FileHash $zip -Algorithm SHA256).Hash.ToLower()
+          "$hash  OriginRouter-win-portable.zip" | Set-Content "$zip.sha256" -Encoding ascii
+          Write-Host "portable zip: $([math]::Round((Get-Item $zip).Length/1MB,1)) MB"
 
       - name: Gateway installer (Inno Setup 6)
         shell: pwsh
@@ -170,7 +228,15 @@ jobs:
         # Must be packed from inside cli/: `npm pack --prefix cli` reads the root
         # package.json instead and produces a tarball of the entire repository.
         working-directory: cli
-        run: npm pack --pack-destination ..\dist\installer --ignore-scripts
+        shell: pwsh
+        run: |
+          $version = "${{ steps.ver.outputs.version }}"
+          npm pack --pack-destination ..\dist\installer --ignore-scripts
+          # A scoped package packs as <scope>-<name>-<version>.tgz. The release
+          # asset is named after the product, not after the npm scope.
+          $packed = Get-ChildItem ..\dist\installer\*.tgz | Select-Object -First 1
+          if (-not $packed) { throw "npm pack produced no tarball" }
+          Rename-Item -Path $packed.FullName -NewName "origin-router-$version.tgz"
 
       - name: Checksums
         shell: pwsh
@@ -179,7 +245,7 @@ jobs:
           $names = @(
             "OriginRouter-Setup-$version.exe",
             "OriginRouter-Desktop-Setup-$version.exe",
-            "originrouter-$version.tgz"
+            "origin-router-$version.tgz"
           )
           $lines = @()
           foreach ($name in $names) {
@@ -198,6 +264,8 @@ jobs:
             dist/installer/*.exe
             dist/installer/*.sha256
             dist/installer/*.tgz
+            dist/portable/*.zip
+            dist/portable/*.sha256
           if-no-files-found: error
 
   portable:
@@ -229,11 +297,22 @@ jobs:
       - name: Package portable folder
         run: node scripts/package-cli.mjs --platform=${{ matrix.platform }}
       - name: Zip portable folder
-        run: cd dist/${{ matrix.platform }} && zip -r ../OriginRouter-${{ matrix.platform }}.zip .
+        # The portable zip is the beta channel: unzip it anywhere and run the
+        # launcher. It asks once whether to live in the system tray, because
+        # there is no installer task to ask.
+        run: |
+          mkdir -p dist/portable
+          cd dist/${{ matrix.platform }} && zip -r ../portable/OriginRouter-${{ matrix.platform }}-portable.zip .
+      - name: Checksum the portable zip
+        run: |
+          cd dist/portable
+          sha256sum OriginRouter-${{ matrix.platform }}-portable.zip > OriginRouter-${{ matrix.platform }}-portable.zip.sha256
       - uses: actions/upload-artifact@v4
         with:
           name: OriginRouter-${{ matrix.platform }}
-          path: dist/*.zip
+          path: |
+            dist/portable/*.zip
+            dist/portable/*.sha256
           if-no-files-found: warn
 
   release:

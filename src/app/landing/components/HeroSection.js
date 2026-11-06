@@ -1,6 +1,10 @@
 "use client";
 
+import { useRouter } from "next/navigation";
+
 export default function HeroSection() {
+  const router = useRouter();
+
   return (
     <section className="relative pt-32 pb-20 px-6 min-h-[90vh] flex flex-col items-center justify-center overflow-hidden">
       {/* Glow effect */}
@@ -26,7 +30,10 @@ export default function HeroSection() {
 
         {/* CTA Buttons */}
         <div className="flex flex-wrap items-center justify-center gap-4 w-full">
-          <button className="h-12 px-8 rounded-lg bg-[#2B7FFF] hover:bg-[#1a66e6] text-[#FFFFFF] text-base font-bold transition-all shadow-[0_0_15px_rgba(43,127,255,0.4)] flex items-center gap-2">
+          <button
+            onClick={() => router.push("/dashboard/welcome")}
+            className="h-12 px-8 rounded-lg bg-[#2B7FFF] hover:bg-[#1a66e6] text-[#FFFFFF] text-base font-bold transition-all shadow-[0_0_15px_rgba(43,127,255,0.4)] flex items-center gap-2"
+          >
             <span className="material-symbols-outlined">rocket_launch</span>
             Get Started
           </button>

@@ -19,6 +19,27 @@ function defaultDir() {
   return path.join(os.homedir(), DATA_FOLDER);
 }
 
+// The first-run wizard can move the data folder. The choice is kept in the
+// default folder, because that is the one place the app can always look -
+// even after the data itself moved somewhere else.
+export const DATA_LOCATION_FILE = path.join(defaultDir(), "data-location.json");
+
+export function readDataLocationPreference() {
+  try {
+    const parsed = JSON.parse(fs.readFileSync(DATA_LOCATION_FILE, "utf-8"));
+    const dir = typeof parsed?.dir === "string" ? parsed.dir.trim() : "";
+    return dir;
+  } catch {
+    return "";
+  }
+}
+
+export function writeDataLocationPreference(dir) {
+  fs.mkdirSync(defaultDir(), { recursive: true });
+  fs.writeFileSync(DATA_LOCATION_FILE, `${JSON.stringify({ dir }, null, 2)}\n`);
+  return DATA_LOCATION_FILE;
+}
+
 // One-time move from any previous location so existing installs keep their
 // database, keys and logs instead of starting empty. When several old folders
 // exist, the one with the newest database wins — older ones are usually stale
@@ -59,7 +80,7 @@ function migrateLegacyDir(targetDir) {
 }
 
 export function getDataDir() {
-  const configured = process.env.ORIGINROUTER_DATA_DIR || process.env.DATA_DIR;
+  const configured = process.env.ORIGINROUTER_DATA_DIR || process.env.DATA_DIR || readDataLocationPreference();
   if (!configured) {
     const dir = defaultDir();
     migrateLegacyDir(dir);

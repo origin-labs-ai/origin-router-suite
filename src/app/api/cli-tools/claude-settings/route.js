@@ -1,14 +1,16 @@
 "use server";
 
 import { NextResponse } from "next/server";
-import { exec } from "child_process";
-import { promisify } from "util";
 import fs from "fs/promises";
 import path from "path";
 import os from "os";
 import { DEFAULT_PLUGINS } from "@/shared/constants/coworkPlugins";
-
-const execAsync = promisify(exec);
+import {
+  claudeSettingsPath,
+  detectClaudeCode,
+  normalizeBaseUrl,
+  readClaudeSettings,
+} from "@/lib/claudeCodeSetup";
 
 // Exa MCP def — reuse from coworkPlugins (DRY).
 const EXA_PLUGIN = DEFAULT_PLUGINS.find((p) => p.name === "exa");
@@ -16,12 +18,6 @@ const buildExaMcpEntry = () => ({
   type: EXA_PLUGIN.transport,
   url: EXA_PLUGIN.url,
 });
-
-// Get claude settings path based on OS
-const getClaudeSettingsPath = () => {
-  const homeDir = os.homedir();
-  return path.join(homeDir, ".claude", "settings.json");
-};
 
 // Claude Code CLI reads mcpServers from ~/.claude.json (NOT settings.json).
 const getClaudeJsonPath = () => path.join(os.homedir(), ".claude.json");
@@ -53,44 +49,13 @@ const writeClaudeJsonMcp = async (mcpServers) => {
 };
 
 
-// Check if claude CLI is installed (via which/where or config file exists)
-const checkClaudeInstalled = async () => {
-  try {
-    const isWindows = os.platform() === "win32";
-    const command = isWindows ? "where claude" : "which claude";
-    const env = isWindows
-      ? { ...process.env, PATH: `${process.env.APPDATA}\\npm;${process.env.PATH}` }
-      : process.env;
-    await execAsync(command, { windowsHide: true, env });
-    return true;
-  } catch {
-    try {
-      await fs.access(getClaudeSettingsPath());
-      return true;
-    } catch {
-      return false;
-    }
-  }
-};
-
 // Read current settings
-const readSettings = async () => {
-  try {
-    const settingsPath = getClaudeSettingsPath();
-    const content = await fs.readFile(settingsPath, "utf-8");
-    // Tolerate JSONC (trailing commas) and treat unparseable files as "no config"
-    // rather than throwing a 500 that the UI misreads as "tool not installed".
-    const stripped = content.replace(/,(\s*[}\]])/g, "$1");
-    return JSON.parse(stripped);
-  } catch (error) {
-    return null;
-  }
-};
+const readSettings = readClaudeSettings;
 
 // GET - Check claude CLI and read current settings
 export async function GET() {
   try {
-    const isInstalled = await checkClaudeInstalled();
+    const isInstalled = await detectClaudeCode();
     
     if (!isInstalled) {
       return NextResponse.json({
@@ -109,7 +74,7 @@ export async function GET() {
       settings: settings,
       hasOriginRouter: hasOriginRouter,
       exaMcpEnabled: !!claudeJson?.mcpServers?.exa,
-      settingsPath: getClaudeSettingsPath(),
+      settingsPath: claudeSettingsPath(),
     });
   } catch (error) {
     console.log("Error checking claude settings:", error);
@@ -132,7 +97,7 @@ export async function POST(request) {
       );
     }
 
-    const settingsPath = getClaudeSettingsPath();
+    const settingsPath = claudeSettingsPath();
     const claudeDir = path.dirname(settingsPath);
 
     // Ensure .claude directory exists
@@ -151,9 +116,7 @@ export async function POST(request) {
 
     // Normalize ANTHROPIC_BASE_URL to ensure /v1 suffix
     if (env.ANTHROPIC_BASE_URL) {
-      env.ANTHROPIC_BASE_URL = env.ANTHROPIC_BASE_URL.endsWith("/v1")
-        ? env.ANTHROPIC_BASE_URL
-        : `${env.ANTHROPIC_BASE_URL}/v1`;
+      env.ANTHROPIC_BASE_URL = normalizeBaseUrl(env.ANTHROPIC_BASE_URL);
     }
 
     // Keep an existing token (real key or earlier config); only add when absent — Reset clears it.
@@ -231,7 +194,7 @@ const RESET_ENV_KEYS = [
 // DELETE - Reset settings (remove env fields)
 export async function DELETE() {
   try {
-    const settingsPath = getClaudeSettingsPath();
+    const settingsPath = claudeSettingsPath();
 
     // Read current settings
     let currentSettings = {};

@@ -129,12 +129,41 @@ jobs:
         shell: pwsh
         run: |
           # The dependency tree is installed, not copied. Copying it was the one
-          # step that reliably ran this job out of storage, and npm does the
-          # same work faster, with the lockfile's exact versions - and without
-          # the dev dependencies, which the released app does not need.
+          # step that reliably ran this job out of storage: npm's .bin entries
+          # are junctions, and robocopy followed them.
+          #
+          # It has to run *inside* the package. With --prefix, npm still read
+          # the package.json and the lockfile in the working directory - the
+          # repository root - and installed the whole application as a
+          # dependency of itself, nesting a second copy of the app (and its own
+          # node_modules) inside node_modules. The installer could not compress
+          # paths that deep and died with "the system cannot find the path
+          # specified".
           Copy-Item "cli\package-lock.json" "dist\win\package-lock.json" -Force
-          npm ci --omit=dev --ignore-scripts --no-audit --no-fund --prefix dist\win
-          if ($LASTEXITCODE -ne 0) { throw "npm ci failed with exit code $LASTEXITCODE" }
+          Push-Location "dist\win"
+          try {
+            npm ci --omit=dev --ignore-scripts --no-audit --no-fund
+            if ($LASTEXITCODE -ne 0) { throw "npm ci failed with exit code $LASTEXITCODE" }
+          } finally {
+            Pop-Location
+          }
+
+          # The runtime dependencies the launcher actually loads.
+          foreach ($dep in @("enquirer", "node-forge", "node-machine-id", "react", "react-dom", "confbox")) {
+            if (-not (Test-Path "dist\win\node_modules\$dep")) {
+              throw "dist\win\node_modules\$dep is missing - the package would not start"
+            }
+          }
+          # No nested copy of the application: the installer cannot compress it.
+          Get-ChildItem "dist\win\node_modules" -Directory -ErrorAction SilentlyContinue | ForEach-Object {
+            if (Test-Path (Join-Path $_.FullName "win")) {
+              Write-Host "removing the nested app copy $($_.Name)"
+              cmd /c "rd /s /q `"$($_.FullName)`"" | Out-Null
+            }
+          }
+          $deps = (Get-ChildItem "dist\win\node_modules" -Directory -ErrorAction SilentlyContinue | Measure-Object).Count
+          Write-Host ("dist\win\node_modules holds {0} packages" -f $deps)
+          if ($deps -lt 6) { throw "the runtime dependencies are missing - the package would not start" }
 
       - name: Verify the portable folder
         shell: pwsh
@@ -147,6 +176,12 @@ jobs:
           foreach ($file in $expected) {
             if (-not (Test-Path (Join-Path "dist\win" $file))) {
               throw "dist\win\$file is missing - the package did not finish"
+            }
+          }
+          # No nested copy of the app: the installer cannot compress it.
+          Get-ChildItem "dist\win\node_modules" -Directory -ErrorAction SilentlyContinue | ForEach-Object {
+            if (Test-Path (Join-Path $_.FullName "win")) {
+              throw "dist\win\node_modules\$($_.Name) still holds a nested copy of the app"
             }
           }
           $count = (Get-ChildItem "dist\win" -Recurse -File | Measure-Object).Count
@@ -164,7 +199,10 @@ jobs:
           $zip = Join-Path $out "OriginRouter-win-portable.zip"
           $sevenZip = Join-Path ${env:ProgramFiles} "7-Zip\7z.exe"
           if (Test-Path $sevenZip) {
-            & $sevenZip a -tzip -mx=7 $zip "dist\win\*" | Out-Null
+            # -mx=3 and -mmt=on: the maximum compression spent half an hour on
+            # this archive for a few percent of size. A portable zip that takes
+            # half an hour to build is not a portable zip.
+            & $sevenZip a -tzip -mx=3 -mmt=on $zip "dist\win\*" | Out-Null
           } else {
             Compress-Archive -Path "dist\win\*" -DestinationPath $zip
           }

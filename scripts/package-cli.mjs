@@ -19,9 +19,28 @@ import { spawnSync } from "node:child_process";
 // through it; anything else (or a machine without it) keeps cpSync.
 function copyTree(src, dest) {
   const robocopy = path.join(process.env.SystemRoot || "C:\\Windows", "System32", "Robocopy.exe");
-  if (process.platform !== "win32" || !fs.existsSync(robocopy)) {
-    return fs.cpSync(src, dest, { recursive: true });
+  const startedAt = Date.now();
+
+  // Node's own copy is the fast path. Measured on the Windows runner: 22
+  // minutes for this tree with fs.cpSync, and 118 minutes with robocopy for
+  // the same tree - robocopy is five times slower here. It also fails on
+  // paths past the 260-character limit, which is why the workflow runs the
+  // copy from a substituted drive: W:\cli\app is short enough for every file
+  // in it.
+  if (process.platform === "win32") {
+    try {
+      fs.cpSync(src, dest, { recursive: true, force: true, verbatimSymlinks: true });
+      console.log(`copied ${src} -> ${dest} in ${((Date.now() - startedAt) / 1000).toFixed(1)}s`);
+      return undefined;
+    } catch (error) {
+      console.log(`node copy failed (${error.code || error.message}) - falling back to robocopy`);
+    }
+  } else {
+    fs.cpSync(src, dest, { recursive: true, force: true, verbatimSymlinks: true });
+    console.log(`copied ${src} -> ${dest} in ${((Date.now() - startedAt) / 1000).toFixed(1)}s`);
+    return undefined;
   }
+
   const result = spawnSync(
     robocopy,
     // /COPY:DT and /DCOPY:T skip the attribute and directory-timestamp work:
@@ -35,7 +54,23 @@ function copyTree(src, dest) {
   if (result.status >= 8) {
     throw new Error(`robocopy ${src} -> ${dest} failed with code ${result.status}:\n${result.stdout || result.stderr}`);
   }
+  console.log(`copied ${src} -> ${dest} in ${((Date.now() - startedAt) / 1000).toFixed(1)}s`);
   return undefined;
+}
+
+// The work drive is the one that runs out of space, and a copy that is slow
+// because of it looks exactly like a copy that is hung. Print the free space
+// around every tree so the next failure is diagnosable from the log.
+function reportFreeSpace(label) {
+  if (process.platform !== "win32") return;
+  try {
+    const result = spawnSync("wmic", ["logicaldisk", "get", "caption,freespace"], { encoding: "utf8" });
+    if (result.status === 0) {
+      console.log(`[disk] ${label}: ${result.stdout.trim().split(/\r?\n/).slice(1).join(" | ").trim()}`);
+    }
+  } catch {
+    // wmic is deprecated on newer images; the label is enough.
+  }
 }
 
 const platformArg = process.argv.find((a) => a.startsWith("--platform="));
@@ -50,16 +85,23 @@ if (!fs.existsSync(cliApp)) {
 
 fs.rmSync(outDir, { recursive: true, force: true });
 fs.mkdirSync(outDir, { recursive: true });
+reportFreeSpace("before packaging");
 copyTree(cliApp, path.join(outDir, "app"));
 fs.cpSync(path.resolve("cli", "cli.js"), path.join(outDir, "cli.js"));
 copyTree(path.resolve("cli", "src"), path.join(outDir, "src"));
 copyTree(path.resolve("cli", "hooks"), path.join(outDir, "hooks"));
 copyTree(path.resolve("cli", "node_modules"), path.join(outDir, "node_modules"));
+reportFreeSpace("after packaging");
 
 const pkg = JSON.parse(fs.readFileSync(path.resolve("cli", "package.json"), "utf8"));
 fs.writeFileSync(path.join(outDir, "package.json"), JSON.stringify({ ...pkg, bin: { originrouter: "./cli.js", or: "./cli.js" } }, null, 2));
+// The portable folder is not an installed product: it has no uninstaller and
+// no autostart, so the launcher treats it as portable - it asks once whether
+// to live in the system tray, and it does not check for installer updates.
+// The Windows installer overwrites this marker with mode "installer" when it
+// copies the folder into Program Files.
 fs.writeFileSync(path.join(outDir, "install.json"), JSON.stringify({
-  mode: "installer",
+  mode: "portable",
   name: pkg.name,
   version: pkg.version,
   updateRepo: "origin-labs-ai/origin-router-suite",

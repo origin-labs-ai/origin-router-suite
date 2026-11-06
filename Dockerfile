@@ -68,6 +68,11 @@ ENV PORT=20128
 ENV HOSTNAME=0.0.0.0
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV DATA_DIR=/app/data
+# Tells the app it runs in a container: the host's published-port traffic
+# arrives as the bridge gateway, and that address has to count as "this
+# computer" or the image answers 403 to the host (including its own health
+# check). See src/lib/containerNetwork.js.
+ENV OR_CONTAINER=1
 
 COPY --from=builder /app/public ./public
 COPY --from=builder /app/.next/static ./.next/static

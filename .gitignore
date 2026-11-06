@@ -55,6 +55,10 @@ docs/*
 # silently kept INSTALL/UPDATES/FEATURES/RELEASE-LOG off the remote, so every link in
 # the README 404'd for anyone who cloned it.
 !docs/*.md
+# Curated release notes, one file per tag. The release workflow picks them up
+# from docs/releases/<tag>.md when they exist.
+!docs/releases/
+!docs/releases/*.md
 test/*
 open-sse/test/*
 RM.vn.md

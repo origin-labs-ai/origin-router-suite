@@ -1,15 +1,15 @@
 {
-  "name": "originrouter",
+  "name": "@origin-labs-ai/origin-router",
   "version": "0.5.116",
   "description": "OriginRouter CLI - start and manage the OriginRouter server",
-  "homepage": "https://github.com/origin-labs-ai/origin-router-suite#readme",
+  "homepage": "https://github.com/origin-labs-ai/origin-router#readme",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/origin-labs-ai/origin-router-suite.git",
+    "url": "git+https://github.com/origin-labs-ai/origin-router.git",
     "directory": "cli"
   },
   "bugs": {
-    "url": "https://github.com/origin-labs-ai/origin-router-suite/issues"
+    "url": "https://github.com/origin-labs-ai/origin-router/issues"
   },
   "bin": {
     "originrouter": "cli.js",

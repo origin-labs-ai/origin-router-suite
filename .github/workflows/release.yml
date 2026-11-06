@@ -22,9 +22,10 @@ jobs:
   windows:
     name: build (windows installers + cli tarball)
     runs-on: windows-latest
-    # A stuck job must die instead of burning a runner for hours: the packaging
-    # step once sat there for 45 minutes on a full disk, retrying every file.
-    timeout-minutes: 75
+    # A stuck job must die instead of burning a runner for hours, but the
+    # packaging step is legitimately slow on Windows: the first runs of this
+    # job needed over an hour for it.
+    timeout-minutes: 180
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -105,7 +106,20 @@ jobs:
           if ($free -lt 2GB) { throw "only $($free/1GB) GB free - refusing to start the copy" }
 
       - name: Package the portable win folder
-        run: node scripts/package-cli.mjs --platform=win
+        shell: pwsh
+        run: |
+          # Copying this tree is the slowest step in the job: ~12k small files,
+          # and on the runner every path is longer than it needs to be, which
+          # is what makes robocopy grind. A substituted drive takes the
+          # workspace path out of every path it touches.
+          subst W: "$env:GITHUB_WORKSPACE"
+          try {
+            Push-Location W:\
+            node scripts/package-cli.mjs --platform=win
+            Pop-Location
+          } finally {
+            subst W: /d
+          }
 
       - name: Gateway installer (Inno Setup 6)
         shell: pwsh

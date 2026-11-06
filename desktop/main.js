@@ -240,9 +240,16 @@ function isPortOpen(port, timeoutMs = 600) {
   });
 }
 
-async function ensurePandaOrchestrator() {
+async function ensurePandaOrchestrator({ force = false } = {}) {
   try {
-    if (await isPortOpen(PANDA_PORT)) return;
+    if (force) {
+      // "Restart" has to actually restart. The old code returned as soon as
+      // the port answered, so the menu item did nothing at all when the
+      // service was already up - which is the only time anyone clicks it.
+      await stopPandaOrchestrator();
+    } else if (await isPortOpen(PANDA_PORT)) {
+      return;
+    }
     const serve = findPandaServe();
     fs.mkdirSync(PANDA_HOME, { recursive: true });
     const out = fs.createWriteStream(PANDA_LOG, { flags: "a" });
@@ -279,19 +286,78 @@ async function ensurePandaOrchestrator() {
   }
 }
 
+// Stop the brain, whoever started it: our own child first, then whatever is
+// still holding the port.
+async function stopPandaOrchestrator() {
+  if (pandaChild) {
+    try {
+      pandaChild.kill();
+    } catch {}
+    pandaChild = null;
+  }
+  await new Promise((resolve) => {
+    try {
+      const script = [
+        `$ids = Get-NetTCPConnection -LocalPort ${PANDA_PORT} -State Listen -ErrorAction SilentlyContinue | Select-Object -ExpandProperty OwningProcess -Unique`,
+        `foreach ($id in $ids) { Stop-Process -Id $id -Force -ErrorAction SilentlyContinue }`,
+      ].join("; ");
+      const killer = spawn(powershellPath(), ["-NoProfile", "-Command", script], { windowsHide: true });
+      killer.on("exit", resolve);
+      killer.on("error", resolve);
+    } catch {
+      resolve();
+    }
+  });
+}
+
 // A visible terminal that follows one of the background services' logs.
-function openConsoleWindow(file, title) {
+//
+// This used to tail a file that only existed when this app had started the
+// gateway itself. When the gateway was already running - the usual case,
+// because the CLI owns it - the file was missing, the console printed "No log
+// yet" and closed in the user's face, which reads as "nothing happened". The
+// file is created up front, the console waits for it instead of closing, and
+// the dashboard takes over if the terminal cannot be opened at all.
+function openConsoleWindow(file, title, dashboardPath) {
+  try {
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    if (!fs.existsSync(file)) fs.writeFileSync(file, "", "utf8");
+  } catch {}
+
   const script = [
     `$Host.UI.RawUI.WindowTitle='${title}';`,
-    `if (Test-Path '${file}') { Get-Content '${file}' -Tail 300 -Wait } else { 'No log yet at ${file}' }`,
+    `while (-not (Test-Path '${file}')) { Start-Sleep -Seconds 1 }`,
+    `Get-Content '${file}' -Tail 300 -Wait`,
   ].join(" ");
-  const child = spawn(powershellPath(), ["-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", script], {
-    detached: true,
-    stdio: "ignore",
-    windowsHide: false,
-  });
-  child.on("error", () => {});
-  child.unref();
+
+  const fallback = () => {
+    if (dashboardPath) {
+      try {
+        shell.openExternal(`http://127.0.0.1:${PORT}${dashboardPath}`);
+      } catch {}
+    }
+  };
+
+  try {
+    const child = spawn(powershellPath(), ["-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", script], {
+      detached: true,
+      stdio: "ignore",
+      windowsHide: false,
+    });
+    child.on("error", fallback);
+    child.unref();
+  } catch {
+    fallback();
+  }
+}
+
+// A page of the dashboard in the default browser. The gateway's own output
+// is only in a file when this app started the gateway, so the live pages are
+// the reliable place to look.
+function openDashboardPage(pathname) {
+  try {
+    shell.openExternal(`http://127.0.0.1:${PORT}${pathname}`);
+  } catch {}
 }
 
 function showMainWindow() {
@@ -299,6 +365,7 @@ function showMainWindow() {
     createWindow();
     return;
   }
+  if (mainWindow.isMinimized()) mainWindow.restore();
   mainWindow.show();
   mainWindow.focus();
 }
@@ -306,9 +373,22 @@ function showMainWindow() {
 function buildTrayMenu() {
   return Menu.buildFromTemplate([
     { label: "Open OriginRouter (GUI)", click: showMainWindow },
-    { label: "Open Gateway Console (log)", click: () => openConsoleWindow(ROUTER_LOG, "OriginRouter gateway console") },
-    { label: "Open Panda Orchestrator Console (log)", click: () => openConsoleWindow(PANDA_LOG, "PandaOrchestrator console") },
-    { label: "Restart Panda Orchestrator", click: ensurePandaOrchestrator },
+    { label: "Open Gateway Console (log)", click: () => openDashboardPage("/dashboard/console-log") },
+    {
+      label: "Open Panda Orchestrator Console (log)",
+      click: () => {
+        // With a log file there is something to tail. Without one the brain
+        // was never started, and the dashboard says where it looked - which
+        // is the answer the user actually needs.
+        const hasLog = fs.existsSync(PANDA_LOG) || fs.existsSync(PANDA_ERR_LOG);
+        if (hasLog) {
+          openConsoleWindow(PANDA_ERR_LOG, "PandaOrchestrator console", "/dashboard/profile");
+        } else {
+          openDashboardPage("/dashboard/profile");
+        }
+      },
+    },
+    { label: "Restart Panda Orchestrator", click: () => ensurePandaOrchestrator({ force: true }) },
     { type: "separator" },
     { label: "Check for Updates", click: () => shell.openExternal(`${REPO_URL}/releases/latest`) },
     { label: "Hide Window (keep running)", click: () => mainWindow?.hide() },

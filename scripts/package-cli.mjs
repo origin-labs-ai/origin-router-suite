@@ -24,7 +24,10 @@ function copyTree(src, dest) {
   }
   const result = spawnSync(
     robocopy,
-    [src, dest, "/E", "/COPY:DAT", "/DCOPY:DAT", "/R:1", "/W:1", "/NFL", "/NDL", "/NJH", "/NJS", "/NP", "/MT:16"],
+    // /COPY:DT and /DCOPY:T skip the attribute and directory-timestamp work:
+    // every extra metadata operation per file is another chance for the
+    // filesystem filter driver to sit on the file.
+    [src, dest, "/E", "/COPY:DT", "/DCOPY:T", "/R:1", "/W:1", "/NFL", "/NDL", "/NJH", "/NJS", "/NP", "/MT:16"],
     { encoding: "utf8" }
   );
   // robocopy reports results in the exit code: 0-7 is success (1 = files copied),

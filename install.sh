@@ -13,8 +13,26 @@ if [ "$MAJOR" -lt 18 ]; then
   exit 1
 fi
 
+REPO="origin-labs-ai/origin-router-suite"
+
 echo "Installing OriginRouter..."
-npm install -g @origin-labs-ai/origin-router@latest --prefer-online
+if npm install -g @origin-labs-ai/origin-router@latest --prefer-online; then
+  :
+else
+  # The npm package is the primary path, but it is not published for every
+  # version yet. The release tarball is the fallback that always exists.
+  echo "npm package unavailable - falling back to the release tarball." >&2
+  API="https://api.github.com/repos/${REPO}/releases/latest"
+  URL="$(curl -fsSL "$API" | grep -o '"browser_download_url": *"[^"]*origin-router-[^"]*\.tgz"' | head -1 | cut -d'"' -f4)"
+  if [ -z "$URL" ]; then
+    echo "No release tarball found for the latest release." >&2
+    exit 1
+  fi
+  TMP="$(mktemp -d)"
+  curl -fsSL "$URL" -o "$TMP/origin-router.tgz"
+  npm install -g "$TMP/origin-router.tgz"
+  rm -rf "$TMP"
+fi
 
 echo
 echo "Done. Start it with:"

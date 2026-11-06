@@ -22,6 +22,9 @@ jobs:
   windows:
     name: build (windows installers + cli tarball)
     runs-on: windows-latest
+    # A stuck job must die instead of burning a runner for hours: the packaging
+    # step once sat there for 45 minutes on a full disk, retrying every file.
+    timeout-minutes: 75
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -62,15 +65,28 @@ jobs:
           # The work tree lives on the runner's D: drive, which starts with
           # ~14 GB free. The Next.js build tree (~2 GB) and the root
           # node_modules (~1.2 GB) are build-time only: everything that ships
-          # is inside cli/app. Leaving them in place is what made the packaging
-          # step die with ENOSPC in v0.5.116.
+          # is inside cli/app.
+          #
+          # Remove-Item cannot delete these trees. npm nests packages deep
+          # enough to pass the 260-character path limit, PowerShell fails
+          # those deletes with a non-terminating error, and the step still
+          # looked green - so the disk stayed full and robocopy spent an hour
+          # retrying every single file with ENOSPC. cmd's rmdir takes the
+          # \\?\ prefix and deletes them for real.
           foreach ($target in @(".next", ".next-cli-build", "node_modules")) {
+            if (-not (Test-Path $target)) { continue }
+            Write-Host "removing $target"
+            $full = (Resolve-Path $target).Path
+            cmd /c "rmdir /s /q `"\\?\$full`"" 2>$null | Out-Null
             if (Test-Path $target) {
-              Write-Host "removing $target"
-              Remove-Item -Recurse -Force $target
+              Write-Host "  still there - retrying"
+              cmd /c "rmdir /s /q `"\\?\$full`"" 2>$null | Out-Null
             }
+            if (Test-Path $target) { throw "could not remove $target - the disk will fill up again" }
           }
-          Get-PSDrive -Name D | Select-Object @{n="UsedGB";e={[math]::Round($_.Used/1GB,2)}}, @{n="FreeGB";e={[math]::Round($_.Free/1GB,2)}}
+          $free = (Get-PSDrive -Name D).Free
+          Write-Host ("free on D: after reclaim: {0:N2} GB" -f ($free / 1GB))
+          if ($free -lt 4GB) { throw "only $($free/1GB) GB free on the work drive - not enough to package" }
 
       - name: Package the portable win folder
         run: node scripts/package-cli.mjs --platform=win

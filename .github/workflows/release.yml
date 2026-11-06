@@ -44,19 +44,33 @@ jobs:
       - name: Install app deps
         run: npm install --no-audit --no-fund
 
-      - name: Build gateway (Next standalone) and copy standalone assets
-        run: |
-          npm run build
-          npm run postbuild
-        env:
-          NEXT_TELEMETRY_DISABLED: "1"
-
       - name: Build CLI package (bundles the gateway into cli/app)
+        # The CLI build runs the Next.js standalone build itself (into
+        # .next-cli-build) and npm fires the root postbuild hook with it. A
+        # separate root `npm run build` on top of that only produced a second
+        # copy of the same app, and that copy was what pushed the runner over
+        # its disk limit - it shipped in nothing.
         run: |
           npm install --no-audit --no-fund --prefix cli
           npm run build --prefix cli
         env:
           NEXT_TELEMETRY_DISABLED: "1"
+
+      - name: Reclaim build disk before packaging
+        shell: pwsh
+        run: |
+          # The work tree lives on the runner's D: drive, which starts with
+          # ~14 GB free. The Next.js build tree (~2 GB) and the root
+          # node_modules (~1.2 GB) are build-time only: everything that ships
+          # is inside cli/app. Leaving them in place is what made the packaging
+          # step die with ENOSPC in v0.5.116.
+          foreach ($target in @(".next", ".next-cli-build", "node_modules")) {
+            if (Test-Path $target) {
+              Write-Host "removing $target"
+              Remove-Item -Recurse -Force $target
+            }
+          }
+          Get-PSDrive -Name D | Select-Object @{n="UsedGB";e={[math]::Round($_.Used/1GB,2)}}, @{n="FreeGB";e={[math]::Round($_.Free/1GB,2)}}
 
       - name: Package the portable win folder
         run: node scripts/package-cli.mjs --platform=win
@@ -152,7 +166,22 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           path: artifacts
+      - name: Collect release notes
+        id: notes
+        run: |
+          set -euo pipefail
+          version="${GITHUB_REF_NAME}"
+          # Curated notes live next to the release. Without one, the release
+          # still ships - the auto-generated changelog is used instead.
+          if [ -f "docs/releases/${version}.md" ]; then
+            cp "docs/releases/${version}.md" release-notes.md
+            echo "path=release-notes.md" >> "$GITHUB_OUTPUT"
+            echo "Using curated notes from docs/releases/${version}.md"
+          else
+            echo "No curated notes for ${version}; falling back to the generated changelog"
+          fi
       - uses: softprops/action-gh-release@v2
         with:
           files: artifacts/**/*
+          body_path: ${{ steps.notes.outputs.path }}
           generate_release_notes: true

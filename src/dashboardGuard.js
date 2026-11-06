@@ -3,6 +3,7 @@ import { getSettings, validateApiKey } from "@/lib/localDb";
 import { getConsistentMachineId } from "@/shared/utils/machineId";
 import { verifyDashboardAuthToken } from "@/lib/auth/dashboardSession";
 import { hasTrustedPeerHeaders } from "@/lib/auth/trustedPeer";
+import { isContainerGateway } from "@/lib/containerNetwork";
 
 const CLI_TOKEN_HEADER = "x-9r-cli-token";
 const CLI_TOKEN_SALT = "9r-cli-auth";
@@ -112,9 +113,18 @@ function isLoopbackHostname(h) {
   return LOOPBACK_HOSTS.has(name);
 }
 
+// "This computer" from the app's point of view: the loopback interface, plus
+// the container gateway when the app runs in a container. Docker NATs the
+// host's own traffic to the bridge gateway, so that address is the host —
+// see src/lib/containerNetwork.js.
+function isLocalPeerAddress(address) {
+  if (isLoopbackHostname(address)) return true;
+  return isContainerGateway(address);
+}
+
 function isLoopbackPeer(request) {
   if (hasTrustedPeerHeaders(request)) {
-    return isLoopbackHostname(request.headers.get("x-9r-real-ip"));
+    return isLocalPeerAddress(request.headers.get("x-9r-real-ip"));
   }
   // Bare `next dev` forks its server, so the wrapper never loads and no peer address
   // reaches us. Host is spoofable, so this stays confined to development.
@@ -162,7 +172,7 @@ function getPeerAddress(request) {
 
 function looksLikeLanRequest(request) {
   const peer = getPeerAddress(request);
-  if (peer) return !isLoopbackHostname(peer);
+  if (peer) return !isLocalPeerAddress(peer);
   const host = request.headers.get("host") || "";
   return !isLoopbackHostname(host);
 }
@@ -170,7 +180,7 @@ function looksLikeLanRequest(request) {
 function isLanAccessBlocked(request, settings) {
   if (settings?.lanAccessEnabled === true) return false;
   const peer = getPeerAddress(request);
-  if (peer) return isPrivateAddress(peer) && !isLoopbackHostname(peer);
+  if (peer) return isPrivateAddress(peer) && !isLocalPeerAddress(peer);
   const host = (request.headers.get("host") || "").split(":")[0].toLowerCase();
   if (isLoopbackHostname(host)) return false;
   return isPrivateAddress(host) || host.endsWith(".local") || !host.includes(".");

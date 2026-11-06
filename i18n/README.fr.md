@@ -72,7 +72,7 @@ Result: Never stop coding, minimal cost + 20-40% token savings via RTK
 **1. Installez globalement :**
 
 ```bash
-npm install -g originrouter
+npm install -g @origin-labs-ai/origin-router
 originrouter
 ```
 

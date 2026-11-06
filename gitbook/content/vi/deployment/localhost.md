@@ -9,7 +9,7 @@ Chạy OriginRouter trên máy cá nhân để phát triển và dùng cá nhân
 Cài đặt OriginRouter toàn cục qua npm:
 
 ```bash
-npm install -g originrouter
+npm install -g @origin-labs-ai/origin-router
 ```
 
 **Yêu cầu:**
@@ -113,7 +113,7 @@ Nếu gặp lỗi permission khi cài đặt:
 
 ```bash
 # Use sudo (not recommended)
-sudo npm install -g originrouter
+sudo npm install -g @origin-labs-ai/origin-router
 
 # Or fix npm permissions (recommended)
 mkdir ~/.npm-global

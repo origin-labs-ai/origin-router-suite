@@ -22,10 +22,10 @@ const credentials = { authType: "oauth", accessToken: "test-token", providerSpec
 afterEach(() => { vi.restoreAllMocks(); vi.unstubAllEnvs(); });
 
 it("converts real stereo 48k WAV to mono24k PCM16 and removes temporary files", async () => {
-  const before = (await readdir(tmpdir())).filter((s) => s.startsWith("9router-codex-stt-"));
+  const before = (await readdir(tmpdir())).filter((s) => s.startsWith("originrouter-codex-stt-"));
   const result = Buffer.from(await (await convertAudio(new File([wav()], "in.wav"), new AbortController().signal)).arrayBuffer());
   expect(result.toString("ascii", 0, 4)).toBe("RIFF"); expect(result.readUInt16LE(22)).toBe(1); expect(result.readUInt32LE(24)).toBe(24000); expect(result.readUInt16LE(34)).toBe(16);
-  expect((await readdir(tmpdir())).filter((s) => s.startsWith("9router-codex-stt-"))).toEqual(before);
+  expect((await readdir(tmpdir())).filter((s) => s.startsWith("originrouter-codex-stt-"))).toEqual(before);
 });
 it("rejects malformed and overlong audio and cleans up", async () => {
   await expect(convertAudio(new File(["invalid"], "in.wav"), new AbortController().signal)).rejects.toMatchObject({ status: 400 });

@@ -33,7 +33,7 @@ async function boot() {
 }
 
 beforeEach(() => {
-  tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "9router-key-access-"));
+  tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "originrouter-key-access-"));
   process.env.DATA_DIR = tempDir;
 });
 

@@ -1,7 +1,7 @@
 // REAL endpoint matrix for opencode-go DeepSeek models.
 //
 // Verifies, against the live upstream (https://opencode.ai/zen/go), that each client
-// request format actually WORKS for DeepSeek on the endpoint 9router routes it to:
+// request format actually WORKS for DeepSeek on the endpoint originrouter routes it to:
 //
 //   Claude (/v1/messages)          → must return a Claude-shape SSE
 //   Codex (/v1/responses)          → must return an OpenAI Responses-shape SSE
@@ -14,7 +14,7 @@
 //
 //   RUN_REAL=1 npx vitest run --config tests/vitest.config.js tests/translator/real/opencode-go-deepseek.real.test.js
 //
-// Requires an active opencode-go credential in the local DB (add via 9router dashboard).
+// Requires an active opencode-go credential in the local DB (add via originrouter dashboard).
 // Skips (pass) only on credential/quota/plan rejections, mirroring the other .real tests.
 import { describe, it, expect } from "vitest";
 import { getProviderCredentials } from "../../../src/sse/services/auth.js";
@@ -92,7 +92,7 @@ const BODIES = {
   }),
 };
 
-// Cells: (model, format). `(max)` reproduces the 9router thinking override sent by
+// Cells: (model, format). `(max)` reproduces the originrouter thinking override sent by
 // Claude Code — it must land on the same endpoint as the bare id.
 const CELLS = [
   ["deepseek-v4-flash", "claude"],

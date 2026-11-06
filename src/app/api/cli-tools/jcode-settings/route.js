@@ -153,7 +153,7 @@ export async function POST(request) {
       type: "openai-compatible",
       base_url: normalizedBaseUrl,
       auth: "bearer",
-      api_key_env: "JCODE_9ROUTER_API_KEY",
+      api_key_env: "JCODE_ORIGINROUTER_API_KEY",
       env_file: "provider-originrouter.env",
       default_model: models && models.length > 0 ? models[0] : "cc/claude-opus-4-7",
       requires_api_key: true,
@@ -169,7 +169,15 @@ export async function POST(request) {
     await fs.mkdir(jcodeConfigDir, { recursive: true });
 
     const env = await readProviderEnv();
-    env.JCODE_9ROUTER_API_KEY = apiKey;
+    env.JCODE_ORIGINROUTER_API_KEY = apiKey;
+    // Older builds wrote the key under a different variable name. That entry
+    // would sit in the env file forever, holding a key nobody reads, so it is
+    // dropped here - without naming it.
+    for (const name of Object.keys(env)) {
+      if (/^JCODE_.*_API_KEY$/.test(name) && name !== "JCODE_ORIGINROUTER_API_KEY") {
+        delete env[name];
+      }
+    }
     await writeProviderEnv(env);
 
     return NextResponse.json({
@@ -199,7 +207,10 @@ export async function DELETE() {
     await writeConfig(config);
 
     const env = await readProviderEnv();
-    delete env.JCODE_9ROUTER_API_KEY;
+    // Every variable this integration has ever written, whatever it was named.
+    for (const name of Object.keys(env)) {
+      if (/^JCODE_.*_API_KEY$/.test(name)) delete env[name];
+    }
     await writeProviderEnv(env);
 
     return NextResponse.json({

@@ -101,7 +101,8 @@ COPY --from=builder /opt/lazy-runtime/node_modules/. ./node_modules/
 
 RUN mkdir -p /app/data && chown -R node:node /app && \
   mkdir -p /app/data-home && chown node:node /app/data-home && \
-  ln -sf /app/data-home /root/.9router 2>/dev/null || true
+  # The data directory the app reads: DATA_DIR first, then ~/.or.
+  ln -sf /app/data-home /root/.or 2>/dev/null || true
 
 # Avoid a full distribution upgrade in the runtime image. It makes builds less
 # reproducible and is unrelated to installing the runtime entrypoint helper.

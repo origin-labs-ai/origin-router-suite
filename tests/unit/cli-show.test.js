@@ -1,4 +1,4 @@
-// `9router show` — reads each tool's local 9router config; offline, key always masked.
+// `originrouter show` — reads each tool's local originrouter config; offline, key always masked.
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { createRequire } from "node:module";
 import fs from "node:fs";
@@ -17,7 +17,7 @@ const CTX = {
   claudeModels: { ANTHROPIC_DEFAULT_OPUS_MODEL: "srv/opus", ANTHROPIC_DEFAULT_SONNET_MODEL: "srv/sonnet" },
 };
 
-describe("9router show", () => {
+describe("originrouter show", () => {
   let home;
   let out;
   beforeEach(() => {
@@ -36,7 +36,7 @@ describe("9router show", () => {
   it("reports every tool as not configured on an empty home", async () => {
     const fetchSpy = vi.spyOn(globalThis, "fetch");
     expect(await show.run([])).toBe(0);
-    expect(out.filter((l) => l.includes("not configured for 9router"))).toHaveLength(tools.TOOLS.length);
+    expect(out.filter((l) => l.includes("not configured for originrouter"))).toHaveLength(tools.TOOLS.length);
     expect(fetchSpy).not.toHaveBeenCalled(); // offline
   });
 
@@ -65,10 +65,10 @@ describe("9router show", () => {
     expect(text).not.toMatch(/haiku/); // unset tier is not invented
   });
 
-  it("flags codex when 9router is present but not the active provider", async () => {
+  it("flags codex when originrouter is present but not the active provider", async () => {
     const f = path.join(home, ".codex", "config.toml");
     fs.mkdirSync(path.dirname(f), { recursive: true });
-    fs.writeFileSync(f, 'model = "gpt-6"\nmodel_provider = "openai"\n[model_providers.9router]\nbase_url = "http://gw.test/v1"\n');
+    fs.writeFileSync(f, 'model = "gpt-6"\nmodel_provider = "openai"\n[model_providers.originrouter]\nbase_url = "http://gw.test/v1"\n');
     await show.run(["codex"]);
     expect(out.join("\n")).toContain("not the active provider");
   });

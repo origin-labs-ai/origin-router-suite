@@ -1,219 +1,304 @@
-# OriginRouter
+<div align="center">
+  <img src="./public/favicon.svg" alt="OriginRouter" width="96" />
 
-<p align="center">
-  <img src="images/origin-router.png" alt="OriginRouter dashboard — every AI provider in one grid" width="800"/>
-</p>
+  # OriginRouter
 
-<p align="center">
-  <a href="https://github.com/origin-labs-ai/origin-router-suite/releases/latest"><img alt="Release" src="https://img.shields.io/github/v/release/origin-labs-ai/origin-router-suite?label=release&color=blue"></a>
-  <a href="https://github.com/origin-labs-ai/origin-router-suite/blob/main/LICENSE"><img alt="License" src="https://img.shields.io/badge/license-MIT-green"></a>
-  <a href="https://github.com/origin-labs-ai/origin-router-suite/pkgs/container/origin-router-suite"><img alt="Docker GHCR" src="https://img.shields.io/badge/docker-ghcr.io-blue?logo=docker"></a>
-  <a href="https://github.com/origin-labs-ai/origin-router-suite/stargazers"><img alt="GitHub stars" src="https://img.shields.io/github/stars/origin-labs-ai/origin-router-suite?style=social"></a>
-</p>
+  **One endpoint for every AI provider. Never stop coding.**
 
-**OriginRouter is one local endpoint in front of every AI provider you use.** Point Claude
-Code, Codex CLI, Cline, or any OpenAI-compatible tool at `http://127.0.0.1:20128/v1` and
-route across **90+ providers** — Claude, Codex, Gemini, GLM, Kimi, Grok, Copilot, Cursor,
-OpenRouter, Bedrock, Azure, free tiers and your own OpenAI/Anthropic-compatible nodes —
-with automatic format translation, multi-account and multi-model fallback, usage/cost
-tracking, and a full playground dashboard. **Everything runs on your machine — chats, keys
-and router data stay local.**
+  Route across **90+ providers** from a single local port, fall back before an upstream error ever reaches your code, and cut **60-90%** of tool-output tokens.
 
-**Why it's useful:** one subscription unused is fine; ten of them unused while your CLI
-rate-limits is not. OriginRouter fans a request out across every account and model you
-own, retries on the next seat when one is rate-limited, and answers in whatever format the
-client asked for. Add a combo (`glm-5.3, kimi-k2.6, opencode-free`) and your agent keeps
-working when a provider dies mid-answer.
+  <p>
+    <a href="#-quick-start"><b>Quick Start</b></a> •
+    <a href="#-the-routing-brain"><b>The Brain</b></a> •
+    <a href="#-combos"><b>Combos</b></a> •
+    <a href="#-token-saver"><b>Token Saver</b></a> •
+    <a href="#-screenshots"><b>Screenshots</b></a> •
+    <a href="#-install"><b>Install</b></a> •
+    <a href="#-docs"><b>Docs</b></a>
+  </p>
 
-**In 30 seconds:**
-1. Install the gateway (`or` starts it — tray icon, auto-updates)
-2. Connect a provider (OAuth click-through or API key)
-3. Point your CLI at `http://127.0.0.1:20128/v1` — done; or open
-   `http://127.0.0.1:20128/dashboard` and chat in the Playground first
+  [![GitHub release](https://img.shields.io/github/v/release/origin-labs-ai/origin-router-suite?style=flat-square&label=release)](https://github.com/origin-labs-ai/origin-router-suite/releases/latest)
+  [![License: MIT](https://img.shields.io/github/license/origin-labs-ai/origin-router-suite?style=flat-square)](LICENSE)
+  [![Docker](https://img.shields.io/badge/docker-ghcr.io%2Forigin--labs--ai%2Forigin--router-2B7FFF?style=flat-square&logo=docker&logoColor=white)](https://github.com/origin-labs-ai/origin-router-suite/pkgs/container/origin-router)
+  [![Local first](https://img.shields.io/badge/data-never%20leaves%20your%20machine-22c55e?style=flat-square)](https://github.com/origin-labs-ai/origin-router-suite/blob/main/docs/ARCHITECTURE.md)
+  [![UI languages](https://img.shields.io/badge/UI-37%20languages-8b5cf6?style=flat-square)](i18n)
+</div>
 
-## Install (recommended)
+---
 
-Two per-user Windows installers, both built from this repository and published on the
-[releases page](https://github.com/origin-labs-ai/origin-router-suite/releases/latest):
+Point Claude Code, Cursor, Codex, Cline, Gemini CLI, OpenCode, Copilot, Antigravity — anything that speaks OpenAI or Anthropic — at `http://localhost:20128`. OriginRouter answers with whichever provider is actually healthy right now, and the failure never reaches your terminal.
 
-| Installer | What it installs |
-|---|---|
-| `OriginRouter-Setup-<version>.exe` | Gateway + dashboard. Starts with Windows, self-updates, adds `or` / `originrouter` to your `PATH`. |
-| `OriginRouter-Desktop-Setup-<version>.exe` | Desktop window with the same UI. Bundles its own gateway copy, starts it with the system Node runtime, and starts the PandaOrchestrator brain if it is installed. |
+<div align="center">
+  <img src="./images/origin-router.png" alt="OriginRouter providers dashboard" width="880" />
+</div>
 
-Double-click either one, or run it silently:
+---
+
+## 🚀 Quick Start
+
+**Windows** — one line, no Node required:
 
 ```powershell
-.\OriginRouter-Setup-<version>.exe /VERYSILENT /SUPPRESSMSGBOXES /NORESTART
+irm https://raw.githubusercontent.com/origin-labs-ai/origin-router-suite/main/install.ps1 | iex
 ```
 
-No admin prompt. The gateway installs under `%LOCALAPPDATA%\Programs\OriginRouter` and the
-window app under `%LOCALAPPDATA%\Programs\OriginRouter Desktop`; the window's title bar says
-**OriginRouter** and nothing else.
-
-After installing, open a **new** terminal (the installer adds its folder to your user `PATH`):
-
-```powershell
-or               # short form
-originrouter     # same launcher, menu + tray
-```
-
-Both start the gateway and the tray icon. Add `--tray` to start without the menu, and
-`--skip-update` to keep the launcher from checking the release feed for that run.
-
-### Where it lives
-
-| Data | Path |
-|---|---|
-| Router DB, settings, logs, cache | `~/.or` |
-| Desktop window state (bounds, profile) | `~/.or/desktop` |
-| PandaOrchestrator brain state + logs | `~/.or/panda` |
-| Update log | `~/.or/updates.log` |
-
-## Docker
+**Anywhere with Node 18+:**
 
 ```bash
-docker run -d --name origin-router \
-  -p 20128:20128 \
+npx @origin-labs-ai/origin-router
+```
+
+**Docker:**
+
+```bash
+docker run -d -p 20128:20128 --name origin-router \
   -v origin-router-data:/app/data \
-  ghcr.io/origin-labs-ai/origin-router-suite:latest
+  ghcr.io/origin-labs-ai/origin-router:latest
 ```
 
-Multi-arch (amd64 + arm64), published to GHCR on every release, smoke-tested on both
-architectures before the manifest is published. Full runbook: [DOCKER.md](DOCKER.md).
+Then open **http://localhost:20128/dashboard**, connect a provider, and point your tool at the endpoint.
 
-## Auto-update
+```bash
+# every OpenAI-compatible client
+export OPENAI_BASE_URL=http://localhost:20128/v1
 
-Installed builds ask the GitHub release feed for the newest version at startup:
-
-```text
-https://api.github.com/repos/origin-labs-ai/origin-router-suite/releases/latest
+# every Anthropic-compatible client
+export ANTHROPIC_BASE_URL=http://localhost:20128
 ```
 
-When a newer release carries a Windows installer, the app downloads
-`OriginRouter-Setup-<version>.exe` to `%TEMP%`, verifies it against the release's
-`<installer>.sha256` (or `checksums.sha256`) before running anything, stops its own
-processes, installs silently, and relaunches in tray mode. No terminal, no UAC prompt.
-Progress goes to `~/.or/updates.log`.
+<details>
+<summary><b>What actually happens on <code>npm i -g</code></b></summary>
 
-Auto-update is only active for installer builds. A source or global-npm copy updates
-manually, and `--skip-update` disables the check for one launch.
+1. The launcher installs a portable copy of the gateway and warms its SQLite runtime — no network needed on first start.
+2. It writes `~/.or/install.json` (mode, install root, update repo, version).
+3. It starts the gateway on **20128** and, with `--tray`, adds a system-tray entry with the dashboard, the playground and a stop action.
+4. `originrouter update` checks the GitHub release feed, verifies the `.sha256` next to the installer, and runs the silent Inno update.
 
-## What it does
+</details>
 
-- **One endpoint, many providers** — `/v1/chat/completions`, `/v1/messages`,
-  `/v1/responses`, embeddings, images, TTS/STT and video, translated to each provider's
-  own format, with OAuth, API-key, cookie and desktop-lease credentials side by side.
-- **Router brain** — Panda (calibrated P(success) / cost / latency from a local ONNX
-  profiler), Jev / System One (semantic task classification), or `merged` (both, blended,
-  disagreement hedged). Global in **Settings → Routing resilience**, overridable per combo.
-  Every mode fails open: a brain that is down, slow or unsure never costs a request, and
-  the status panel says which brains are actually contributing.
-- **Combos and fallback** — ordered seat pools, least-loaded fan-out, one breaker shared
-  per seat across concurrent agents, provider failover, hedging, and a last-resort
-  completion so an agent never receives a raw upstream error.
-- **Honest model tests** — a dashboard test answers only "did THIS provider serve THIS
-  model id": a synthesized last-resort completion is a failure, a timeout is a
-  *recheck* verdict rather than a *broken* one, and an answer that came back under a
-  different model id reports `answered by: <id>`.
-- **Naming system** — every seat is labelled by the model itself: provider heads, vendor
-  namespaces, deployment tags (TEE/UC), snapshot dates, quant and build stamps fold away,
-  while class words (`flash`, `pro`, `mini`) survive, so `GLM-5.3` and `GLM-5.3 Flash`
-  stay two models and every spelling of one model searches as one.
-- **Context ceilings** — declared windows are stated per row, so a table's floor is
-  never presented as a model's limit.
+---
 
-Feature walkthroughs: [docs/FEATURES.md](docs/FEATURES.md), architecture:
-[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+## 🧠 The Routing Brain
 
-## Build from source
+Most routers pick one provider and hope. OriginRouter runs a **local decision layer** that scores, classifies and steers every request before it leaves the machine.
 
-Requires Node 22+ and, for the Windows installers,
-[Inno Setup 6](https://jrsoftware.org/isdl.php). Run everything from the repository root.
+<div align="center">
+  <img src="./images/fusion-combo-ui.png" alt="OriginRouter combo with the Panda brain and a fallback chain" width="880" />
+</div>
 
-```powershell
-npm install                      # app deps
-npm run build                    # Next standalone build + postbuild asset copy
-npm install --prefix cli
-npm run build --prefix cli       # bundles the gateway into cli/app
-node scripts/package-cli.mjs --platform=win        # -> dist\win
-.\scripts\build-installer.ps1    # -> dist\installer\OriginRouter-Setup-<version>.exe
+Three signals decide one request:
 
-npm install --prefix desktop     # only for the window app
-npm run dist:win --prefix desktop  # -> dist\installer\OriginRouter-Desktop-Setup-<version>.exe
+| Signal | Engine | What it contributes |
+|---|---|---|
+| **Rank** | **Panda** | Scores every candidate seat by `P(success)`, cost and latency; keeps the top-K, explores a little, picks the best one. |
+| **Classify** | **Jev** (System One) | Reads the task itself and decides which kind of model it needs — a hard coding task, a long-context read, a cheap answer. |
+| **Steer** | **Seat fairness + tier bias** | Stops one seat from eating the whole quota, and pushes a cheap task onto a cheap tier without downgrading a hard one. |
 
-Push-Location cli
-npm pack                          # -> cli\originrouter-<version>.tgz
-Pop-Location
-```
+When the two engines disagree, the brain **hedges** instead of guessing: it answers from the leader and keeps the other attempt running until the deadline, so a wrong pick costs latency, not the answer.
 
-Pack the launcher from **inside** `cli/`: `npm pack --prefix cli` reads the root
-`package.json` instead and produces a tarball of the whole repository.
+Defaults, all overridable by env var or by the dashboard:
 
-### Publishing the launcher to npm
+| Setting | Default | Env var |
+|---|---|---|
+| Brain mode | `merged` (`panda` \| `jev` \| `off`) | `OR_ROUTER_BRAIN` |
+| Panda weight / Jev weight | `0.55` / `0.45` | `OR_PANDA_WEIGHT`, `OR_JEV_WEIGHT` |
+| Brain timeout | `3500 ms` | `OR_BRAIN_TIMEOUT_MS` |
+| Seat fairness | `0.3` over a 15-minute window | `OR_SEAT_FAIRNESS` |
+| Tier bias (Pro vs Flash) | `0.18` | `OR_TIER_BIAS` |
+| Hedge window | `12000 ms` / `64 KB` | — |
+| Failover routes tried | `12` | — |
+| Degrade cooldown / seat silence | `45 s` / `45 s` | — |
 
-The launcher's npm identity is **`originrouter`** (the `bin` names, the autostart entry and
-`UPDATER_CONFIG.npmPackageName` all use it; `origin-router` on the registry belongs to an
-unrelated package and cannot be taken):
+Everything runs **locally**. The brain never sends your prompt to a service you did not already use.
 
-```powershell
-npm login            # once, in a terminal
-Push-Location cli; npm publish; Pop-Location
-```
+### When it is worth it
 
-Until that is done, install from the release: run the installer, or
-`npm install -g .\originrouter-<version>.tgz` against the release tarball. The gateway's own
-self-update never depended on npm — it installs the installer from the GitHub release.
+- **One key, many providers.** Keep a single paid key and let free tiers carry the cheap work.
+- **Quota that resets at midnight.** The brain rotates seats so the reset actually helps you.
+- **Two tiers, one name.** Point `fast` at the cheap tier and `deep` at the paid one — the brain picks per task.
 
-The version comes from `package.json`; `build-installer.ps1` reads it from there unless you
-pass `-Version`. Lockfiles are deliberately not committed (see `.gitignore`), so installs
-use `npm install`.
+---
 
-Then start the built server directly:
+## 🧩 Combos
 
-```powershell
-$env:PORT = "20128"; $env:HOSTNAME = "0.0.0.0"; npm run start
-```
+A **combo** is one name that stands for several models, with a strategy that decides how a request is served.
 
-| Path | Default |
+| Strategy | Behaviour | Costs |
+|---|---|---|
+| **Fallback** | Tries the models in order until one succeeds. | 1 model per request |
+| **Round Robin** | Rotates across the models to spread load and burn every quota evenly. | 1 model per request |
+| **Smart Router** | Asks a System One decision model which model to use *before* generating; supports adaptive switch and per-turn billing modes. | 1 extra call |
+| **Fusion** | Runs every panel model in parallel and has a judge synthesise one answer. | N + 1 calls |
+
+Combos also answer on **`POST /v1/origin`**, which accepts OpenAI chat, Anthropic messages and Responses payloads in the shape the caller sent them — so one combo can serve every client shape you have.
+
+<details>
+<summary><b>Reliability rules the router keeps</b></summary>
+
+- An upstream error is **never** surfaced to your client while a healthy seat is left.
+- A seat that starts failing is **degraded** for a cooldown instead of being retried into the ground.
+- A seat that has gone quiet is **silenced** for a while instead of holding the request open.
+- A **last-resort** completion may answer, but it is counted as a last resort — never as a clean success.
+
+</details>
+
+---
+
+## 🪙 Token Saver
+
+The dashboard's **Token Saver** page is where the money is:
+
+| Saver | What it does | Measured effect |
+|---|---|---|
+| **RTK** (tool output) | Compresses `git`, `grep`, `ls`, `tree`, `logs` output before it enters the prompt. | **60-90% fewer input tokens** |
+| **Headroom** | Compresses the prompt itself through `/v1/compress` before routing. | prompt bytes shrink |
+| **Caveman** | Terse-style system prompt. | **~65% fewer output tokens** (up to 87%) |
+| **Ponytail** | Biases the model towards minimal code: YAGNI, reuse still, deletion over addition. | shorter diffs |
+
+RTK is **fail-open by design**: if compression cannot make a payload smaller, the original payload is sent unchanged. A savings feature must never break a request.
+
+---
+
+## 📸 Screenshots
+
+<div align="center">
+
+| Dark | Light |
 |---|---|
-| Dashboard | `http://127.0.0.1:20128/dashboard` |
-| API | `http://127.0.0.1:20128/v1` |
-| Ports in dev | `20127` (`npm run dev`) |
+| <img src="./images/providers-dark.png" alt="Providers, dark theme" width="420" /> | <img src="./images/providers-light.png" alt="Providers, light theme" width="420" /> |
+| <img src="./images/combos-dark.png" alt="Combos, dark theme" width="420" /> | <img src="./images/combos-light.png" alt="Combos, light theme" width="420" /> |
+| <img src="./images/token-saver-dark.png" alt="Token Saver, dark theme" width="420" /> | <img src="./images/token-saver-light.png" alt="Token Saver, light theme" width="420" /> |
 
-Environment: copy `.env.example` to `.env` first — `INITIAL_PASSWORD` defaults to `123456`
-and **must** be overridden on anything that is not on localhost. The full contract is in
-`.env.example` and [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+</div>
 
-## Tests
+The dashboard is available in **37 languages** and follows the light/dark theme of your system.
 
-`tests/` is its own package (vitest) and is not wired into `npm test`:
+---
 
-```powershell
-npm install                      # root deps first - tests import from src/
-cd tests; npm install            # then the suite's own deps
-npx vitest run unit/model-test-strict-honesty.test.js
-npx vitest run                   # whole suite
+## ✨ What is inside
+
+| Area | What you get |
+|---|---|
+| **The routing brain** | Panda ranks your provider seats by `P(success)`, cost and latency. Jev (System One) reads the task and decides which kind of model it needs. Seat fairness rotates so one key doesn't eat the whole quota, and tier bias pushes an easy task onto a cheap tier. When the two engines disagree, the brain hedges instead of guessing. |
+| **Reliability** | An upstream error is never surfaced to your client while a healthy seat is left. Failing seats are degraded for a cooldown, quiet seats are silenced, and a last-resort completion is labelled as a last resort. |
+| **Model identity** | The model test reports **which model actually answered** (`answered by: <id>`), can re-check a verdict, and separates a broken provider from a provider that returned a different model than it claimed. |
+| **A naming system** | Provider heads, vendor namespaces, deployment tags, snapshot dates and quant/build stamps are folded away. Class words — `flash`, `pro`, `mini` — stay, because those are the ones you actually route on. |
+| **Packaging** | The **Windows installer**, the **desktop window app**, the **npm launcher** (`originrouter` / `or`), portable zips for Windows, macOS and Linux, and a **Docker image**. |
+| **Release engineering** | The pipeline builds every artifact, publishes them with curated release notes and checksums, and the launcher verifies the `.sha256` before it installs anything. |
+| **Local-first storage** | State and usage live in `~/.or/db/data.sqlite`. Old installs migrate themselves on first start instead of starting empty. |
+| **Safety** | The LAN gate derives the peer address from the socket, not from a spoofable header; local-only routes need the CLI token; the container gateway counts as "this computer" so a published Docker port still works. |
+| **Honest docs** | Every claim in this README is checked against the code, and the architecture doc describes the storage model and the env contract that actually exist. |
+
+---
+
+## 📦 What is in the box
+
+| Surface | What it is |
+|---|---|
+| **Gateway + dashboard** | The Next.js app on port 20128 — providers, combos, usage, quota, playground, CLI tools, skills, proxy pools, media providers, translator. |
+| **CLI launcher** | `originrouter` (or `or`) — install, start, tray, update, logs, doctor. Publishable to npm as `@origin-labs-ai/origin-router`. |
+| **Desktop app** | A native window around the gateway (`OriginRouter-Desktop-Setup-<version>.exe`), built with electron-builder and packaged with Inno Setup. |
+| **Windows installer** | `OriginRouter-Setup-<version>.exe` — the gateway, the dashboard, the tray and the uninstaller. |
+| **Docker image** | `ghcr.io/origin-labs-ai/origin-router` for `linux/amd64` and `linux/arm64`. |
+| **Portable zips** | `OriginRouter-mac.zip`, `OriginRouter-linux.zip` — no installer, no admin rights. |
+
+---
+
+## 🔌 Endpoints
+
+| Path | What it serves |
+|---|---|
+| `POST /v1/chat/completions` | OpenAI chat |
+| `POST /v1/messages` | Anthropic messages |
+| `POST /v1/responses` | OpenAI Responses |
+| `POST /v1/origin` | Combo endpoint — OpenAI, Anthropic and Responses payloads in the caller's own shape |
+| `POST /v1/embeddings` | Embeddings |
+| `GET /v1/models` | Every model you can reach (or combo names only — your choice) |
+| `GET /api/health` | Liveness |
+
+---
+
+## 🐳 Docker
+
+```bash
+docker run -d -p 20128:20128 \
+  -v origin-router-data:/app/data \
+  ghcr.io/origin-labs-ai/origin-router:latest
 ```
 
-The suite is not expected to be green on a fresh checkout of any OS; judge changes with
-the baselines in `tests/__baseline__/` (`verify-providers.mjs`, `verify-alias.mjs`,
-`verify-oauth-urls.mjs`) plus the runnable contracts `tests/tmp-name-rules.mjs` (naming),
-`tests/tmp-stall-rule.mjs` (combo stall) and `tests/tmp-router-proof.mjs` (brain modes).
-Release evidence for each cut lives in [docs/RELEASE-LOG.md](docs/RELEASE-LOG.md).
+```yaml
+# docker-compose.yml
+services:
+  origin-router:
+    image: ghcr.io/origin-labs-ai/origin-router:latest
+    container_name: origin-router
+    restart: unless-stopped
+    ports: ["20128:20128"]
+    volumes: ["./data:/app/data"]
+```
 
-## LAN access
+The data directory holds the SQLite database, your keys and your logs. Mount it and the container is stateless.
 
-Endpoint page → **Allow access from this network**. Devices on the same network can then
-open the dashboard at the printed URL; the gateway keeps deriving the client IP from the
-socket so a spoofed `X-Forwarded-For` cannot fake a loopback request.
+---
 
-## Docs
+## 🔒 Local first, on purpose
 
-- [docs/INSTALL.md](docs/INSTALL.md) — installers, silent update, `PATH`, firewall, troubleshooting
-- [docs/FEATURES.md](docs/FEATURES.md) — LAN toggle, context filter, API keys, playground
-- [docs/UPDATES.md](docs/UPDATES.md) — release feed, checksums, update logs
-- [docs/RELEASE-LOG.md](docs/RELEASE-LOG.md) — what shipped in each cut and how it was verified
-- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — request lifecycle, combo/account fallback, OAuth, data model
-- [DOCKER.md](DOCKER.md) — container build and runtime
-- [gitbook/](gitbook/) — multilingual documentation site source
+- Keys, usage and history stay in `~/.or` on your machine. Nothing is uploaded anywhere.
+- The LAN is **off by default**: the dashboard answers on loopback only until you switch on "Allow access from this network".
+- The peer address comes from the socket, so a forged `X-Forwarded-For` cannot talk its way in.
+- Local-only routes (spawning processes, reading host secrets) need the CLI token.
+
+---
+
+## 🔄 Auto-update
+
+The launcher does not trust npm for updates — the npm package has never been the source of an update. It reads the GitHub release feed, downloads `OriginRouter-Setup-<version>.exe`, verifies the `.sha256` next to it, and runs the silent Inno update.
+
+---
+
+## 🛠 Build from source
+
+```bash
+git clone https://github.com/origin-labs-ai/origin-router-suite.git
+cd origin-router-suite
+npm install
+npm run build
+npm start            # gateway + dashboard on http://localhost:20128
+```
+
+The CLI package is built from `cli/` (it bundles the gateway into `cli/app`):
+
+```bash
+cd cli
+npm install
+npm run build
+npm pack
+```
+
+Tests:
+
+```bash
+cd tests && npm install && npx vitest run
+```
+
+---
+
+## 📚 Docs
+
+| Document | What is in it |
+|---|---|
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | How the gateway is put together, the storage model, the env contract |
+| [docs/INSTALL.md](docs/INSTALL.md) | Every install path, and what each one gives you |
+| [docs/UPDATES.md](docs/UPDATES.md) | How updating works, and what the updater verifies |
+| [docs/RELEASE-LOG.md](docs/RELEASE-LOG.md) | The working log of every release |
+| [CHANGELOG.md](CHANGELOG.md) | Release notes, newest first |
+
+---
+
+## 👥 Built by
+
+OriginRouter is built by **Origin Labs AI** — a local-first AI router that keeps your keys, your usage and your prompts on your own machine.
+
+## 📄 License
+
+[MIT](LICENSE) © Origin Labs AI

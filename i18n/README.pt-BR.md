@@ -72,7 +72,7 @@ Resultado: programe sem interrupções, com custo mínimo e economia de 20% a 40
 **1. Instale globalmente:**
 
 ```bash
-npm install -g originrouter
+npm install -g @origin-labs-ai/origin-router
 originrouter
 ```
 

@@ -69,7 +69,7 @@ Result: Never stop coding, minimal cost
 **1. Глобальная установка:**
 
 ```bash
-npm install -g originrouter
+npm install -g @origin-labs-ai/origin-router
 originrouter
 ```
 

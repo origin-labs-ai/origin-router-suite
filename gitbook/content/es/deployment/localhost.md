@@ -9,7 +9,7 @@ Ejecuta OriginRouter en tu máquina local para desarrollo y uso personal.
 Instala OriginRouter globalmente vía npm:
 
 ```bash
-npm install -g originrouter
+npm install -g @origin-labs-ai/origin-router
 ```
 
 **Requisitos:**
@@ -113,7 +113,7 @@ Si encuentras errores de permisos durante la instalación:
 
 ```bash
 # Usar sudo (no recomendado)
-sudo npm install -g originrouter
+sudo npm install -g @origin-labs-ai/origin-router
 
 # O corregir los permisos de npm (recomendado)
 mkdir ~/.npm-global

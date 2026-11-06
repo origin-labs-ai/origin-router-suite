@@ -28,7 +28,7 @@ import { parseSSELine } from "../utils/streamHelpers.js";
 //   * delta.content (non-empty string, or non-empty array of parts)
 //   * delta.tool_calls (a real tool call)
 // It deliberately does NOT count:
-//   * delta.role — 9router emits {role:"assistant"} on the first frame regardless of
+//   * delta.role — originrouter emits {role:"assistant"} on the first frame regardless of
 //     content; treating it as content would defeat the whole check (and A0's own retry,
 //     which is gated on "no chunk received yet").
 //   * reasoning_content / delta.reasoning — a think-then-abort produces reasoning only,

@@ -23,12 +23,15 @@ export const GITHUB_CONFIG = {
 
 // Updater configuration
 export const UPDATER_CONFIG = {
-  // The launcher's npm identity is `originrouter`, but the gateway's own updates have
-  // never come from npm: the installer build downloads and checksum-verifies
-  // OriginRouter-Setup-<version>.exe from the release below, which is why the version
-  // check asks the same feed. npmPackageName stays for a global `npm install -g` copy,
-  // where the updater instead runs `npx originrouter` after the install.
-  npmPackageName: "originrouter",
+  // The launcher's npm identity is `@origin-labs-ai/origin-router` - the package
+  // name is exactly "origin-router"; the scope only exists because the unscoped
+  // name on the registry belongs to an unrelated package. The gateway's own
+  // updates have never come from npm: the installer build downloads and
+  // checksum-verifies OriginRouter-Setup-<version>.exe from the release below,
+  // which is why the version check asks the same feed. npmPackageName stays for
+  // a global `npm install -g` copy, where the updater instead runs
+  // `npx @origin-labs-ai/origin-router` after the install.
+  npmPackageName: "@origin-labs-ai/origin-router",
   installCmd: GITHUB_CONFIG.releasesUrl,
   installCmdLatest: GITHUB_CONFIG.releasesUrl,
   releasesApiUrl: GITHUB_CONFIG.releasesApiUrl,

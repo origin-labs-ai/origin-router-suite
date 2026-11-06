@@ -1,6 +1,6 @@
 {
   "name": "@origin-labs-ai/origin-router",
-  "version": "0.5.116",
+  "version": "0.5.117",
   "description": "OriginRouter CLI - start and manage the OriginRouter server",
   "homepage": "https://github.com/origin-labs-ai/origin-router#readme",
   "repository": {

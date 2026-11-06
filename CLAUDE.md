@@ -8,7 +8,7 @@ OriginRouter (`origin-router-app`) — a local AI routing gateway + Next.js dash
 
 Two published artifacts live in this one repo:
 - The **dashboard + gateway** (root `package.json`, `origin-router-app`) — the Next.js server that does the actual routing.
-- The **CLI launcher** (`cli/`, npm identity `originrouter`) — installs/starts the server, manages the tray and performs the self-update. It ships inside both Windows installers and as `originrouter-<version>.tgz` on the release; publishing it to the registry is a manual `npm publish` from `cli/`. It has its own `package.json`, version, and build.
+- The **CLI launcher** (`cli/`, npm identity `originrouter`) — installs/starts the server, manages the tray and performs the self-update. It ships inside both Windows installers and as `origin-router-<version>.tgz` on the release; publishing it to the registry is a manual `npm publish` from `cli/`. It has its own `package.json`, version, and build.
 
 The code lives in `src/` (Next.js app + dashboard/compat APIs), `open-sse/` (the provider-agnostic routing/translation engine), `cli/` (the launcher package), and `tests/`.
 
@@ -76,7 +76,7 @@ Two authoritative docs already exist — read them before working in these areas
 ### Persistence — IMPORTANT (ARCHITECTURE.md is stale here)
 State is **no longer `db.json`**. It's a SQLite layer under `src/lib/db/` with an adapter fallback chain (`driver.js`): `bun:sqlite` → `better-sqlite3` (optional native dep) → `node:sqlite` (Node ≥22.5) → `sql.js` (pure-JS fallback, always works). `better-sqlite3` is deliberately in `optionalDependencies` so install never fails without build tools.
 - `src/lib/localDb.js` is a **backward-compat shim** re-exporting `src/lib/db/index.js`. New code should import from `@/lib/db/index.js`; per-entity logic lives in `src/lib/db/repos/*`. Schema/migrations in `src/lib/db/migrations/`.
-- Data location resolves via `src/lib/dataDir.js` → `DATA_DIR`, else **`~/.or`** (`src/lib/db/paths.js` builds `db/data.sqlite` + `db/backups/` under it). A first run migrates the old folders (`~/.originrouter`, `~/.9router`, `%APPDATA%\originrouter`, `%APPDATA%\9router`), newest database winning, and `dataMirror.js` keeps a second copy at `~/.fusion/.or`.
+- Data location resolves via `src/lib/dataDir.js` → `DATA_DIR`, else **`~/.or`** (`src/lib/db/paths.js` builds `db/data.sqlite` + `db/backups/` under it). A first run migrates the folders older installs used, newest database winning, and `dataMirror.js` keeps a second copy at `~/.fusion/.or`.
 - Usage, request details and logs are SQLite tables in the same database (`src/lib/usageDb.js` is a shim over `db/repos/usageRepo.js` and `requestDetailsRepo.js`) — they follow `DATA_DIR`; the old `usage.json` / `log.txt` files are gone.
 
 ### RTK token saver (`open-sse/rtk/`)

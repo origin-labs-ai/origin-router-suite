@@ -31,7 +31,7 @@ export default function HeroSection() {
             Get Started
           </button>
           <a 
-            href="https://github.com/decolua/originrouter" 
+            href="https://github.com/origin-labs-ai/origin-router-suite" 
             target="_blank" 
             rel="noopener noreferrer"
             className="h-12 px-8 rounded-lg border border-[#3a3a3a] bg-[#232323] hover:bg-[#3a3a3a] text-white text-base font-bold transition-all flex items-center gap-2"

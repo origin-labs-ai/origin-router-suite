@@ -13,7 +13,7 @@
 //             pass-back validation.
 //   C-cell-4  REAL multi-turn: turn 1 asks a thinking question on /messages and
 //             receives DeepSeek's own thinking block (no signature, as emitted by
-//             9router's response translator openai-to-claude.js:138-156); turn 2
+//             originrouter's response translator openai-to-claude.js:138-156); turn 2
 //             replays that unsigned thinking block verbatim. Proves the direct path
 //             accepts real unsigned thinking — the natural endpoint state for C.
 //

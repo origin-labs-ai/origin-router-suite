@@ -3,7 +3,7 @@
 ## Recommended: Windows installers
 
 Two per-user installers ship from this repository, on the
-[releases page](https://github.com/origin-labs-ai/origin-router-suite/releases/latest):
+[releases page](https://github.com/origin-labs-ai/origin-router/releases/latest):
 
 | Artifact | Purpose |
 |---|---|
@@ -95,7 +95,7 @@ The launcher's npm name is `originrouter`. Until it is published (`npm login`, t
 `npm publish` from `cli/`), install it from the release tarball:
 
 ```powershell
-npm install -g ".\originrouter-<version>.tgz"
+npm install -g ".\origin-router-<version>.tgz"
 ```
 
 Or build it from the repository root:
@@ -103,7 +103,7 @@ Or build it from the repository root:
 ```powershell
 npm install --prefix cli
 npm run build --prefix cli
-Push-Location cli; npm pack; Pop-Location   # -> cli\originrouter-<version>.tgz
+Push-Location cli; npm pack; Pop-Location   # -> cli\origin-router-<version>.tgz
 ```
 
 Either way the commands it puts on your `PATH` are `originrouter` and `or`.

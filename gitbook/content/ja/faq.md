@@ -197,7 +197,7 @@ npm start
 
 ### Localhost(デフォルト)
 ```bash
-npm install -g originrouter
+npm install -g @origin-labs-ai/origin-router
 originrouter
 → Dashboard: http://localhost:3000
 → API: http://localhost:20128/v1

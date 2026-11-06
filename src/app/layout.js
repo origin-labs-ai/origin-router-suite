@@ -28,6 +28,24 @@ export const metadata = {
     shortcut: "/favicon.ico",
     apple: "/brand/origin-mark-256.png",
   },
+  // A bare link in a chat, a forum or a feed used to preview as nothing. The
+  // card is rendered from the real dashboard by scripts/make-og-image.js.
+  openGraph: {
+    title: "OriginRouter - one endpoint for every AI provider",
+    description:
+      "Route across 90+ providers, fall back before an error reaches your code, and cut 60-90% of tool-output tokens. Local-first, one port, MIT.",
+    url: "https://github.com/origin-labs-ai/origin-router-suite",
+    siteName: "OriginRouter",
+    images: [{ url: "/og-image.png", width: 1200, height: 630, alt: "OriginRouter dashboard" }],
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "OriginRouter - one endpoint for every AI provider",
+    description:
+      "Route across 90+ providers, fall back before an error reaches your code, and cut 60-90% of tool-output tokens.",
+    images: ["/og-image.png"],
+  },
 };
 
 export const viewport = {

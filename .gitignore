@@ -68,8 +68,8 @@ PUBLIC.md
 Thanks.md
 PUBLIC.en.md
 PR/*
-# Lockfiles stay ignored, deliberately: the only ones in the tree came from upstream
-# (still named "9router-app", pinned at its own dependency set) and regenerating them
+# Lockfiles stay ignored, deliberately: the only ones in the tree came from the
+# upstream snapshot (pinned at its own dependency set) and regenerating them
 # here is not possible offline, so committing them would pin the wrong graph. The
 # release workflow therefore installs with `npm install` instead of `npm ci` - which
 # is also why every CI release failed with "Dependencies lock file is not found".
@@ -102,7 +102,7 @@ graphify-out/*
 
 # Kiro local workspace state
 .kiro/
-9router-*
+originrouter-*
 
 # Local sensitive / temp files
 .engine-token.txt

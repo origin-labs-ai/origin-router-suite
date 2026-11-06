@@ -63,7 +63,7 @@ export default function LandingPage() {
                 Start Free
               </button>
               <button 
-                onClick={() => window.open("https://github.com/decolua/originrouter#readme", "_blank")}
+                onClick={() => window.open("https://github.com/origin-labs-ai/origin-router-suite#readme", "_blank")}
                 className="w-full sm:w-auto h-14 px-10 rounded-lg border border-[#3a3a3a] hover:bg-[#232323] text-white text-lg font-bold transition-all"
               >
                 Read Documentation

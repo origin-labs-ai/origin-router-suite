@@ -34,7 +34,7 @@ npm --version
 どこからでも使用できるようにOriginRouterをグローバルインストール:
 
 ```bash
-npm install -g originrouter
+npm install -g @origin-labs-ai/origin-router
 ```
 
 **OriginRouterを起動:**
@@ -61,7 +61,7 @@ npm install originrouter
 **OriginRouterを起動:**
 
 ```bash
-npx originrouter
+npx @origin-labs-ai/origin-router
 ```
 
 **利点:**
@@ -282,7 +282,7 @@ echo 'export PATH=~/.npm-global/bin:$PATH' >> ~/.bashrc
 source ~/.bashrc
 
 # 再度インストール
-npm install -g originrouter
+npm install -g @origin-labs-ai/origin-router
 ```
 
 ### Node.jsバージョンが古すぎる
@@ -371,7 +371,7 @@ pm2 save
 ### ローカル開発
 
 ```bash
-npm install -g originrouter
+npm install -g @origin-labs-ai/origin-router
 originrouter
 ```
 
@@ -381,7 +381,7 @@ originrouter
 
 ```bash
 # インストール
-npm install -g originrouter
+npm install -g @origin-labs-ai/origin-router
 
 # 設定
 export JWT_SECRET="your-secure-secret"

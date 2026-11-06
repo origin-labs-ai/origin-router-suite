@@ -54,6 +54,11 @@ jobs:
         env:
           RELEASE_TAG: ${{ inputs.release_tag || github.ref_name }}
           REPOSITORY: ${{ github.repository }}
+          # The image is named after the product, not after the repository. The
+          # repository slug is "origin-router-suite" because GitHub retired the
+          # shorter name for this organisation, but the image has always been
+          # documented as origin-router.
+          GHCR_IMAGE_NAME: origin-labs-ai/origin-router
           # Presence, not the repository name, decides this now: a hard-coded "is this
           # upstream's repo" check left the fork building a Docker Hub image it could
           # never push, and a red job every release. No credentials -> GHCR only.
@@ -110,7 +115,9 @@ jobs:
 
           const commit = execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).trim();
           const publishDockerHub = Boolean(process.env.DOCKERHUB_USERNAME && process.env.DOCKERHUB_TOKEN);
-          const ghcrImage = `ghcr.io/${process.env.REPOSITORY.toLowerCase()}`;
+          const ghcrImage = process.env.GHCR_IMAGE_NAME
+            ? `ghcr.io/${process.env.GHCR_IMAGE_NAME.toLowerCase()}`
+            : `ghcr.io/${process.env.REPOSITORY.toLowerCase()}`;
           const isPrerelease = version.includes("-");
           const promoteLatest = (process.env.EVENT_NAME === "push" && !isPrerelease)
             || process.env.PROMOTE_LATEST_INPUT === "true";

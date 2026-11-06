@@ -3,7 +3,7 @@ name: release
 # Publishes the same three artifacts the build machine produces:
 #   OriginRouter-Setup-<v>.exe            gateway + dashboard installer (Inno)
 #   OriginRouter-Desktop-Setup-<v>.exe    desktop window installer (Inno, bundles the gateway)
-#   originrouter-<v>.tgz                  CLI launcher package (npm identity: originrouter)
+#   origin-router-<v>.tgz                  CLI launcher package (npm identity: @origin-labs-ai/origin-router)
 # plus a .sha256 next to every binary, which is what the updater verifies before it
 # installs anything.
 #
@@ -107,6 +107,26 @@ jobs:
       - name: Package the portable win folder
         run: node scripts/package-cli.mjs --platform=win
 
+      - name: Portable win zip (beta)
+        # The portable zip is the no-installer build: unzip it anywhere and run
+        # originrouter.cmd. It asks once whether to live in the system tray,
+        # because there is no installer task to ask.
+        shell: pwsh
+        run: |
+          $out = "dist\portable"
+          New-Item -ItemType Directory -Force -Path $out | Out-Null
+          $zip = Join-Path $out "OriginRouter-win-portable.zip"
+          $sevenZip = Join-Path ${env:ProgramFiles} "7-Zip\7z.exe"
+          if (Test-Path $sevenZip) {
+            & $sevenZip a -tzip -mx=7 $zip "dist\win\*" | Out-Null
+          } else {
+            Compress-Archive -Path "dist\win\*" -DestinationPath $zip
+          }
+          if (-not (Test-Path $zip)) { throw "the portable zip was not created" }
+          $hash = (Get-FileHash $zip -Algorithm SHA256).Hash.ToLower()
+          "$hash  OriginRouter-win-portable.zip" | Set-Content "$zip.sha256" -Encoding ascii
+          Write-Host "portable zip: $([math]::Round((Get-Item $zip).Length/1MB,1)) MB"
+
       - name: Gateway installer (Inno Setup 6)
         shell: pwsh
         run: |
@@ -124,7 +144,15 @@ jobs:
         # Must be packed from inside cli/: `npm pack --prefix cli` reads the root
         # package.json instead and produces a tarball of the entire repository.
         working-directory: cli
-        run: npm pack --pack-destination ..\dist\installer --ignore-scripts
+        shell: pwsh
+        run: |
+          $version = "${{ steps.ver.outputs.version }}"
+          npm pack --pack-destination ..\dist\installer --ignore-scripts
+          # A scoped package packs as <scope>-<name>-<version>.tgz. The release
+          # asset is named after the product, not after the npm scope.
+          $packed = Get-ChildItem ..\dist\installer\*.tgz | Select-Object -First 1
+          if (-not $packed) { throw "npm pack produced no tarball" }
+          Rename-Item -Path $packed.FullName -NewName "origin-router-$version.tgz"
 
       - name: Checksums
         shell: pwsh
@@ -133,7 +161,7 @@ jobs:
           $names = @(
             "OriginRouter-Setup-$version.exe",
             "OriginRouter-Desktop-Setup-$version.exe",
-            "originrouter-$version.tgz"
+            "origin-router-$version.tgz"
           )
           $lines = @()
           foreach ($name in $names) {
@@ -152,6 +180,8 @@ jobs:
             dist/installer/*.exe
             dist/installer/*.sha256
             dist/installer/*.tgz
+            dist/portable/*.zip
+            dist/portable/*.sha256
           if-no-files-found: error
 
   portable:
@@ -183,11 +213,22 @@ jobs:
       - name: Package portable folder
         run: node scripts/package-cli.mjs --platform=${{ matrix.platform }}
       - name: Zip portable folder
-        run: cd dist/${{ matrix.platform }} && zip -r ../OriginRouter-${{ matrix.platform }}.zip .
+        # The portable zip is the beta channel: unzip it anywhere and run the
+        # launcher. It asks once whether to live in the system tray, because
+        # there is no installer task to ask.
+        run: |
+          mkdir -p dist/portable
+          cd dist/${{ matrix.platform }} && zip -r ../portable/OriginRouter-${{ matrix.platform }}-portable.zip .
+      - name: Checksum the portable zip
+        run: |
+          cd dist/portable
+          sha256sum OriginRouter-${{ matrix.platform }}-portable.zip > OriginRouter-${{ matrix.platform }}-portable.zip.sha256
       - uses: actions/upload-artifact@v4
         with:
           name: OriginRouter-${{ matrix.platform }}
-          path: dist/*.zip
+          path: |
+            dist/portable/*.zip
+            dist/portable/*.sha256
           if-no-files-found: warn
 
   release:

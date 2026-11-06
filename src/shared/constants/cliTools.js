@@ -1,4 +1,4 @@
-// MITM Tools â€” IDE tools intercepted via MITM proxy
+// MITM Tools — IDE tools intercepted via MITM proxy
 export const MITM_TOOLS = {
   antigravity: {
     id: "antigravity",
@@ -46,7 +46,7 @@ export const MITM_TOOLS = {
     defaultModels: [
       // Kiro's agent/"vibe" mode sends modelId "auto" for the main turn and "simple-task"
       // for background sub-tasks (verified via MITM request dump of generateAssistantResponse).
-      // Both need a mappable slot â€” otherwise getMappedModel returns null and the chat call
+      // Both need a mappable slot — otherwise getMappedModel returns null and the chat call
       // is passed through to AWS instead of being routed to the chosen provider.
       { id: "auto", name: "Auto (Kiro Agent)", alias: "auto" },
       { id: "claude-sonnet-5", name: "Claude Sonnet 5", alias: "claude-sonnet-5" },
@@ -143,7 +143,7 @@ export const CLI_TOOLS = {
       {
         step: 3,
         title: "Select Model in Copilot Chat",
-        desc: "Open Copilot Chat, click the model picker at the bottom â†’ 'Manage Models...' â†’ check the OriginRouter models to use.",
+        desc: "Open Copilot Chat, click the model picker at the bottom → 'Manage Models...' → check the OriginRouter models to use.",
       },
     ],
   },
@@ -171,7 +171,7 @@ export const CLI_TOOLS = {
     description: "Nous Research self-improving AI agent",
     configType: "custom",
     // Model slots Hermes supports besides the default ("model:" block).
-    // "default" is not listed â€” the card renders it as the main model picker.
+    // "default" is not listed — the card renders it as the main model picker.
     // Mirrors the "auxiliary" defaults in hermes_cli/config_defaults.py (Hermes 0.21.5):
     // web_extract/session_search no longer call an LLM (their leftover blocks are ignored,
     // so exposing them only invites dead config), MoA slots are preset-driven and not listed.
@@ -216,11 +216,11 @@ export const CLI_TOOLS = {
       { type: "cloudCheck", text: "Cursor routes requests through its own server, so local endpoint is not supported. Please enable Tunnel or Cloud Endpoint in Settings." },
     ],
     guideSteps: [
-      { step: 1, title: "Open Settings", desc: "Go to Settings â†’ Models" },
+      { step: 1, title: "Open Settings", desc: "Go to Settings → Models" },
       { step: 2, title: "Enable OpenAI API", desc: "Enable \"OpenAI API key\" option" },
       { step: 3, title: "Base URL", value: "{{baseUrl}}", copyable: true },
       { step: 4, title: "API Key", type: "apiKeySelector" },
-      { step: 5, title: "Add Custom Model", desc: "Click \"View All Model\" â†’ \"Add Custom Model\"" },
+      { step: 5, title: "Add Custom Model", desc: "Click \"View All Model\" → \"Add Custom Model\"" },
       { step: 6, title: "Select Model", type: "modelSelector" },
     ],
   },
@@ -249,7 +249,7 @@ export const CLI_TOOLS = {
     configType: "guide",
     guideSteps: [
       { step: 1, title: "Open Settings", desc: "Go to Roo Settings panel" },
-      { step: 2, title: "Select Provider", desc: "Choose API Provider â†’ Ollama" },
+      { step: 2, title: "Select Provider", desc: "Choose API Provider → Ollama" },
       { step: 3, title: "Base URL", value: "{{baseUrl}}", copyable: true },
       { step: 4, title: "API Key", type: "apiKeySelector" },
       { step: 5, title: "Select Model", type: "modelSelector" },
@@ -291,7 +291,7 @@ export const CLI_TOOLS = {
     modelAliases: ["g25p", "g25f", "cs45", "g54"],
     notes: [
       { type: "info", text: "Use OriginRouter model aliases to keep Amp shorthand mappings stable across provider updates." },
-      { type: "warning", text: "Suggested shorthand examples: g25p â†’ gemini/gemini-2.5-pro, g25f â†’ gemini/gemini-2.5-flash, cs45 â†’ cc/claude-sonnet-4-5-20250929." },
+      { type: "warning", text: "Suggested shorthand examples: g25p → gemini/gemini-2.5-pro, g25f → gemini/gemini-2.5-flash, cs45 → cc/claude-sonnet-4-5-20250929." },
     ],
     guideSteps: [
       { step: 1, title: "Install Amp", desc: "Install the Amp CLI using the package manager supported by your environment." },
@@ -315,14 +315,14 @@ amp --model "{{model}}"
     name: "Qwen Code",
     image: "/providers/qwen.png",
     color: "#10B981",
-    description: "Alibaba Qwen Code CLI â€” supports OpenAI, Claude & Gemini providers via OriginRouter",
+    description: "Alibaba Qwen Code CLI — supports OpenAI, Claude & Gemini providers via OriginRouter",
     docsUrl: "https://qwenlm.github.io/qwen-code-docs/en/users/configuration/model-providers/",
     configType: "guide",
     defaultCommand: "qwen",
     notes: [
       { type: "info", text: "Qwen Code supports multiple provider types (openai, anthropic, gemini) via modelProviders in settings.json. OriginRouter works as an OpenAI-compatible endpoint." },
-      { type: "info", text: "Any model available in OriginRouter can be used â€” not just Qwen models. Select from Qwen, Claude, Gemini, GPT, and more." },
-      { type: "warning", text: "Config path: Linux/macOS ~/.qwen/settings.json â€¢ Windows %USERPROFILE%\\.qwen\\settings.json" },
+      { type: "info", text: "Any model available in OriginRouter can be used — not just Qwen models. Select from Qwen, Claude, Gemini, GPT, and more." },
+      { type: "warning", text: "Config path: Linux/macOS ~/.qwen/settings.json • Windows %USERPROFILE%\\.qwen\\settings.json" },
       { type: "error", text: "Qwen OAuth free tier was discontinued on 2026-04-15. Use OriginRouter with alicode/openrouter/anthropic/gemini providers instead." },
     ],
     modelAliases: ["coder-model", "qwen3-coder-plus", "qwen3-coder-flash", "vision-model", "claude-sonnet-4-6", "claude-opus-4-6-thinking", "gemini-3-flash", "gemini-3.1-pro-high"],
@@ -376,7 +376,7 @@ amp --model "{{model}}"
     ],
     notes: [
       { type: "info", text: "DeepSeek TUI uses ~/.deepseek/config.toml for configuration. OriginRouter will update the provider to 'openai' mode with your base_url, api_key, and model." },
-      { type: "warning", text: "Config path: Linux/macOS ~/.deepseek/config.toml â€¢ Windows %USERPROFILE%\\.deepseek\\config.toml" },
+      { type: "warning", text: "Config path: Linux/macOS ~/.deepseek/config.toml • Windows %USERPROFILE%\\.deepseek\\config.toml" },
     ],
   },
   jcode: {
@@ -428,7 +428,7 @@ amp --model "{{model}}"
       },
       {
         type: "warning",
-        text: "Config path: Linux/macOS ~/.grok/config.toml â€¢ Windows %USERPROFILE%\\.grok\\config.toml",
+        text: "Config path: Linux/macOS ~/.grok/config.toml • Windows %USERPROFILE%\\.grok\\config.toml",
       },
     ],
   },
@@ -437,17 +437,17 @@ amp --model "{{model}}"
     name: "Devin CLI",
     image: "/providers/devin-cli.png",
     color: "#6366F1",
-    description: "Cognition Devin CLI â€” local binary called by the Devin CLI provider via ACP/stdio",
+    description: "Cognition Devin CLI — local binary called by the Devin CLI provider via ACP/stdio",
     configType: "guide",
     installUrl: "https://cli.devin.ai",
     notes: [
       { type: "info", text: "This is a local dependency, not a routed CLI. The Devin CLI provider spawns `devin acp --agent-type summarizer` and relays its output." },
-      { type: "warning", text: "Install the Devin CLI and run `devin auth login` â€” without it, the provider returns a spawn error on first request." },
+      { type: "warning", text: "Install the Devin CLI and run `devin auth login` — without it, the provider returns a spawn error on first request." },
     ],
     guideSteps: [
       { step: 1, title: "Install Devin CLI", desc: "Install via the official installer at cli.devin.ai.", docsUrl: "https://cli.devin.ai" },
       { step: 2, title: "Authenticate", desc: "Log in once so the binary stores its own credentials." },
-      { step: 3, title: "Use the provider", desc: "Pick any Devin CLI model under the Providers tab â€” no API key field needed." },
+      { step: 3, title: "Use the provider", desc: "Pick any Devin CLI model under the Providers tab — no API key field needed." },
     ],
     codeBlock: {
       language: "bash",
@@ -463,11 +463,11 @@ devin --version`,
     name: "OpenDesign",
     image: "/providers/opendesign.png",
     color: "#7C3AED",
-    description: "OpenDesign â€” claude.ai/design open-sourced! Agent-native design skills pack",
+    description: "OpenDesign — claude.ai/design open-sourced! Agent-native design skills pack",
     docsUrl: "https://github.com/manalkaff/opendesign",
     configType: "guide",
     notes: [
-      { type: "info", text: "OpenDesign ships as a plugin/skills pack installed into Claude Code, Cursor, OpenAI Codex, Gemini CLI, or OpenCode. It inherits the host agent's model config, so once your host points at OriginRouter, /opendesign design sessions route through OriginRouter automatically â€” no extra env vars needed." },
+      { type: "info", text: "OpenDesign ships as a plugin/skills pack installed into Claude Code, Cursor, OpenAI Codex, Gemini CLI, or OpenCode. It inherits the host agent's model config, so once your host points at OriginRouter, /opendesign design sessions route through OriginRouter automatically — no extra env vars needed." },
       { type: "info", text: "Invoke with /opendesign <brief>. Covers decks, wireframes, interactive prototypes, design-system extraction, and brand systems, with a verifier subagent that checks output against the brief." },
     ],
     guideSteps: [
@@ -502,7 +502,7 @@ gemini extensions install https://github.com/manalkaff/opendesign
     name: "Pi (pi-coding-agent)",
     image: "/providers/pi.svg",
     color: "#6366F1",
-    description: "Pi coding agent â€” minimal, extensible agent harness (pi.dev)",
+    description: "Pi coding agent — minimal, extensible agent harness (pi.dev)",
     configType: "custom",
     docsUrl: "https://pi.dev",
     notes: [

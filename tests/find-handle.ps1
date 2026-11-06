@@ -77,7 +77,7 @@ public class HandleScan {
 }
 '@
 
-$matches = [HandleScan]::Scan("Workspaces\9router")
+$matches = [HandleScan]::Scan("Workspaces\originrouter")
 $matches | Sort-Object -Unique | ForEach-Object {
   $parts = $_ -split '\|', 2
   $name = (Get-Process -Id ([int]$parts[0]) -ErrorAction SilentlyContinue).ProcessName

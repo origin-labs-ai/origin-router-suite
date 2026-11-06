@@ -1,4 +1,4 @@
-$root = "C:\Users\thaku\Workspaces\9router"
+$root = "C:\Users\thaku\Workspaces\originrouter"
 $files = @()
 $files += Get-ChildItem -LiteralPath $root -File -Force | Select-Object -First 100 -ExpandProperty FullName
 $files += Get-ChildItem -LiteralPath (Join-Path $root ".git") -File -Force -ErrorAction SilentlyContinue | Select-Object -First 30 -ExpandProperty FullName

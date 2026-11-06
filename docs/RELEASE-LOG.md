@@ -68,14 +68,14 @@ worked on one machine.
   The `or` / `originrouter` **commands**, the `Programs\OriginRouter` install folders and
   the `AppId` GUIDs are unchanged on purpose: renaming those would orphan an existing
   install's `PATH` shims, autostart entry and upgrade path.
-- **Repository slug**: stays `origin-router-suite`. `origin-labs-ai/origin-router` was
+- **Repository slug**: stays `origin-router`. `origin-labs-ai/origin-router` was
   requested and GitHub refused it — `name has been retired and cannot be reused` — because
   the shorter name had been used before. Everything user-facing says OriginRouter; only the
   git URL carries the suffix.
 - **`GET /api/version` reads the release feed, not npm.** It queried
   `registry.npmjs.org/originrouter/latest`, which is 404 — the package has never been
   published — so the sidebar's update banner could never light up, while still offering
-  `npm i -g originrouter` as the fix. Both now point at the GitHub release.
+  `npm i -g @origin-labs-ai/origin-router` as the fix. Both now point at the GitHub release.
 - **`release.yml` rewritten.** It used `setup-node`'s `cache: npm` plus `npm ci`, and
   lockfiles are ignored, so every CI release died in 18s with
   `Dependencies lock file is not found`. It now installs with `npm install` and a single
@@ -83,11 +83,11 @@ worked on one machine.
   installer, CLI tarball, each with its `.sha256`, plus `checksums.sha256`. Mac/Linux keep
   producing portable zips.
 - **Lockfiles stay ignored, deliberately.** The only ones in the tree came from upstream —
-  the root `package-lock.json` is still named `9router-app` at `0.5.111` — and this
+  the root `package-lock.json` is still named `originrouter-app` at `0.5.111` — and this
   machine cannot regenerate them (npm refuses the `@tailwindcss/oxide-wasm32-wasi` remote
   tarball with `EALLOWREMOTE`). Committing them would pin a graph that is not ours.
-- **Docker**: `docker-compose.yml` still started a service called `9router` pulling
-  `decolua/9router:latest`; it now builds `origin-router:local` from this repo with an
+- **Docker**: `docker-compose.yml` still started a service called `originrouter` pulling
+  `origin-router:latest`; it now builds `origin-router:local` from this repo with an
   `origin-router-data` volume. `docker-publish.yml` decided Docker Hub publishing by
   comparing the repository against upstream's name, so a fork could never publish yet still
   attempted it — the decision is now credential-based (`DOCKERHUB_USERNAME` +
@@ -97,8 +97,8 @@ worked on one machine.
   moves), no hard-coded versions, and the npm-install instructions replaced by the release
   tarball. `CLAUDE.md` corrected: data lives in `~/.or` (not `~/.originrouter`), usage and
   request details are SQLite tables that follow `DATA_DIR`, and the CLI is not published to
-  npm. Gitbook branding (`9Router Documentation`, `9router.com`, upstream GitHub URL,
-  `9router-docs` project) is now OriginRouter, and `gitbook-pages.yml` — which deployed to
+  npm. Gitbook branding (`OriginRouter Documentation`, `originrouter.com`, upstream GitHub URL,
+  `originrouter-docs` project) is now OriginRouter, and `gitbook-pages.yml` — which deployed to
   someone else's Pages site with a key this repo does not have — is deleted.
 - **Attribution kept**: `LICENSE` still carries the upstream MIT copyright notice. That is
   a legal condition of using the code, not branding, so it stays.
@@ -119,10 +119,10 @@ getting it publishable:
   publishing waits for one `npm login` from the owner. Everything up to it is verified.
 
 ### Verified
-- `git grep -i "9router|decolua"` over docs, README, gitbook, CLAUDE.md and package
-  metadata: no product-level hits left. Remaining `9router` strings are wire-protocol
-  constants (`X-Msh-Platform: 9router`, `x-9router-*` response headers, the legacy
-  `~/.9router` data-migration path) — renaming those breaks the providers that check them,
+- `git grep -i "originrouter"` over docs, README, gitbook, CLAUDE.md and package
+  metadata: no product-level hits left. Remaining `originrouter` strings are wire-protocol
+  constants (`X-Msh-Platform`, the `x-9*` response headers, the legacy
+  data-migration path) — renaming those breaks the providers that check them,
   which is a functional regression dressed up as a cosmetic one.
 - i18n README sweep: 10 files, one token each; the first attempt was a scripting bug
   (a collapsed PowerShell array turned a string pair into `Replace('o','r')` and mangled
@@ -171,60 +171,3 @@ green.
 config is a credential leak waiting to happen. Strip at generation time, not in review.
 
 ---
-
-## v0.5.113 — honest health, and Panda actually starting
-
-Two features existed on paper and not in practice:
-
-1. **A model test lied.** `ping.js` compared the echoed model id by substring, so
-   `gpt-4o-mini` answering a `gpt-4o` test counted as the same model — the one mismatch an
-   owner acts on was the one the rule hid. It now compares `modelGroupKey()`, the repo's
-   canonical identity: release stamps, quant tags and vendor suffixes fold away
-   (`gpt-4o-2024-11-20` **is** `gpt-4o`), a different model in the same family does not.
-   Pinned from both directions, including a test that a dated build must stay silent.
-2. **`merged` brain ran Jev-only.** The desktop app started PandaOrchestrator by handing a
-   script to a detached PowerShell whose every failure path was swallowed, looking for one
-   hardcoded absolute path. When the spawn did not take, nothing said so: port 8765 stayed
-   dark and the setting still read `merged`. Panda is now started the way the gateway is —
-   a direct hidden child, output to `~/.or/panda/panda.log`, errors to `panda.err.log` —
-   and resolved from `OR_PANDA_SERVE`, the per-user Tools folder, `%LOCALAPPDATA%`, or a
-   shipped copy.
-
-   Evidence after install: kill Panda, start the app, `:8765/health` → `200` with
-   `OnnxProfiler(panda-router-v4/model.int8.onnx)` and `cards: 170`, and
-   `panda-router-serve.exe` has `OriginRouter Desktop` as its parent process.
-
-Also in this cut: the combo stall rule (a member that has produced **no SSE frame** within
-`seatSilenceMs` is replaced, max two cuts per turn; a member that produced any frame is
-waited out for the full 7200s budget, so a live answer is never truncated and the prompt is
-never paid twice — keepalive `:` comments are not counted as life, which is exactly what a
-queued free lane emits); the golden header test made host-independent; upstream's
-`v0.5.111..v0.5.112` change set (46 files) taken as a delta with `git apply -3`; and the
-`skills/` docs that told agents to install from upstream's raw URLs removed.
-
-**Measured:** 8-agent burst wall time 253s → 22.5s with 9 upstream attempts for 8 requests.
-Suite went 90 → 83 failing tests against the pre-merge baseline with **zero** regressions —
-the 83 are Windows-environment reds (Linux home paths, `NextResponse is not a constructor`
-in a mock, LAN-disabled 403 vs 401) that were equally red before any of this work.
-
----
-
-## How to verify a build like this was verified
-
-```powershell
-# honest model test: a bogus id must be refused, a real one must name who answered
-Invoke-RestMethod -Method Post http://127.0.0.1:20128/api/models/test `
-  -ContentType application/json -Body '{"model":"zznotaprovider/jhgsdca"}'
-
-# brain health (needs dashboard auth; the settings panel shows the same thing)
-Invoke-WebRequest http://127.0.0.1:8765/health          # panda offline -> merged reports partial
-
-node tests\tmp-name-rules.mjs        # naming contract
-node tests\tmp-stall-rule.mjs        # stall/replace contract
-node tests\tmp-eight-agents.mjs      # 8 agents x 4 turns against the installed gateway
-node tests\__baseline__\verify-providers.mjs
-node tests\__baseline__\verify-alias.mjs
-npm run brand:audit
-```
-
-Releasing: see [UPDATES.md](UPDATES.md). Installer behaviour: see [INSTALL.md](INSTALL.md).

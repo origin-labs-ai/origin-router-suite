@@ -28,7 +28,7 @@ describe("slugifyPath — parity with @sindresorhus/slugify defaults", () => {
     ["/root", "root"],
     ["", ""],
     ["útflækur", "utflaekur"],
-    ["C:\\DEKSTOP\\9router", "c-dekstop-9router"],
+    ["C:\\DEKSTOP\\originrouter", "c-dekstop-originrouter"],
     ["/home/u/MyProject", "home-u-my-project"],
     ["Déjà Vu!", "deja-vu"],
     ["I ♥ Dogs & Cats", "i-love-dogs-and-cats"],

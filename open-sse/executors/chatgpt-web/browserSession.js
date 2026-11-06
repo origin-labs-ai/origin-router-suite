@@ -2,7 +2,7 @@
 //
 // A logged-in first-party page owns every challenge: ChatGPT's own module
 // executes Sentinel, Turnstile, proof-of-work, cookies, and conduit
-// preparation. Callers receive only the sanitized stream result. The 9router
+// preparation. Callers receive only the sanitized stream result. The originrouter
 // port keeps just the direct `/f/conversation` path used by the clean-room
 // adapter (the shared-WebSocket handoff flow is not wired here).
 

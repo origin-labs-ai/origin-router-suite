@@ -1,18 +1,16 @@
 # OriginRouter - FREE AI Router & Token Saver
 
-**Never stop coding. Save 20-40% tokens with RTK + auto-fallback to FREE & cheap AI models.**
+**Never stop coding. Cut 60-90% of your tool-output tokens with RTK + auto-fallback to FREE & cheap AI models.**
 
-**Connect All AI Code Tools (Claude Code, Cursor, Antigravity, Copilot, Codex, Gemini, OpenCode, Cline, OpenClaw...) to 40+ AI Providers & 100+ Models.**
+**Connect every AI code tool (Claude Code, Cursor, Antigravity, Copilot, Codex, Gemini, OpenCode, Cline, OpenClaw...) to 90+ AI providers & 100+ models.**
 
-[![npm](https://img.shields.io/npm/v/originrouter.svg)](https://www.npmjs.com/package/originrouter)
-[![Downloads](https://img.shields.io/npm/dm/originrouter.svg)](https://www.npmjs.com/package/originrouter)
-[![Docker Pulls](https://img.shields.io/docker/pulls/decolua/originrouter.svg?logo=docker&label=Docker%20pulls)](https://hub.docker.com/r/decolua/originrouter)
-[![GHCR](https://img.shields.io/badge/GHCR-decolua%2Foriginrouter-blue?logo=github)](https://github.com/decolua/originrouter/pkgs/container/originrouter)
-[![License](https://img.shields.io/npm/l/originrouter.svg)](https://github.com/decolua/originrouter/blob/main/LICENSE)
+[![npm](https://img.shields.io/npm/v/@origin-labs-ai/origin-router.svg)](https://www.npmjs.com/package/@origin-labs-ai/origin-router)
+[![Downloads](https://img.shields.io/npm/dm/@origin-labs-ai/origin-router.svg)](https://www.npmjs.com/package/@origin-labs-ai/origin-router)
+[![Docker](https://img.shields.io/badge/docker-ghcr.io%2Forigin--labs--ai%2Forigin--router-2B7FFF?style=flat-square&logo=docker&logoColor=white)](https://github.com/origin-labs-ai/origin-router-suite/pkgs/container/origin-router)
+[![GHCR](https://img.shields.io/badge/GHCR-origin--labs--ai%2Forigin--router-blue?logo=github)](https://github.com/origin-labs-ai/origin-router-suite/pkgs/container/origin-router)
+[![License](https://img.shields.io/github/license/origin-labs-ai/origin-router-suite)](https://github.com/origin-labs-ai/origin-router-suite/blob/main/LICENSE)
 
-<a href="https://trendshift.io/repositories/22628" target="_blank"><img src="https://trendshift.io/api/badge/repositories/22628" alt="decolua%2Foriginrouter | Trendshift" style="width: 250px; height: 55px;" width="250" height="55"/></a>
-
-[🌐 Website](https://originrouter.com) • [📖 Full Docs](https://github.com/decolua/originrouter)
+[🌐 Website](https://originrouter.com) • [📖 Full Docs](https://github.com/origin-labs-ai/origin-router-suite)
 
 ---
 
@@ -27,7 +25,8 @@
 
 **OriginRouter solves this:**
 
-- ✅ **RTK Token Saver** - Auto-compress tool_result, save 20-40% tokens
+- ✅ **RTK Token Saver** - Auto-compress tool output, 60-90% fewer input tokens
+- ✅ **A routing brain** - Panda ranks your seats, Jev reads the task, seat fairness spreads the load
 - ✅ **Maximize subscriptions** - Track quota, use every bit before reset
 - ✅ **Auto fallback** - Subscription → Cheap → Free, zero downtime
 - ✅ **Multi-account** - Round-robin between accounts per provider
@@ -40,22 +39,22 @@
 **Option 1 — npm (recommended for desktop):**
 
 ```bash
-npm install -g originrouter
+npm install -g @origin-labs-ai/origin-router
 originrouter
 
 # Or run directly with npx
-npx originrouter
+npx @origin-labs-ai/origin-router
 ```
 
 **Option 2 — Docker (server/VPS):**
 
 ```bash
-docker run -d --name originrouter -p 20128:20128 \
-  -v "$HOME/.originrouter:/app/data" -e DATA_DIR=/app/data \
-  decolua/originrouter:latest
+docker run -d --name origin-router -p 20128:20128 \
+  -v "$HOME/.or:/app/data" -e DATA_DIR=/app/data \
+  ghcr.io/origin-labs-ai/origin-router:latest
 ```
 
-Published images: [Docker Hub](https://hub.docker.com/r/decolua/originrouter) • [GHCR](https://github.com/decolua/originrouter/pkgs/container/originrouter) (multi-platform amd64/arm64).
+Published images: [GHCR](https://github.com/origin-labs-ai/origin-router-suite/pkgs/container/origin-router) (multi-platform amd64/arm64).
 
 🎉 Dashboard opens at `http://localhost:20128`
 
@@ -95,9 +94,9 @@ originrouter --help             # Show all options
 Already running OriginRouter on another machine (e.g. a team server on your LAN)? Point this machine's CLI tools at it — no local server is started:
 
 ```bash
-npx originrouter connect http://<server-host>:20128                       # pick tools interactively
-npx originrouter connect http://<server-host>:20128 --tools claude,codex  # or choose up front
-npx originrouter connect --reset --tools claude,codex                     # undo
+npx @origin-labs-ai/origin-router connect http://<server-host>:20128                       # pick tools interactively
+npx @origin-labs-ai/origin-router connect http://<server-host>:20128 --tools claude,codex  # or choose up front
+npx @origin-labs-ai/origin-router connect --reset --tools claude,codex                     # undo
 ```
 
 It logs in with the dashboard password (hidden prompt), reuses or creates an API key named `cli-<hostname>`, and writes each tool's config (backing up the original once as `*.bak-originrouter`).
@@ -119,22 +118,22 @@ Models come from the **server's own CLI-tools configuration**, so a client gets 
 
 ```bash
 # One Claude tier; the other tiers still come from the server
-npx originrouter connect http://<server-host>:20128 --tools claude --sonnet cc/claude-sonnet-5-5
+npx @origin-labs-ai/origin-router connect http://<server-host>:20128 --tools claude --sonnet cc/claude-sonnet-5-5
 
 # Every Claude tier
-npx originrouter connect http://<server-host>:20128 --tools claude \
+npx @origin-labs-ai/origin-router connect http://<server-host>:20128 --tools claude \
   --fable cc/claude-fable-5-1 --opus cc/claude-opus-5-5 \
   --sonnet cc/claude-sonnet-5-5 --haiku cc/claude-haiku-4-5-20251001
 
 # All non-Claude tools at once
-npx originrouter connect http://<server-host>:20128 --tools codex,opencode,kilo --model ocg/deepseek-flash
+npx @origin-labs-ai/origin-router connect http://<server-host>:20128 --tools codex,opencode,kilo --model ocg/deepseek-flash
 
 # Claude and other tools in one run
-npx originrouter connect http://<server-host>:20128 --tools claude,codex --opus cc/claude-opus-5-5 --model gpt-6
+npx @origin-labs-ai/origin-router connect http://<server-host>:20128 --tools claude,codex --opus cc/claude-opus-5-5 --model gpt-6
 
 # A different model per tool: --model covers every non-Claude tool in a run, so run once per tool
-npx originrouter connect http://<server-host>:20128 --tools codex --model gpt-6
-npx originrouter connect http://<server-host>:20128 --tools opencode --model ocg/glm-5.3
+npx @origin-labs-ai/origin-router connect http://<server-host>:20128 --tools codex --model gpt-6
+npx @origin-labs-ai/origin-router connect http://<server-host>:20128 --tools opencode --model ocg/glm-5.3
 ```
 
 A model the server doesn't list is still written, with a `not listed by server` warning. To see the ids it serves: `curl http://<server-host>:20128/v1/models -H "Authorization: Bearer <your key>"`.
@@ -144,10 +143,10 @@ A model the server doesn't list is still written, with a `not listed by server` 
 `originrouter show` prints what each CLI tool on this machine is currently set to — base URL, masked API key and models. It only reads local files and never contacts a server.
 
 ```bash
-npx originrouter show                 # every supported tool
-npx originrouter show claude          # one tool
-npx originrouter show claude codex    # several
-npx originrouter show claude --json   # machine-readable (key still masked)
+npx @origin-labs-ai/origin-router show                 # every supported tool
+npx @origin-labs-ai/origin-router show claude          # one tool
+npx @origin-labs-ai/origin-router show claude codex    # several
+npx @origin-labs-ai/origin-router show claude --json   # machine-readable (key still masked)
 ```
 
 ```
@@ -200,8 +199,8 @@ Any tool supporting OpenAI/Claude-compatible API works.
 
 Full docs, advanced setup, video tutorials & development guide:
 
-- **GitHub**: https://github.com/decolua/originrouter
-- **Full README**: https://github.com/decolua/originrouter/blob/master/README.md
+- **GitHub**: https://github.com/origin-labs-ai/origin-router-suite
+- **Full README**: https://github.com/origin-labs-ai/origin-router-suite/blob/master/README.md
 - **Website**: https://originrouter.com
 
 ---

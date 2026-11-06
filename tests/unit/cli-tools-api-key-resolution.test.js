@@ -1,7 +1,7 @@
 /**
- * Tests for #4399 — CLI Tools Apply writes placeholder "sk_9router" key.
+ * Tests for #4399 — CLI Tools Apply writes placeholder "sk_originrouter" key.
  *
- * When requireApiKey=true, the written "sk_9router" caused 401 on every
+ * When requireApiKey=true, the written "sk_originrouter" caused 401 on every
  * CLI tool request. The fix: replace the literal fallback with
  * resolveCliApiKey(), which reads the first active key from the DB
  * (or returns "" if none exist — never the placeholder).
@@ -15,7 +15,7 @@ import path from "path";
 // The actual module reads from SQLite; we replicate the decision logic here.
 
 function resolveCliApiKeyLogic(callerKey, activeKeys = []) {
-  if (callerKey && callerKey.trim() && callerKey.trim() !== "sk_9router") {
+  if (callerKey && callerKey.trim() && callerKey.trim() !== "sk_originrouter") {
     return callerKey.trim();
   }
   const active = activeKeys.find((k) => k.isActive);
@@ -44,7 +44,7 @@ describe("resolveCliApiKey logic (#4399)", () => {
 
   it("falls back to first active DB key when caller is the placeholder itself", () => {
     const keys = [{ key: "sk-db-key", isActive: true }];
-    expect(resolveCliApiKeyLogic("sk_9router", keys)).toBe("sk-db-key");
+    expect(resolveCliApiKeyLogic("sk_originrouter", keys)).toBe("sk-db-key");
   });
 
   it("skips inactive keys and picks the first active one", () => {
@@ -68,9 +68,9 @@ describe("resolveCliApiKey logic (#4399)", () => {
     expect(resolveCliApiKeyLogic("  sk-real  ", [])).toBe("sk-real");
   });
 
-  it("never returns sk_9router", () => {
-    expect(resolveCliApiKeyLogic("sk_9router", [])).not.toBe("sk_9router");
-    expect(resolveCliApiKeyLogic("", [])).not.toBe("sk_9router");
+  it("never returns sk_originrouter", () => {
+    expect(resolveCliApiKeyLogic("sk_originrouter", [])).not.toBe("sk_originrouter");
+    expect(resolveCliApiKeyLogic("", [])).not.toBe("sk_originrouter");
   });
 });
 
@@ -88,10 +88,10 @@ describe("resolveApiKey.js source checks (#4399)", () => {
     expect(src).toContain("getApiKeys");
   });
 
-  it("resolveApiKey.js does not return sk_9router as a fallback value", () => {
-    // The helper may reference "sk_9router" to guard against it, but must
-    // never use it as a return / fallback value (e.g. `return "sk_9router"`).
-    expect(src).not.toMatch(/return\s+"sk_9router"/);
-    expect(src).not.toMatch(/\|\|\s*"sk_9router"/);
+  it("resolveApiKey.js does not return sk_originrouter as a fallback value", () => {
+    // The helper may reference "sk_originrouter" to guard against it, but must
+    // never use it as a return / fallback value (e.g. `return "sk_originrouter"`).
+    expect(src).not.toMatch(/return\s+"sk_originrouter"/);
+    expect(src).not.toMatch(/\|\|\s*"sk_originrouter"/);
   });
 });

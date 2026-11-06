@@ -21,6 +21,20 @@ function readInstallInfo() {
   }
 }
 
+// The portable folder ships the same marker with mode "portable". It is not an
+// installed product, so it never checks for installer updates - but the
+// launcher asks it whether to start in the system tray.
+function readPortableInfo() {
+  try {
+    const marker = path.resolve(__dirname, "..", "..", "install.json");
+    if (!fs.existsSync(marker)) return null;
+    const info = JSON.parse(fs.readFileSync(marker, "utf8"));
+    return info && info.mode === "portable" ? info : null;
+  } catch {
+    return null;
+  }
+}
+
 function normalizeVersion(value) {
   return String(value || "").trim().replace(/^v/i, "");
 }
@@ -229,6 +243,7 @@ function launchInstallerAndRestart({ installerPath, installerPaths = null, insta
 
 module.exports = {
   readInstallInfo,
+  readPortableInfo,
   normalizeVersion,
   isNewer,
   fetchLatestRelease,

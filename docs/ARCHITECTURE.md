@@ -542,7 +542,7 @@ Environment variables actively used by code:
 
 ## Known Architectural Notes
 
-1. All state lives in `${DATA_DIR}/db/data.sqlite` (default `~/.or`); legacy `~/.originrouter` / `~/.9router` locations are auto-migrated on first run.
+1. All state lives in `${DATA_DIR}/db/data.sqlite` (default `~/.or`); the folders older installs used are auto-migrated on first run.
 2. `/api/v1/route.js` returns a static model list and is not the main models source used by `/v1/models`.
 3. Request logger writes full headers/body when enabled; treat log directory as sensitive.
 4. Cloud behavior depends on correct `NEXT_PUBLIC_BASE_URL` and cloud endpoint reachability.

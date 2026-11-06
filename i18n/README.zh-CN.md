@@ -70,7 +70,7 @@
 **1. 全局安装：**
 
 ```bash
-npm install -g originrouter
+npm install -g @origin-labs-ai/origin-router
 originrouter
 ```
 

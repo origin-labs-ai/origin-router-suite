@@ -14,7 +14,7 @@ if [ "$MAJOR" -lt 18 ]; then
 fi
 
 echo "Installing OriginRouter..."
-npm install -g originrouter@latest --prefer-online
+npm install -g @origin-labs-ai/origin-router@latest --prefer-online
 
 echo
 echo "Done. Start it with:"

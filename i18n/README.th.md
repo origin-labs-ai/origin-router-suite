@@ -73,7 +73,7 @@
 **1. ติดตั้งแบบ Global:**
 
 ```bash
-npm install -g originrouter
+npm install -g @origin-labs-ai/origin-router
 originrouter
 ```
 

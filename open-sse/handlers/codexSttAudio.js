@@ -32,7 +32,7 @@ export async function readBounded(stream, limit, signal, oversizedStatus = 413) 
 }
 
 export async function convertAudio(file, signal) {
-  const directory = await mkdtemp(join(tmpdir(), "9router-codex-stt-"));
+  const directory = await mkdtemp(join(tmpdir(), "originrouter-codex-stt-"));
   try {
     const input = join(directory, "input");
     await writeFile(input, Buffer.from(await file.arrayBuffer()), { mode: 0o600 });

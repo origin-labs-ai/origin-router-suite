@@ -192,33 +192,59 @@ export async function listSources() {
 
   const router = routerInstalls[0] || null;
   const sources = [];
-  if (router) {
-    sources.push({
-      id: router.id,
-      label: router.label,
-      detail: `Found in ${router.path}`,
-      keyCount: router.keys.length,
-      available: true,
-    });
-  }
-  if (omniRoute) {
-    sources.push({
-      id: omniRoute.id,
-      label: omniRoute.label,
-      detail: `Found in ${omniRoute.path}`,
-      keyCount: omniRoute.keys.length,
-      available: true,
-    });
-  }
-  if (freeClaudeCode) {
-    sources.push({
-      id: freeClaudeCode.id,
-      label: freeClaudeCode.label,
-      detail: `Found in ${freeClaudeCode.path}`,
-      keyCount: freeClaudeCode.keys.length,
-      available: true,
-    });
-  }
+  // The wizard shows all three, whether they are on this machine or not.
+  // A missing one is greyed out, not hidden.
+  sources.push(
+    router
+      ? {
+          id: router.id,
+          label: router.label,
+          detail: `Found in ${router.path}`,
+          keyCount: router.keys.length,
+          available: true,
+        }
+      : {
+          id: "router-install",
+          label: "An existing router install",
+          detail: "No other router was found on this machine.",
+          keyCount: 0,
+          available: false,
+        }
+  );
+  sources.push(
+    omniRoute
+      ? {
+          id: omniRoute.id,
+          label: omniRoute.label,
+          detail: `Found in ${omniRoute.path}`,
+          keyCount: omniRoute.keys.length,
+          available: true,
+        }
+      : {
+          id: "omniroute",
+          label: "OmniRoute",
+          detail: "Not installed on this machine.",
+          keyCount: 0,
+          available: false,
+        }
+  );
+  sources.push(
+    freeClaudeCode
+      ? {
+          id: freeClaudeCode.id,
+          label: freeClaudeCode.label,
+          detail: `Found in ${freeClaudeCode.path}`,
+          keyCount: freeClaudeCode.keys.length,
+          available: true,
+        }
+      : {
+          id: "free-claude-code",
+          label: "Free Claude Code",
+          detail: "Not installed on this machine.",
+          keyCount: 0,
+          available: false,
+        }
+  );
   return { sources, candidates: { routerInstalls, omniRoute, freeClaudeCode } };
 }
 

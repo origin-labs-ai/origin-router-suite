@@ -353,7 +353,7 @@ describe("Custom-model transport persistence via POST /api/models/custom", () =>
   beforeEach(() => {
     // paths.js freezes DATA_DIR at module load — re-evaluate the db chain per test
     vi.resetModules();
-    tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "9router-gemini-live-"));
+    tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "originrouter-gemini-live-"));
     process.env.DATA_DIR = tempDir;
     delete global._dbAdapter;
   });

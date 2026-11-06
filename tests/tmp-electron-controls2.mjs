@@ -3,7 +3,7 @@ import { chromium } from "playwright-core";
 
 const APP_PID = Number(process.argv[2] || 27412);
 const PS = "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe";
-const stateScript = "C:\\Users\\thaku\\Workspaces\\9router\\tests\\window-state.ps1";
+const stateScript = "C:\\Users\\thaku\\Workspaces\\originrouter\\tests\\window-state.ps1";
 const state = (action = "state") => JSON.parse(execFileSync(PS, [
   "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", stateScript,
   "-ProcessId", String(APP_PID), "-Action", action,
@@ -56,7 +56,7 @@ const hover = {
   close: await read(size.w - 23, ".or-titlebar-btn:nth-child(3)"),
 };
 
-await page.screenshot({ path: "C:\\Users\\thaku\\Workspaces\\9router\\tests\\proof-electron-controls.png", timeout: 30000 });
+await page.screenshot({ path: "C:\\Users\\thaku\\Workspaces\\originrouter\\tests\\proof-electron-controls.png", timeout: 30000 });
 console.log(JSON.stringify({ ui, states: { before, minimized, restored, maximized, normalAgain }, hover }, null, 2));
 
 // Close button: the app should exit.

@@ -9,7 +9,7 @@ Pon en marcha OriginRouter en 5 minutos y comienza a enrutar solicitudes de IA d
 ### 1. Instalar
 
 ```bash
-npm install -g originrouter
+npm install -g @origin-labs-ai/origin-router
 ```
 
 **Requisitos:** Node.js 20+ ([Detalles de instalación](getting-started/installation.md))

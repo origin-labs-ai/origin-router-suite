@@ -212,7 +212,7 @@ function buildCliPackage() {
         LOCALAPPDATA: path.join(buildHomeDir, "AppData", "Local"),
         NEXT_DIST_DIR: buildDistDirName,
         // Keep tracing at the project root. The previous "workspace" mode put
-        // the standalone bundle under standalone/9router and copied unrelated
+        // the standalone bundle under standalone/originrouter and copied unrelated
         // project folders (cli/, dist/, .devdata/) into the release.
         NEXT_TRACING_ROOT_MODE: "project",
       }

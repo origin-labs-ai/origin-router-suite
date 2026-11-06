@@ -9,7 +9,7 @@
 npm経由でOriginRouterをグローバルインストール:
 
 ```bash
-npm install -g originrouter
+npm install -g @origin-labs-ai/origin-router
 ```
 
 **要件:**
@@ -113,7 +113,7 @@ kill -9 <PID>
 
 ```bash
 # sudoを使用 (非推奨)
-sudo npm install -g originrouter
+sudo npm install -g @origin-labs-ai/origin-router
 
 # またはnpm権限を修正 (推奨)
 mkdir ~/.npm-global

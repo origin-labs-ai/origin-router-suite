@@ -341,8 +341,8 @@ describe("Cursor long-session empty-turn recovery", () => {
     expect(trimmed[1].content).toContain("94 messages trimmed");
     expect(trimmed[2].content).toBe("final ask");
 
-    // Idempotent: prior [9router] notes are stripped on re-trim.
+    // Idempotent: prior [originrouter] notes are stripped on re-trim.
     const again = tailOnlyCursorMessages(trimmed);
-    expect(again.filter((m) => String(m.content).includes("[9router]"))).toHaveLength(1);
+    expect(again.filter((m) => String(m.content).includes("[originrouter]"))).toHaveLength(1);
   });
 });

@@ -197,7 +197,7 @@ Consulta la [guía de integración de Cursor](integration/cursor.md) para detall
 
 ### Localhost (Por defecto)
 ```bash
-npm install -g originrouter
+npm install -g @origin-labs-ai/origin-router
 originrouter
 → Dashboard: http://localhost:3000
 → API: http://localhost:20128/v1

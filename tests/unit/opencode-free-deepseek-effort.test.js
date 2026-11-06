@@ -10,7 +10,7 @@ import { translateRequest } from "../../open-sse/translator/index.js";
 // oc/deepseek-v4.1-flash-free (OpenCode Zen free lane) serves exactly low|high|max.
 // The generic *deepseek-v4.* declarations (medium/xhigh) do not apply, and the
 // DeepSeek-API low/medium→high collapse must not swallow "low" — otherwise the
-// model's low tier is unreachable from 9router.
+// model's low tier is unreachable from originrouter.
 const MODEL = "deepseek-v4.1-flash-free";
 const PROVIDER = "opencode";
 const LEVELS = ["low", "high", "max"];

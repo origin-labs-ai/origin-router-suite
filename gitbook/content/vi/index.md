@@ -105,7 +105,7 @@ Bắt đầu trong 2 phút:
 
 ```bash
 # Install globally
-npm install -g originrouter
+npm install -g @origin-labs-ai/origin-router
 
 # Start (dashboard opens automatically)
 originrouter

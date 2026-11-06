@@ -1,7 +1,7 @@
 // Agent Skills metadata — single source of truth for /dashboard/skills page.
 // Each skill = 1 raw GitHub URL the user copies and pastes to any AI agent.
 
-const REPO = "decolua/originrouter";
+const REPO = "origin-labs-ai/origin-router-suite";
 const BRANCH = "master";
 const SKILL_PATH = "skills";
 

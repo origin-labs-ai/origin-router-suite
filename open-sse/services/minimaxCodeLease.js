@@ -10,7 +10,7 @@
 // app; it owns token refresh. We never read or write credential files — only
 // the broker-published capability file and the pipe itself.
 //
-// Lease mode lets a 9router connection ride the desktop app's sign-in instead
+// Lease mode lets a originrouter connection ride the desktop app's sign-in instead
 // of holding its own refresh token — MiniMax refresh tokens are single-use, so
 // borrowing (rather than owning) means the router and the official CLI/desktop
 // app can share an account without invalidating each other.

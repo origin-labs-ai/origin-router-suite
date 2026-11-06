@@ -15,7 +15,7 @@ let tempDir;
 let db;
 
 beforeAll(async () => {
-  tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "9router-concurrent-"));
+  tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "originrouter-concurrent-"));
   process.env.DATA_DIR = tempDir;
   vi.resetModules();
   db = await import("@/lib/db/index.js");

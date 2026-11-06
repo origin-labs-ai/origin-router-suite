@@ -34,7 +34,7 @@ npm --version
 Cài OriginRouter toàn cục để dùng ở bất kỳ đâu:
 
 ```bash
-npm install -g originrouter
+npm install -g @origin-labs-ai/origin-router
 ```
 
 **Khởi động OriginRouter:**
@@ -61,7 +61,7 @@ npm install originrouter
 **Khởi động OriginRouter:**
 
 ```bash
-npx originrouter
+npx @origin-labs-ai/origin-router
 ```
 
 **Lợi ích:**
@@ -282,7 +282,7 @@ echo 'export PATH=~/.npm-global/bin:$PATH' >> ~/.bashrc
 source ~/.bashrc
 
 # Then install again
-npm install -g originrouter
+npm install -g @origin-labs-ai/origin-router
 ```
 
 ### Node.js Phiên bản quá cũ
@@ -371,7 +371,7 @@ pm2 save
 ### Phát triển cục bộ
 
 ```bash
-npm install -g originrouter
+npm install -g @origin-labs-ai/origin-router
 originrouter
 ```
 
@@ -381,7 +381,7 @@ originrouter
 
 ```bash
 # Install
-npm install -g originrouter
+npm install -g @origin-labs-ai/origin-router
 
 # Configure
 export JWT_SECRET="your-secure-secret"

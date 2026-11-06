@@ -9,7 +9,7 @@ OriginRouterを5分で起動し、AIリクエストをインテリジェント�
 ### 1. インストール
 
 ```bash
-npm install -g originrouter
+npm install -g @origin-labs-ai/origin-router
 ```
 
 **要件:** Node.js 20+ ([インストール詳細](getting-started/installation.md))

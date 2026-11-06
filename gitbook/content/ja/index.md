@@ -105,7 +105,7 @@ MiniMax経由で200万: $0.40
 
 ```bash
 # グローバルインストール
-npm install -g originrouter
+npm install -g @origin-labs-ai/origin-router
 
 # 起動(ダッシュボードが自動で開きます)
 originrouter

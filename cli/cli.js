@@ -83,7 +83,7 @@ if (args[0] === "xai" && args[1] === "video") {
 
 // `originrouter connect <url>` configures local CLI tools against a remote server, and
 // `originrouter show` prints what they're currently set to — no local server, no
-// runtime deps. Usable via `npx originrouter …`.
+// runtime deps. Usable via `npx @origin-labs-ai/origin-router …`.
 if (args[0] === "connect" || args[0] === "show") {
   const { run } = require(args[0] === "show" ? "./src/cli/commands/show" : "./src/cli/commands/connect");
   run(args.slice(1))
@@ -181,7 +181,7 @@ Options:
 
 Commands:
   connect <server-url> Configure Claude Code for a remote originrouter server
-                      (npx originrouter connect http://host:20128 — no install needed)
+                      (npx @origin-labs-ai/origin-router connect http://host:20128 — no install needed)
   show [tool…]        Show each CLI tool's current originrouter config and models
                       (e.g. originrouter show claude)
   xai video --prompt "..." --output video.mp4
@@ -199,6 +199,20 @@ Commands:
 if (skipUpdate && !trayMode && !process.stdin.isTTY) {
   trayMode = true;
   process.env.TRAY_MODE = "1";
+}
+
+// The portable build has no installer to ask "start in the system tray?", so
+// it asks once itself and remembers the answer.
+if (!trayMode && !process.env.TRAY_MODE) {
+  const portable = updater.readPortableInfo();
+  if (portable) {
+    const preference = require("./src/cli/trayPrompt").resolveTrayPreference();
+    if (preference === true) {
+      trayMode = true;
+      process.env.TRAY_MODE = "1";
+      console.log("Minimized to the system tray. Run `originrouter show` for status.");
+    }
+  }
 }
 
 // Always use Node.js runtime with absolute path

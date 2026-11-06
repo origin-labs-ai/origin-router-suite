@@ -9,7 +9,7 @@
 通过 npm 全局安装 OriginRouter:
 
 ```bash
-npm install -g originrouter
+npm install -g @origin-labs-ai/origin-router
 ```
 
 **要求:**
@@ -113,7 +113,7 @@ kill -9 <PID>
 
 ```bash
 # 使用 sudo(不推荐)
-sudo npm install -g originrouter
+sudo npm install -g @origin-labs-ai/origin-router
 
 # 或修复 npm 权限(推荐)
 mkdir ~/.npm-global

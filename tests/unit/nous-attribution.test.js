@@ -8,7 +8,7 @@ const provider = "openai-compatible-chat-nous-test";
 const model = "stepfun/step-5-preview:free";
 const baseUrl = "https://inference-api.nousresearch.com/v1";
 const credentials = { apiKey: "private-test-key", providerSpecificData: { baseUrl, apiType: "chat" } };
-const expectedTags = ["product=9router", "client=9router", "user=9router"];
+const expectedTags = ["product=originrouter", "client=originrouter", "user=originrouter"];
 const body = () => ({ model, messages: [{ role: "user", content: "hello" }] });
 
 describe("Nous API-key attribution", () => {
@@ -35,7 +35,7 @@ describe("Nous API-key attribution", () => {
     const original = { ...body(), tags: ["product=my-app", "user=", "client= ", "custom=value"] };
     const transformed = new DefaultExecutor(provider).transformRequest(model, original, false, credentials);
 
-    expect(transformed.tags).toEqual(["product=my-app", "custom=value", "client=9router", "user=9router"]);
+    expect(transformed.tags).toEqual(["product=my-app", "custom=value", "client=originrouter", "user=originrouter"]);
     expect(original.tags).toEqual(["product=my-app", "user=", "client= ", "custom=value"]);
   });
 

@@ -9,14 +9,14 @@ The installer build carries `install.json` next to `cli.js`:
   "mode": "installer",
   "name": "origin-router",
   "version": "0.5.115",
-  "updateRepo": "origin-labs-ai/origin-router-suite"
+  "updateRepo": "origin-labs-ai/origin-router"
 }
 ```
 
 At startup the launcher asks that repository's release feed:
 
 ```text
-https://api.github.com/repos/origin-labs-ai/origin-router-suite/releases/latest
+https://api.github.com/repos/origin-labs-ai/origin-router/releases/latest
 ```
 
 When `tag_name` is newer than the installed version and the release carries
@@ -48,7 +48,7 @@ answer permanently "unknown" while the sidebar still offered `npm i -g` as the f
 |---|---|
 | `OriginRouter-Setup-<version>.exe` + `.sha256` | gateway + dashboard installer (Inno Setup) |
 | `OriginRouter-Desktop-Setup-<version>.exe` + `.sha256` | desktop window installer (electron-builder unpacked dir, then Inno) |
-| `originrouter-<version>.tgz` | CLI launcher package (`npm pack`, npm name `originrouter`) |
+| `origin-router-<version>.tgz` | CLI launcher package (`npm pack`, npm name `originrouter`) |
 | `checksums.sha256` | aggregate digests of all three |
 
 Version numbers must match across root, `cli/` and `desktop/` `package.json` — the Docker

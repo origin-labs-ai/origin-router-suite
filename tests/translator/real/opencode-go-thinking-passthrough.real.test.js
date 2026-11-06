@@ -2,7 +2,7 @@
 //
 // Question under test: does the /responses endpoint have the same "cc problem"
 // as /messages — i.e. DeepSeek rejects a follow-up turn whose assistant history
-// lacks reasoning content, because 9router does not inject a placeholder on that
+// lacks reasoning content, because originrouter does not inject a placeholder on that
 // path (injectReasoningContent only rewrites body.messages, not the responses
 // `input` array)?
 //
@@ -158,7 +158,7 @@ describe.skipIf(!RUN_REAL)(`REAL opencode-go thinking pass-back (${PROVIDER}/${M
     if (!t1.ok) { console.warn(`[skip] turn1 failed ${t1.status}: ${t1.raw}`); return expect(true).toBe(true); }
     console.log(`[responses stream turn1] bytes=${t1.raw.length} marker=${/response\.|"type":"response/.test(t1.raw)}`);
 
-    // Client replays the assistant turn WITHOUT any reasoning content (9router does
+    // Client replays the assistant turn WITHOUT any reasoning content (originrouter does
     // not inject reasoning_content on the input[] path).
     const turn2Body = {
       stream: true,

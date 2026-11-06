@@ -105,7 +105,7 @@ Get started in 2 minutes:
 
 ```bash
 # Install globally
-npm install -g originrouter
+npm install -g @origin-labs-ai/origin-router
 
 # Start (dashboard opens automatically)
 originrouter

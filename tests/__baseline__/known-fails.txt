@@ -19,10 +19,10 @@ tests/unit/translator-request-normalization.test.js :: request normalization par
 tests/unit/translator-request-normalization.test.js :: request normalization translateRequest keeps /v1/messages Claude->OpenAI text payloads string-safe
 
 # Real bug: /api/usage/stats serializes raw API keys as byApiKey property names (GHSA-vjc7).
-# Fixed by decolua/9router#4286.
+# Fixed upstream (#4286).
 tests/unit/security-audit.test.js :: AUDIT-002: API key masking byApiKey object keys should use masked key, not raw key
 
-# Stale expectations fixed by decolua/9router#3665 (search auto-switch disabled on purpose;
+# Stale expectations fixed upstream (#3665) (search auto-switch disabled on purpose;
 # reorder returns a copy).
 tests/unit/combo-autoswitch.test.js :: detectRequiredCapabilities web_search tool -> search
 tests/unit/combo-autoswitch.test.js :: reorderByCapabilities keeps order when no model matches

@@ -64,7 +64,7 @@ export async function transcribeCodex({ formData, credentials, signal: clientSig
     active++; slot = true;
     signal.throwIfAborted();
     const audio = await convertAudio(file, signal);
-    const boundary = `----9router-codex-${randomUUID()}`;
+    const boundary = `----originrouter-codex-${randomUUID()}`;
     const body = Buffer.concat([
       Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="audio.wav"\r\nContent-Type: audio/wav\r\n\r\n`),
       Buffer.from(await audio.arrayBuffer()), Buffer.from(`\r\n--${boundary}--\r\n`),

@@ -34,7 +34,7 @@ npm --version
 全局安装,任何位置都能使用:
 
 ```bash
-npm install -g originrouter
+npm install -g @origin-labs-ai/origin-router
 ```
 
 **启动 OriginRouter:**
@@ -61,7 +61,7 @@ npm install originrouter
 **启动 OriginRouter:**
 
 ```bash
-npx originrouter
+npx @origin-labs-ai/origin-router
 ```
 
 **优势:**
@@ -282,7 +282,7 @@ echo 'export PATH=~/.npm-global/bin:$PATH' >> ~/.bashrc
 source ~/.bashrc
 
 # 然后重新安装
-npm install -g originrouter
+npm install -g @origin-labs-ai/origin-router
 ```
 
 ### Node.js 版本过低
@@ -371,7 +371,7 @@ pm2 save
 ### 本地开发
 
 ```bash
-npm install -g originrouter
+npm install -g @origin-labs-ai/origin-router
 originrouter
 ```
 
@@ -381,7 +381,7 @@ originrouter
 
 ```bash
 # 安装
-npm install -g originrouter
+npm install -g @origin-labs-ai/origin-router
 
 # 配置
 export JWT_SECRET="your-secure-secret"

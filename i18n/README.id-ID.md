@@ -67,7 +67,7 @@ Hasil: ngoding tanpa berhenti, biaya minimum
 **1. Install secara global:**
 
 ```bash
-npm install -g originrouter
+npm install -g @origin-labs-ai/origin-router
 originrouter
 ```
 
@@ -885,7 +885,7 @@ Dashboard: `http://localhost:20128/dashboard`
 <summary><b>VPS / Cloud</b></summary>
 
 ```bash
-npm install -g originrouter
+npm install -g @origin-labs-ai/origin-router
 PORT=20128 HOSTNAME=0.0.0.0 BASE_URL=https://your-domain.com originrouter
 ```
 

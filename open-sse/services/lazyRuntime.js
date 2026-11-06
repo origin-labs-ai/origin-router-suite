@@ -43,7 +43,7 @@ function npmInstall(pkg, version) {
   // Anchor npm to the runtime dir so it can't adopt a parent package.json as install root.
   const manifest = path.join(cwd, "package.json");
   if (!fs.existsSync(manifest)) {
-    fs.writeFileSync(manifest, JSON.stringify({ name: "9router-runtime", private: true }, null, 2));
+    fs.writeFileSync(manifest, JSON.stringify({ name: "originrouter-runtime", private: true }, null, 2));
   }
   const npm = process.platform === "win32" ? "npm.cmd" : "npm";
   const args = ["install", "--no-audit", "--no-fund", "--prefer-online", `${pkg}@${version}`];

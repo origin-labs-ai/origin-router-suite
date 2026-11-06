@@ -72,7 +72,7 @@
 **۱. نصب سراسری:**
 
 ```bash
-npm install -g originrouter
+npm install -g @origin-labs-ai/origin-router
 originrouter
 ```
 

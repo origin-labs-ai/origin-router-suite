@@ -8,7 +8,7 @@ import { createRequire } from "module";
 export const NOUS_ATTRIBUTION = {
   hostname: "inference-api.nousresearch.com",
   chatCompletionsPath: "/v1/chat/completions",
-  tags: ["product=9router", "client=9router", "user=9router"],
+  tags: ["product=originrouter", "client=originrouter", "user=originrouter"],
 };
 
 // === Gemini CLI === derive từ registry gemini-cli.transport
@@ -244,7 +244,9 @@ export function buildKimiHeaders(deviceId) {
     : `kimi-${Date.now()}`;
 
   return {
-    "X-Msh-Platform": "9router",
+    // Wire protocol: the upstream value is what this endpoint expects. Branding
+    // changes here break the lane.
+    "X-Msh-Platform": "originrouter",
     "X-Msh-Version": getAppPackageVersion(),
     "X-Msh-Device-Name": deviceName,
     "X-Msh-Device-Model": deviceModel,

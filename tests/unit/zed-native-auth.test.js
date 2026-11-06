@@ -1,6 +1,6 @@
 // Acceptance suite for the Zed native-app auth fix.
 // Self-isolating: DATA_DIR points at a temp dir before the DB layer loads,
-// so criterion 3's connection save never reaches the real ~/.9router DB.
+// so criterion 3's connection save never reaches the real database.
 //
 // Covers criteria:
 //   1. Zed proxy starts
@@ -29,7 +29,7 @@ let generateAuthData, exchangeTokens;
 // Importing the OAuth + DB module graph after vi.resetModules() exceeds the 10s default
 // hook timeout under full-suite load (it passes in isolation), so allow 30s.
 beforeAll(async () => {
-  process.env.DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "9router-zed-auth-"));
+  process.env.DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "originrouter-zed-auth-"));
   vi.resetModules();
   ({ startZedProxy, stopZedProxy, registerZedSession, getZedSessionStatus, clearZedSession } =
     await import("@/lib/oauth/utils/server.js"));

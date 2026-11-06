@@ -10,7 +10,7 @@
  * `unknown parameter `reasoning_effort``).
  *
  * Repro model: muse/muse-spark-1.3-contributor(xhigh)
- * Ref: https://github.com/decolua/9router/pull/3757
+ * Ref: upstream PR #3757
  */
 import { describe, expect, it } from "vitest";
 

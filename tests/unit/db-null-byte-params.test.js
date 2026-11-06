@@ -23,7 +23,7 @@ let tempDir;
 const originalDataDir = process.env.DATA_DIR;
 
 beforeEach(() => {
-  tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "9router-nul-"));
+  tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "originrouter-nul-"));
   process.env.DATA_DIR = tempDir;
   delete global._dbAdapter;
   // driver.js captures the shared state object at module load, so the module

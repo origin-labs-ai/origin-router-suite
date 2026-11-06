@@ -67,6 +67,23 @@ Root: HKCU; Subkey: "Environment"; ValueType: expandsz; ValueName: "Path"; Value
 Filename: "{app}\{#AppExe}"; Description: "Launch {#AppName}"; Flags: nowait postinstall skipifsilent
 
 [Code]
+procedure CurStepChanged(CurStep: TSetupStep);
+var
+  Marker: String;
+begin
+  if CurStep = ssPostInstall then
+  begin
+    { The packaged folder is marked "portable", so the launcher knows it has no
+      uninstaller and asks whether to start in the system tray. An installed
+      copy is not portable - it has an uninstaller, an autostart entry and
+      installer updates - so the marker is rewritten here. }
+    Marker := ExpandConstant('{app}\install.json');
+    SaveStringToFile(Marker,
+      '{"mode":"installer","name":"@origin-labs-ai/origin-router","version":"' + '{#AppVersion}' +
+      '","updateRepo":"origin-labs-ai/origin-router-suite"}', False);
+  end;
+end;
+
 function NeedsAddPath(Param: string): Boolean;
 var
   OrigPath: string;

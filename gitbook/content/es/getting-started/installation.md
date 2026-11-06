@@ -34,7 +34,7 @@ npm --version
 Instala OriginRouter globalmente para usar desde cualquier lugar:
 
 ```bash
-npm install -g originrouter
+npm install -g @origin-labs-ai/origin-router
 ```
 
 **Iniciar OriginRouter:**
@@ -61,7 +61,7 @@ npm install originrouter
 **Iniciar OriginRouter:**
 
 ```bash
-npx originrouter
+npx @origin-labs-ai/origin-router
 ```
 
 **Beneficios:**
@@ -282,7 +282,7 @@ echo 'export PATH=~/.npm-global/bin:$PATH' >> ~/.bashrc
 source ~/.bashrc
 
 # Luego instalar nuevamente
-npm install -g originrouter
+npm install -g @origin-labs-ai/origin-router
 ```
 
 ### Versión de Node.js muy antigua
@@ -371,7 +371,7 @@ pm2 save
 ### Desarrollo local
 
 ```bash
-npm install -g originrouter
+npm install -g @origin-labs-ai/origin-router
 originrouter
 ```
 
@@ -381,7 +381,7 @@ originrouter
 
 ```bash
 # Instalar
-npm install -g originrouter
+npm install -g @origin-labs-ai/origin-router
 
 # Configurar
 export JWT_SECRET="your-secure-secret"

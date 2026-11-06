@@ -22,7 +22,7 @@ function request(method, url, body) {
 }
 
 async function createAwsConnection(provider) {
-  const response = await createConnection(request("POST", "https://9router.local/api/providers", {
+  const response = await createConnection(request("POST", "https://originrouter.local/api/providers", {
     provider,
     name: `${provider} test connection`,
     apiKey: "secret-access-key",
@@ -38,7 +38,7 @@ async function createAwsConnection(provider) {
 
 describe("Bedrock connection API secrets", () => {
   beforeEach(async () => {
-    tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "9router-bedrock-api-secrets-"));
+    tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "originrouter-bedrock-api-secrets-"));
     process.env.DATA_DIR = tempDir;
     delete global._dbAdapter;
     vi.resetModules();
@@ -78,11 +78,11 @@ describe("Bedrock connection API secrets", () => {
 
       const listed = await listConnections();
       const detail = await getConnection(
-        new Request(`https://9router.local/api/providers/${id}`),
+        new Request(`https://originrouter.local/api/providers/${id}`),
         { params: Promise.resolve({ id }) },
       );
       const updated = await updateConnection(
-        request("PUT", `https://9router.local/api/providers/${id}`, { name: "Renamed connection" }),
+        request("PUT", `https://originrouter.local/api/providers/${id}`, { name: "Renamed connection" }),
         { params: Promise.resolve({ id }) },
       );
 
@@ -102,7 +102,7 @@ describe("Bedrock connection API secrets", () => {
     const id = created.body.connection.id;
 
     const updated = await updateConnection(
-      request("PUT", `https://9router.local/api/providers/${id}`, {
+      request("PUT", `https://originrouter.local/api/providers/${id}`, {
         providerSpecificData: {
           region: "us-west-2",
           sessionToken: "",
@@ -122,7 +122,7 @@ describe("Bedrock connection API secrets", () => {
     const id = created.body.connection.id;
 
     const updated = await updateConnection(
-      request("PUT", `https://9router.local/api/providers/${id}`, {
+      request("PUT", `https://originrouter.local/api/providers/${id}`, {
         providerSpecificData: { sessionToken: null },
       }),
       { params: Promise.resolve({ id }) },

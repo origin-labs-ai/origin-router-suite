@@ -1,6 +1,6 @@
 // ChatGPT Web attachment extraction + resolution.
 //
-// 9router variant: data-URL sources only — remote URL fetching is not
+// originrouter variant: data-URL sources only — remote URL fetching is not
 // forwarded (the caller can inline remote media as data URLs upstream).
 // Images are sniffed for format + dimensions before upload.
 

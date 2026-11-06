@@ -17,7 +17,7 @@ export default function Footer() {
               The unified endpoint for AI generation. Connect, route, and manage your AI providers with ease.
             </p>
             <div className="flex gap-4">
-              <a className="text-gray-400 hover:text-white transition-colors" href="https://github.com/decolua/originrouter" target="_blank" rel="noopener noreferrer">
+              <a className="text-gray-400 hover:text-white transition-colors" href="https://github.com/origin-labs-ai/origin-router-suite" target="_blank" rel="noopener noreferrer">
                 <span className="material-symbols-outlined">code</span>
               </a>
             </div>
@@ -28,30 +28,30 @@ export default function Footer() {
             <h4 className="font-bold text-white">Product</h4>
             <a className="text-gray-400 hover:text-[#2B7FFF] text-sm transition-colors" href="#features">Features</a>
             <a className="text-gray-400 hover:text-[#2B7FFF] text-sm transition-colors" href="/dashboard">Dashboard</a>
-            <a className="text-gray-400 hover:text-[#2B7FFF] text-sm transition-colors" href="https://github.com/decolua/originrouter" target="_blank" rel="noopener noreferrer">Changelog</a>
+            <a className="text-gray-400 hover:text-[#2B7FFF] text-sm transition-colors" href="https://github.com/origin-labs-ai/origin-router-suite" target="_blank" rel="noopener noreferrer">Changelog</a>
           </div>
           
           {/* Resources */}
           <div className="flex flex-col gap-4">
             <h4 className="font-bold text-white">Resources</h4>
-            <a className="text-gray-400 hover:text-[#2B7FFF] text-sm transition-colors" href="https://github.com/decolua/originrouter#readme" target="_blank" rel="noopener noreferrer">Documentation</a>
-            <a className="text-gray-400 hover:text-[#2B7FFF] text-sm transition-colors" href="https://github.com/decolua/originrouter" target="_blank" rel="noopener noreferrer">GitHub</a>
-            <a className="text-gray-400 hover:text-[#2B7FFF] text-sm transition-colors" href="https://www.npmjs.com/package/originrouter" target="_blank" rel="noopener noreferrer">NPM</a>
+            <a className="text-gray-400 hover:text-[#2B7FFF] text-sm transition-colors" href="https://github.com/origin-labs-ai/origin-router-suite#readme" target="_blank" rel="noopener noreferrer">Documentation</a>
+            <a className="text-gray-400 hover:text-[#2B7FFF] text-sm transition-colors" href="https://github.com/origin-labs-ai/origin-router-suite" target="_blank" rel="noopener noreferrer">GitHub</a>
+            <a className="text-gray-400 hover:text-[#2B7FFF] text-sm transition-colors" href="https://www.npmjs.com/package/@origin-labs-ai/origin-router" target="_blank" rel="noopener noreferrer">NPM</a>
           </div>
           
           {/* Legal */}
           <div className="flex flex-col gap-4">
             <h4 className="font-bold text-white">Legal</h4>
-            <a className="text-gray-400 hover:text-[#2B7FFF] text-sm transition-colors" href="https://github.com/decolua/originrouter/blob/main/LICENSE" target="_blank" rel="noopener noreferrer">MIT License</a>
+            <a className="text-gray-400 hover:text-[#2B7FFF] text-sm transition-colors" href="https://github.com/origin-labs-ai/origin-router-suite/blob/main/LICENSE" target="_blank" rel="noopener noreferrer">MIT License</a>
           </div>
         </div>
         
         {/* Bottom */}
         <div className="border-t border-[#3a3a3a] pt-8 flex flex-col md:flex-row justify-between items-center gap-4">
-          <p className="text-gray-600 text-sm">© 2025 OriginRouter. All rights reserved.</p>
+          <p className="text-gray-600 text-sm">© 2026 OriginRouter. All rights reserved.</p>
           <div className="flex gap-6">
-            <a className="text-gray-600 hover:text-white text-sm transition-colors" href="https://github.com/decolua/originrouter" target="_blank" rel="noopener noreferrer">GitHub</a>
-            <a className="text-gray-600 hover:text-white text-sm transition-colors" href="https://www.npmjs.com/package/originrouter" target="_blank" rel="noopener noreferrer">NPM</a>
+            <a className="text-gray-600 hover:text-white text-sm transition-colors" href="https://github.com/origin-labs-ai/origin-router-suite" target="_blank" rel="noopener noreferrer">GitHub</a>
+            <a className="text-gray-600 hover:text-white text-sm transition-colors" href="https://www.npmjs.com/package/@origin-labs-ai/origin-router" target="_blank" rel="noopener noreferrer">NPM</a>
           </div>
         </div>
       </div>

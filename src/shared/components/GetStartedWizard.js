@@ -257,7 +257,7 @@ export default function GetStartedWizard({
     setStepIndex((index) => Math.max(index - 1, 0));
   }, []);
 
-  // "Skip setup" leaves the whole wizard; "Skip this" only the current step.
+  // "Skip setup" leaves the whole wizard; "Skip this step" only the current one.
   const skipEverything = useCallback(() => {
     setStepIndex(steps.length - 1);
     setNotice("Setup skipped. You can run it again any time from the dashboard.");
@@ -1185,7 +1185,7 @@ export default function GetStartedWizard({
             disabled={isLast}
             className="text-xs text-text-muted underline-offset-2 transition-colors hover:text-text hover:underline disabled:opacity-40"
           >
-            Skip this
+            Skip this step
           </button>
           <button
             type="button"

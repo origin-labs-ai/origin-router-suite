@@ -20,11 +20,27 @@ import { spawnSync } from "node:child_process";
 function copyTree(src, dest) {
   const robocopy = path.join(process.env.SystemRoot || "C:\\Windows", "System32", "Robocopy.exe");
   const startedAt = Date.now();
-  if (process.platform !== "win32" || !fs.existsSync(robocopy)) {
-    fs.cpSync(src, dest, { recursive: true });
+
+  // Node's own copy is the fast path. Measured on the Windows runner: 22
+  // minutes for this tree with fs.cpSync, and 118 minutes with robocopy for
+  // the same tree - robocopy is five times slower here. It also fails on
+  // paths past the 260-character limit, which is why the workflow runs the
+  // copy from a substituted drive: W:\cli\app is short enough for every file
+  // in it.
+  if (process.platform === "win32") {
+    try {
+      fs.cpSync(src, dest, { recursive: true, force: true, verbatimSymlinks: true });
+      console.log(`copied ${src} -> ${dest} in ${((Date.now() - startedAt) / 1000).toFixed(1)}s`);
+      return undefined;
+    } catch (error) {
+      console.log(`node copy failed (${error.code || error.message}) - falling back to robocopy`);
+    }
+  } else {
+    fs.cpSync(src, dest, { recursive: true, force: true, verbatimSymlinks: true });
     console.log(`copied ${src} -> ${dest} in ${((Date.now() - startedAt) / 1000).toFixed(1)}s`);
     return undefined;
   }
+
   const result = spawnSync(
     robocopy,
     // /COPY:DT and /DCOPY:T skip the attribute and directory-timestamp work:

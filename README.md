@@ -8,7 +8,7 @@
   Route across **90+ providers** from a single local port, fall back before an upstream error ever reaches your code, and cut **60-90%** of tool-output tokens.
 
   <p>
-    <a href="#-quick-start"><b>Quick Start</b></a> •
+    <a href="#-install"><b>Install</b></a> •
     <a href="#-the-routing-brain"><b>The Brain</b></a> •
     <a href="#-combos"><b>Combos</b></a> •
     <a href="#-token-saver"><b>Token Saver</b></a> •
@@ -34,29 +34,102 @@ Point Claude Code, Cursor, Codex, Cline, Gemini CLI, OpenCode, Copilot, Antigrav
 
 ---
 
-## 🚀 Quick Start
+## 📦 Install
 
-**Windows** — one line, no Node required:
+Pick the shape that fits the machine. Every path ends the same way: the dashboard on **http://localhost:20128/dashboard**, your keys in `~/.or`, and nothing leaving the box.
+
+### Windows — installer (recommended)
 
 ```powershell
 irm https://raw.githubusercontent.com/origin-labs-ai/origin-router-suite/main/install.ps1 | iex
 ```
 
-**Anywhere with Node 18+:**
+- Lands in `%LOCALAPPDATA%\Programs\OriginRouter` — **no admin rights needed** (the installer runs with the lowest privileges it can).
+- Adds a **startup entry** (`%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup\originrouter.vbs`), so the gateway is up before your first tool call.
+- Adds the **system tray** icon: open the dashboard, open the gateway console, open the brain console, restart the brain, check for updates, hide.
+- If the npm package is not reachable, the script falls back to the release installer from GitHub.
+- Remove it later through *Apps → Installed apps → OriginRouter*.
+
+Prefer a manual download? Grab **`OriginRouter-Setup-<version>.exe`** from the [releases page](https://github.com/origin-labs-ai/origin-router-suite/releases/latest).
+
+### Windows / macOS / Linux — portable zip (beta)
+
+| Platform | Asset | Run it with |
+|---|---|---|
+| Windows | `OriginRouter-win-portable.zip` | `originrouter.cmd` |
+| macOS | `OriginRouter-mac-portable.zip` | `./originrouter` |
+| Linux | `OriginRouter-linux-portable.zip` | `./originrouter` |
+
+Unzip anywhere and run the launcher. No installer, no admin rights, no registry — and it can live on a USB stick.
+
+**First run asks one question: start in the system tray, or stay in the foreground?** The answer is remembered. A portable build has no installer task that could ask it, so it asks itself.
+
+### Any platform with Node 18+
+
+```bash
+npm install -g @origin-labs-ai/origin-router
+originrouter
+```
+
+Or run it without installing anything:
 
 ```bash
 npx @origin-labs-ai/origin-router
 ```
 
-**Docker:**
+The launcher installs a portable copy of the gateway, warms the SQLite runtime offline, writes `~/.or/install.json`, and starts the gateway on **20128**.
+
+### Docker
 
 ```bash
-docker run -d -p 20128:20128 --name origin-router \
+docker run -d --name origin-router \
+  -p 20128:20128 \
   -v origin-router-data:/app/data \
+  -e DATA_DIR=/app/data \
   ghcr.io/origin-labs-ai/origin-router:latest
 ```
 
-Then open **http://localhost:20128/dashboard**, connect a provider, and point your tool at the endpoint.
+```yaml
+# docker-compose.yml
+services:
+  origin-router:
+    image: ghcr.io/origin-labs-ai/origin-router:latest
+    container_name: origin-router
+    restart: unless-stopped
+    ports: ["20128:20128"]
+    volumes: ["./data:/app/data"]
+    environment:
+      DATA_DIR: /app/data
+```
+
+The volume holds the SQLite database, your keys and your logs. Mount it and the container itself is stateless. Images are built for **linux/amd64** and **linux/arm64**.
+
+### From source
+
+```bash
+git clone https://github.com/origin-labs-ai/origin-router-suite.git
+cd origin-router-suite
+npm install
+npm run build
+npm start            # gateway + dashboard on http://localhost:20128
+```
+
+The CLI package is built from `cli/` (it bundles the gateway into `cli/app`):
+
+```bash
+cd cli
+npm install
+npm run build
+npm pack
+```
+
+Tests:
+
+```bash
+cd tests && npm install && npx vitest run
+```
+
+### Point your tools at it
 
 ```bash
 # every OpenAI-compatible client
@@ -66,15 +139,64 @@ export OPENAI_BASE_URL=http://localhost:20128/v1
 export ANTHROPIC_BASE_URL=http://localhost:20128
 ```
 
-<details>
-<summary><b>What actually happens on <code>npm i -g</code></b></summary>
+Or let the launcher configure the tools for you — it writes the settings Claude Code, Codex, Cursor, Cline, Gemini CLI and the rest already use:
 
-1. The launcher installs a portable copy of the gateway and warms its SQLite runtime — no network needed on first start.
-2. It writes `~/.or/install.json` (mode, install root, update repo, version).
-3. It starts the gateway on **20128** and, with `--tray`, adds a system-tray entry with the dashboard, the playground and a stop action.
-4. `originrouter update` checks the GitHub release feed, verifies the `.sha256` next to the installer, and runs the silent Inno update.
+```bash
+originrouter show claude        # what is a tool configured with right now
+originrouter connect http://localhost:20128
+```
 
-</details>
+`connect` also works against a **remote** OriginRouter without installing anything locally:
+
+```bash
+npx @origin-labs-ai/origin-router connect http://your-server:20128
+```
+
+### What lives where
+
+| | |
+|---|---|
+| **Data, keys, usage, logs** | `~/.or/` — `db/data.sqlite`, `logs/`, `panda/`, `tunnel/`, `install.json` |
+| **Install root** (installer) | `%LOCALAPPDATA%\Programs\OriginRouter` |
+| **Install root** (npm) | the global npm prefix |
+| **Port** | 20128 (`--port` to move it) |
+| **Dashboard** | `http://localhost:20128/dashboard` |
+
+Old installs are migrated on first start — the data folder is found, moved and kept; nothing is thrown away.
+
+### Upgrading
+
+| How it was installed | How it updates |
+|---|---|
+| **Installer** | The launcher reads the GitHub release feed, downloads `OriginRouter-Setup-<version>.exe`, verifies the `.sha256` next to it and runs the silent Inno update. npm is never trusted for updates. |
+| **npm** | `npm install -g @origin-labs-ai/origin-router@latest` |
+| **Docker** | `docker pull ghcr.io/origin-labs-ai/origin-router:latest`, then restart the container |
+
+### Command reference
+
+| Command | What it does |
+|---|---|
+| `originrouter` | Start the gateway and open the dashboard |
+| `originrouter --tray` / `-t` | Start hidden in the system tray |
+| `originrouter --port <port>` / `-p` | Run on another port (default 20128) |
+| `originrouter --host <host>` / `-H` | Bind address |
+| `originrouter --no-browser` / `-n` | Do not open a browser |
+| `originrouter --log` / `-l` | Show the server log instead of hiding it |
+| `originrouter --skip-update` | Skip the update check |
+| `originrouter connect <server-url>` | Point your local tools at a remote OriginRouter |
+| `originrouter show [tool…]` | Show what each tool is configured with |
+| `originrouter xai video --prompt "…" --output v.mp4` | Generate a video through the running gateway |
+| `originrouter --version` / `-v` | Print the version |
+
+### If something looks wrong
+
+| Symptom | Fix |
+|---|---|
+| `npm` says the package is not found | The npm package is not published for every version. Use the **release installer** or the **portable zip** — both always exist. |
+| The dashboard answers `403 LAN access is disabled` | You reached it from another device. The LAN switch lives in **Settings → Endpoint**; from the same machine use `127.0.0.1`. |
+| `port 20128 already in use` | `originrouter --port 20129` and point the tools at that port. |
+| A tool still talks to its old endpoint | `originrouter show <tool>` prints what it is actually configured with. |
+| The brain says it cannot start | The Panda orchestrator logs to `~/.or/panda/`; the desktop tray's **Open Panda Orchestrator Console** shows it. |
 
 ---
 
@@ -245,68 +367,12 @@ The dashboard is available in **37 languages** and follows the light/dark theme 
 
 ---
 
-## 🐳 Docker
-
-```bash
-docker run -d -p 20128:20128 \
-  -v origin-router-data:/app/data \
-  ghcr.io/origin-labs-ai/origin-router:latest
-```
-
-```yaml
-# docker-compose.yml
-services:
-  origin-router:
-    image: ghcr.io/origin-labs-ai/origin-router:latest
-    container_name: origin-router
-    restart: unless-stopped
-    ports: ["20128:20128"]
-    volumes: ["./data:/app/data"]
-```
-
-The data directory holds the SQLite database, your keys and your logs. Mount it and the container is stateless.
-
----
-
 ## 🔒 Local first, on purpose
 
 - Keys, usage and history stay in `~/.or` on your machine. Nothing is uploaded anywhere.
 - The LAN is **off by default**: the dashboard answers on loopback only until you switch on "Allow access from this network".
 - The peer address comes from the socket, so a forged `X-Forwarded-For` cannot talk its way in.
 - Local-only routes (spawning processes, reading host secrets) need the CLI token.
-
----
-
-## 🔄 Auto-update
-
-The launcher does not trust npm for updates — the npm package has never been the source of an update. It reads the GitHub release feed, downloads `OriginRouter-Setup-<version>.exe`, verifies the `.sha256` next to it, and runs the silent Inno update.
-
----
-
-## 🛠 Build from source
-
-```bash
-git clone https://github.com/origin-labs-ai/origin-router-suite.git
-cd origin-router-suite
-npm install
-npm run build
-npm start            # gateway + dashboard on http://localhost:20128
-```
-
-The CLI package is built from `cli/` (it bundles the gateway into `cli/app`):
-
-```bash
-cd cli
-npm install
-npm run build
-npm pack
-```
-
-Tests:
-
-```bash
-cd tests && npm install && npx vitest run
-```
 
 ---
 

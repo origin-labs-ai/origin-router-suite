@@ -75,6 +75,12 @@ function reportFreeSpace(label) {
 
 const platformArg = process.argv.find((a) => a.startsWith("--platform="));
 const platform = platformArg ? platformArg.split("=")[1] : process.platform.replace("win32", "win").replace("darwin", "mac");
+// The Windows job installs the runtime dependencies into the packaged folder
+// with `npm ci --omit=dev` instead of copying them. Copying a dependency
+// tree is the one step that reliably ran the Windows job out of storage, and
+// npm does the same work faster, with the lockfile's exact versions, and
+// without the dev dependencies.
+const skipDeps = process.argv.includes("--skip-deps");
 const outDir = path.resolve("dist", platform);
 const cliApp = path.resolve("cli", "app");
 
@@ -90,7 +96,11 @@ copyTree(cliApp, path.join(outDir, "app"));
 fs.cpSync(path.resolve("cli", "cli.js"), path.join(outDir, "cli.js"));
 copyTree(path.resolve("cli", "src"), path.join(outDir, "src"));
 copyTree(path.resolve("cli", "hooks"), path.join(outDir, "hooks"));
-copyTree(path.resolve("cli", "node_modules"), path.join(outDir, "node_modules"));
+if (skipDeps) {
+  console.log("skipped the dependency tree - the job installs it with npm ci");
+} else {
+  copyTree(path.resolve("cli", "node_modules"), path.join(outDir, "node_modules"));
+}
 reportFreeSpace("after packaging");
 
 const pkg = JSON.parse(fs.readFileSync(path.resolve("cli", "package.json"), "utf8"));

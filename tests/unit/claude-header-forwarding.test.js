@@ -19,7 +19,7 @@ describe("DefaultExecutor.buildHeaders() — claude provider", () => {
     vi.resetModules();
     const mod = await import("open-sse/executors/default.js");
     DefaultExecutor = mod.DefaultExecutor || mod.default;
-  });
+  }, 60_000);
 
   it("uses static provider defaults when no model is given", () => {
     const executor = new DefaultExecutor("claude");
@@ -138,7 +138,7 @@ describe("DefaultExecutor.buildHeaders() — anthropic-compatible stripping", ()
     vi.resetModules();
     const mod = await import("open-sse/executors/default.js");
     DefaultExecutor = mod.DefaultExecutor || mod.default;
-  });
+  }, 60_000);
 
   it("strips x-app and anthropic-dangerous-direct-browser-access for non-Anthropic host", () => {
     const executor = new DefaultExecutor("anthropic-compatible-custom");

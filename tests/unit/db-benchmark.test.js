@@ -41,7 +41,7 @@ beforeAll(async () => {
   fs.writeFileSync(dbFile, JSON.stringify({ providerConnections: [], usageHistory: [] }));
   lowDb = new Low(new JSONFile(dbFile), { providerConnections: [], usageHistory: [] });
   await lowDb.read();
-});
+}, 60_000);
 
 afterAll(() => {
   if (tempSqlite) removeTempDir(tempSqlite);

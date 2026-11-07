@@ -440,6 +440,7 @@ export default function UsageStats({ period: periodProp, setPeriod: setPeriodPro
         return {
           columns: MODEL_COLUMNS,
           groupedData: groupDataByKey(sortData(stats.byModel, pendingMap, sortBy, sortOrder), "rawModel"),
+          formatGroupLabel: (key) => displayModelName(key),
           storageKey: "usage-stats:expanded-models",
           emptyMessage: "No usage recorded yet.",
           renderSummaryCells: (group) => (
@@ -473,6 +474,7 @@ export default function UsageStats({ period: periodProp, setPeriod: setPeriodPro
         return {
           columns: ACCOUNT_COLUMNS,
           groupedData: groupDataByKey(sortData(stats.byAccount, pendingMap, sortBy, sortOrder), "accountName"),
+          formatGroupLabel: (key) => (key && key.startsWith("Account ") ? key : displayModelName(key)),
           storageKey: "usage-stats:expanded-accounts",
           emptyMessage: "No account-specific usage recorded yet.",
           renderSummaryCells: (group) => (
@@ -498,6 +500,7 @@ export default function UsageStats({ period: periodProp, setPeriod: setPeriodPro
         return {
           columns: API_KEY_COLUMNS,
           groupedData: groupDataByKey(sortData(stats.byApiKey, {}, sortBy, sortOrder), "keyName"),
+          formatGroupLabel: (key) => key,
           storageKey: "usage-stats:expanded-apikeys",
           emptyMessage: "No API key usage recorded yet.",
           renderSummaryCells: (group) => (
@@ -524,6 +527,7 @@ export default function UsageStats({ period: periodProp, setPeriod: setPeriodPro
         return {
           columns: ENDPOINT_COLUMNS,
           groupedData: groupDataByKey(sortData(stats.byEndpoint, {}, sortBy, sortOrder), "endpoint"),
+          formatGroupLabel: (key) => key,
           storageKey: "usage-stats:expanded-endpoints",
           emptyMessage: "No endpoint usage recorded yet.",
           renderSummaryCells: (group) => (
@@ -646,6 +650,7 @@ export default function UsageStats({ period: periodProp, setPeriod: setPeriodPro
             // Account/api-key rows already carry their grouping meaning — a
             // second sort axis there was noise. Model/endpoint keep sorting.
             sortable={tableView === "model" || tableView === "endpoint"}
+            formatGroupLabel={activeTableConfig.formatGroupLabel}
             viewMode={viewMode}
             storageKey={activeTableConfig.storageKey}
             renderSummaryCells={activeTableConfig.renderSummaryCells}

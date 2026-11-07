@@ -1,5 +1,24 @@
 // Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
+exports[`GOLDEN buildHeaders (default executor providers) > aerolink → headers (apiKey / oauth) 1`] = `
+{
+  "apiKey": {
+    "Accept": "text/event-stream",
+    "Authorization": "Bearer <TOK>",
+    "Content-Type": "application/json",
+  },
+  "nonStream": {
+    "Authorization": "Bearer <TOK>",
+    "Content-Type": "application/json",
+  },
+  "oauth": {
+    "Accept": "text/event-stream",
+    "Authorization": "Bearer <TOK>",
+    "Content-Type": "application/json",
+  },
+}
+`;
+
 exports[`GOLDEN buildHeaders (default executor providers) > agnes → headers (apiKey / oauth) 1`] = `
 {
   "apiKey": {
@@ -982,6 +1001,25 @@ exports[`GOLDEN buildHeaders (default executor providers) > friendliai → heade
 }
 `;
 
+exports[`GOLDEN buildHeaders (default executor providers) > g0i → headers (apiKey / oauth) 1`] = `
+{
+  "apiKey": {
+    "Accept": "text/event-stream",
+    "Authorization": "Bearer <TOK>",
+    "Content-Type": "application/json",
+  },
+  "nonStream": {
+    "Authorization": "Bearer <TOK>",
+    "Content-Type": "application/json",
+  },
+  "oauth": {
+    "Accept": "text/event-stream",
+    "Authorization": "Bearer <TOK>",
+    "Content-Type": "application/json",
+  },
+}
+`;
+
 exports[`GOLDEN buildHeaders (default executor providers) > gemini → headers (apiKey / oauth) 1`] = `
 {
   "apiKey": {
@@ -1150,6 +1188,44 @@ exports[`GOLDEN buildHeaders (default executor providers) > hyperbolic → heade
 `;
 
 exports[`GOLDEN buildHeaders (default executor providers) > inference-net → headers (apiKey / oauth) 1`] = `
+{
+  "apiKey": {
+    "Accept": "text/event-stream",
+    "Authorization": "Bearer <TOK>",
+    "Content-Type": "application/json",
+  },
+  "nonStream": {
+    "Authorization": "Bearer <TOK>",
+    "Content-Type": "application/json",
+  },
+  "oauth": {
+    "Accept": "text/event-stream",
+    "Authorization": "Bearer <TOK>",
+    "Content-Type": "application/json",
+  },
+}
+`;
+
+exports[`GOLDEN buildHeaders (default executor providers) > interfaceai → headers (apiKey / oauth) 1`] = `
+{
+  "apiKey": {
+    "Accept": "text/event-stream",
+    "Authorization": "Bearer <TOK>",
+    "Content-Type": "application/json",
+  },
+  "nonStream": {
+    "Authorization": "Bearer <TOK>",
+    "Content-Type": "application/json",
+  },
+  "oauth": {
+    "Accept": "text/event-stream",
+    "Authorization": "Bearer <TOK>",
+    "Content-Type": "application/json",
+  },
+}
+`;
+
+exports[`GOLDEN buildHeaders (default executor providers) > kie → headers (apiKey / oauth) 1`] = `
 {
   "apiKey": {
     "Accept": "text/event-stream",
@@ -1525,6 +1601,25 @@ exports[`GOLDEN buildHeaders (default executor providers) > mmf → headers (api
 }
 `;
 
+exports[`GOLDEN buildHeaders (default executor providers) > modal → headers (apiKey / oauth) 1`] = `
+{
+  "apiKey": {
+    "Accept": "text/event-stream",
+    "Authorization": "Bearer <TOK>",
+    "Content-Type": "application/json",
+  },
+  "nonStream": {
+    "Authorization": "Bearer <TOK>",
+    "Content-Type": "application/json",
+  },
+  "oauth": {
+    "Accept": "text/event-stream",
+    "Authorization": "Bearer <TOK>",
+    "Content-Type": "application/json",
+  },
+}
+`;
+
 exports[`GOLDEN buildHeaders (default executor providers) > modelscope → headers (apiKey / oauth) 1`] = `
 {
   "apiKey": {
@@ -1603,6 +1698,25 @@ exports[`GOLDEN buildHeaders (default executor providers) > muse → headers (ap
 `;
 
 exports[`GOLDEN buildHeaders (default executor providers) > muse-web → headers (apiKey / oauth) 1`] = `
+{
+  "apiKey": {
+    "Accept": "text/event-stream",
+    "Authorization": "Bearer <TOK>",
+    "Content-Type": "application/json",
+  },
+  "nonStream": {
+    "Authorization": "Bearer <TOK>",
+    "Content-Type": "application/json",
+  },
+  "oauth": {
+    "Accept": "text/event-stream",
+    "Authorization": "Bearer <TOK>",
+    "Content-Type": "application/json",
+  },
+}
+`;
+
+exports[`GOLDEN buildHeaders (default executor providers) > naga → headers (apiKey / oauth) 1`] = `
 {
   "apiKey": {
     "Accept": "text/event-stream",
@@ -2580,6 +2694,13 @@ exports[`GOLDEN buildHeaders (default executor providers) > zenmux → headers (
 }
 `;
 
+exports[`GOLDEN buildUrl (default executor providers) > aerolink → url (stream + non-stream) 1`] = `
+{
+  "nonStream": "https://capi.aerolink.lat/chat/completions",
+  "stream": "https://capi.aerolink.lat/chat/completions",
+}
+`;
+
 exports[`GOLDEN buildUrl (default executor providers) > agnes → url (stream + non-stream) 1`] = `
 {
   "nonStream": "https://apihub.agnes-ai.com/v1/chat/completions",
@@ -2888,6 +3009,13 @@ exports[`GOLDEN buildUrl (default executor providers) > friendliai → url (stre
 }
 `;
 
+exports[`GOLDEN buildUrl (default executor providers) > g0i → url (stream + non-stream) 1`] = `
+{
+  "nonStream": "https://api.g0i.ai/v1/chat/completions",
+  "stream": "https://api.g0i.ai/v1/chat/completions",
+}
+`;
+
 exports[`GOLDEN buildUrl (default executor providers) > gemini → url (stream + non-stream) 1`] = `
 {
   "nonStream": "https://generativelanguage.googleapis.com/v1beta/models/test-model:generateContent",
@@ -2948,6 +3076,20 @@ exports[`GOLDEN buildUrl (default executor providers) > inference-net → url (s
 {
   "nonStream": "https://api.inference.net/v1/chat/completions",
   "stream": "https://api.inference.net/v1/chat/completions",
+}
+`;
+
+exports[`GOLDEN buildUrl (default executor providers) > interfaceai → url (stream + non-stream) 1`] = `
+{
+  "nonStream": "https://api.jiekou.ai/openai/v1/chat/completions",
+  "stream": "https://api.jiekou.ai/openai/v1/chat/completions",
+}
+`;
+
+exports[`GOLDEN buildUrl (default executor providers) > kie → url (stream + non-stream) 1`] = `
+{
+  "nonStream": "https://api.kie.ai/claude/v1/chat/completions",
+  "stream": "https://api.kie.ai/claude/v1/chat/completions",
 }
 `;
 
@@ -3056,6 +3198,13 @@ exports[`GOLDEN buildUrl (default executor providers) > mmf → url (stream + no
 }
 `;
 
+exports[`GOLDEN buildUrl (default executor providers) > modal → url (stream + non-stream) 1`] = `
+{
+  "nonStream": "https://api.us-west-2.modal.direct/v1/chat/completions",
+  "stream": "https://api.us-west-2.modal.direct/v1/chat/completions",
+}
+`;
+
 exports[`GOLDEN buildUrl (default executor providers) > modelscope → url (stream + non-stream) 1`] = `
 {
   "nonStream": "https://api-inference.modelscope.cn/v1/chat/completions",
@@ -3088,6 +3237,13 @@ exports[`GOLDEN buildUrl (default executor providers) > muse-web → url (stream
 {
   "nonStream": "https://muse.ai",
   "stream": "https://muse.ai",
+}
+`;
+
+exports[`GOLDEN buildUrl (default executor providers) > naga → url (stream + non-stream) 1`] = `
+{
+  "nonStream": "https://api.naga.ac/v1/chat/completions",
+  "stream": "https://api.naga.ac/v1/chat/completions",
 }
 `;
 

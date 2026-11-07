@@ -318,6 +318,45 @@ async function stopPandaOrchestrator() {
 // yet" and closed in the user's face, which reads as "nothing happened". The
 // file is created up front, the console waits for it instead of closing, and
 // the dashboard takes over if the terminal cannot be opened at all.
+// The gateway log always exists before its console opens, with a first line
+// that explains where the live output is when the CLI owns the gateway.
+function ensureGatewayLog() {
+  try {
+    fs.mkdirSync(path.dirname(ROUTER_LOG), { recursive: true });
+    if (!fs.existsSync(ROUTER_LOG) || fs.statSync(ROUTER_LOG).size === 0) {
+      fs.writeFileSync(
+        ROUTER_LOG,
+        `[gateway] console opened at ${new Date().toISOString()}\n` +
+          `[gateway] this file carries the gateway's own output when the desktop app started it.\n` +
+          `[gateway] when the CLI owns the gateway, its output is in that terminal; the dashboard's\n` +
+          `[gateway] console-log page (http://127.0.0.1:${PORT}/dashboard/console-log) always shows the live request log.\n`,
+        "utf8",
+      );
+    }
+  } catch {}
+}
+
+// The Panda error log always exists before its console opens, with a first
+// line that either points at the failure or explains the brain was never
+// started and exactly where it would have been found.
+function ensurePandaLog() {
+  try {
+    fs.mkdirSync(PANDA_HOME, { recursive: true });
+    if (!fs.existsSync(PANDA_ERR_LOG) || fs.statSync(PANDA_ERR_LOG).size === 0) {
+      fs.appendFileSync(
+        PANDA_ERR_LOG,
+        `[panda] console opened at ${new Date().toISOString()}\n` +
+          `[panda] no Panda Orchestrator has been started by this app yet.\n` +
+          `[panda] "Restart Panda Orchestrator" starts it if panda-router-serve.exe is found in:\n` +
+          `  ${PANDA_CANDIDATES.join("\n  ")}\n` +
+          `[panda] the gateway routes fine without the Panda brain (fail-open); install it from\n` +
+          `[panda] https://github.com/aicodeking/PandaOrchestrator to upgrade the routing brain.\n`,
+        "utf8",
+      );
+    }
+  } catch {}
+}
+
 function openConsoleWindow(file, title, dashboardPath) {
   try {
     fs.mkdirSync(path.dirname(file), { recursive: true });
@@ -373,22 +412,39 @@ function showMainWindow() {
 function buildTrayMenu() {
   return Menu.buildFromTemplate([
     { label: "Open OriginRouter (GUI)", click: showMainWindow },
-    { label: "Open Gateway Console (log)", click: () => openDashboardPage("/dashboard/console-log") },
+    {
+      label: "Open Gateway Console (log)",
+      click: () => {
+        // The log window, not the browser: a dashboard URL from a cold
+        // browser lands on the login wall, which reads as "the button did
+        // nothing". The log file always answers.
+        ensureGatewayLog();
+        openConsoleWindow(ROUTER_LOG, "OriginRouter gateway console", "/dashboard/console-log");
+      },
+    },
     {
       label: "Open Panda Orchestrator Console (log)",
       click: () => {
         // With a log file there is something to tail. Without one the brain
-        // was never started, and the dashboard says where it looked - which
-        // is the answer the user actually needs.
-        const hasLog = fs.existsSync(PANDA_LOG) || fs.existsSync(PANDA_ERR_LOG);
-        if (hasLog) {
-          openConsoleWindow(PANDA_ERR_LOG, "PandaOrchestrator console", "/dashboard/profile");
-        } else {
-          openDashboardPage("/dashboard/profile");
-        }
+        // was never started — so write the answer INTO the log (why, and
+        // every path that was searched) and open the console. A dashboard
+        // redirect here read as "the button did nothing".
+        ensurePandaLog();
+        openConsoleWindow(PANDA_ERR_LOG, "PandaOrchestrator console", "/dashboard/profile");
       },
     },
-    { label: "Restart Panda Orchestrator", click: () => ensurePandaOrchestrator({ force: true }) },
+    {
+      label: "Restart Panda Orchestrator",
+      click: () => {
+        // Fire-and-forget was invisible: the restart "did nothing" whenever
+        // the brain was not installed. Now the outcome lands in the console
+        // the user sees — success, failure, or the exact install paths.
+        ensurePandaOrchestrator({ force: true }).finally(() => {
+          ensurePandaLog();
+          openConsoleWindow(PANDA_ERR_LOG, "PandaOrchestrator console", "/dashboard/profile");
+        });
+      },
+    },
     { type: "separator" },
     { label: "Check for Updates", click: () => shell.openExternal(`${REPO_URL}/releases/latest`) },
     { label: "Hide Window (keep running)", click: () => mainWindow?.hide() },

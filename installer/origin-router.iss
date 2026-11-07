@@ -114,12 +114,14 @@ begin
     NewPath := NewPath + ';';
   NewPath := NewPath + Target;
 
+  { No WM_SETTINGCHANGE broadcast: Inno's Pascal Script takes integers-only
+    in SendMessage, and the CAST_STRING_TOLPARAM shim this needs is missing
+    from some Inno Setup 6 builds — a bare string literal there compiles but
+    throws "Runtime error: Type mismatch" at post-install (the 1:1520 crash).
+    The rewritten PATH applies to every process started AFTER the installer
+    exits, which covers the launcher it offers to run. }
   if RegWriteStringValue(HKEY_CURRENT_USER, 'Environment', 'Path', NewPath) then
   begin
-    { Tell the running programs that the environment changed, so a shell that
-      is already open picks the new PATH up. (WM_SETTINGCHANGE = 26,
-      HWND_BROADCAST = 0xFFFF - Inno does not name them.) }
-    SendMessage(HWND_BROADCAST, 26, 0, 'Environment');
   end;
 end;
 
@@ -140,18 +142,6 @@ begin
 
     CleanUserPath;
   end;
-end;
-
-function NeedsAddPath(Param: string): Boolean;
-var
-  OrigPath: string;
-begin
-  if not RegQueryStringValue(HKEY_CURRENT_USER, 'Environment', 'Path', OrigPath) then
-  begin
-    Result := True;
-    exit;
-  end;
-  Result := Pos(';' + Uppercase(Param) + ';', ';' + Uppercase(OrigPath) + ';') = 0;
 end;
 
 function InitializeSetup(): Boolean;

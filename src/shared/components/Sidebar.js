@@ -5,6 +5,7 @@ import PropTypes from "prop-types";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/shared/utils/cn";
+import Portal from "@/shared/components/Portal";
 import { APP_CONFIG, UPDATER_CONFIG } from "@/shared/constants/config";
 import { MEDIA_PROVIDER_KINDS } from "@/shared/constants/providers";
 import { useCopyToClipboard } from "@/shared/hooks/useCopyToClipboard";
@@ -28,7 +29,7 @@ const navItems = [
   { href: "/dashboard/token-saver", label: "Token Saver", icon: "savings" },
   { href: "/dashboard/local-models", label: "Local Models", icon: "hard_drive" },
   // { href: "/dashboard/pxpipe", label: "PXPIPE", icon: "image" },
-  { href: "/dashboard/fusion", label: "Fusion Setup", icon: "rocket_launch" },
+  // Fusion Setup moved into Settings (profile page) — no standalone route.
   { href: "/dashboard/cli-tools", label: "CLI Tools", icon: "terminal" },
 ];
 
@@ -334,6 +335,7 @@ export default function Sidebar({ onClose }) {
 
       {/* Disconnected / Updating Overlay */}
       {(isDisconnected || isUpdating) && (
+        <Portal>
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-6">
           {isUpdating ? (
             <ManualUpdatePanel
@@ -358,6 +360,7 @@ export default function Sidebar({ onClose }) {
             </div>
           )}
         </div>
+        </Portal>
       )}
     </>
   );

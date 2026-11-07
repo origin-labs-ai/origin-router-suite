@@ -51,6 +51,9 @@ export async function GET() {
       defaultDataDir: path.join(os.homedir(), ".or"),
       trayPreference: await readTrayPreference(),
       sources: sourcesResult.sources || [],
+      // The wizard rehydrates stored preferences (e.g. the Local Models step)
+      // from here instead of a second fetch.
+      settings: await getSettings().catch(() => ({})),
       apiKeys: keys.map((key) => ({
         id: key.id,
         name: key.name,

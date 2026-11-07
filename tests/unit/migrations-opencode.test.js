@@ -46,7 +46,7 @@ describe("opencode migration source", () => {
     expect(ds.baseUrl).toBe("https://api.deepseek.com");
   });
 
-  it("skips provider entries without an api key (OAuth grants never migrate)", async () => {
+  it("keeps provider entries without an api key — they import as key-less configurables", async () => {
     writeConfig({
       provider: {
         oauthOnly: { name: "Nope", options: { baseURL: "https://x.example" } },
@@ -58,7 +58,12 @@ describe("opencode migration source", () => {
     const sources = await import("../../src/lib/migrations/sources.js");
     const { candidates } = await sources.listSources();
     expect(candidates.openCode).toBeTruthy();
-    expect(candidates.openCode.providers.map((p) => p.id)).toEqual(["keyed"]);
+    // The owner's rule: EVERY provider entry imports — a key-less one lands as
+    // a configurable node with its base URL, ready for a key; only loop-back
+    // URLs pointing at this gateway are refused at import time.
+    expect(candidates.openCode.providers.map((p) => p.id)).toEqual(["oauthOnly", "keyed"]);
+    expect(candidates.openCode.providers.find((p) => p.id === "oauthOnly").apiKey).toBeNull();
+    expect(candidates.openCode.providers.find((p) => p.id === "keyed").apiKey).toBe(FIXTURE_KEY_ONE);
   });
 });
 

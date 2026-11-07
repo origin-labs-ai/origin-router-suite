@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 import { cn } from "@/shared/utils/cn";
+import Portal from "@/shared/components/Portal";
 
 export default function Drawer({
   isOpen,
@@ -39,6 +40,7 @@ export default function Drawer({
   if (!isOpen) return null;
 
   return (
+    <Portal>
     <div className="fixed inset-0 z-50">
       {/* Overlay */}
       <div
@@ -78,5 +80,6 @@ export default function Drawer({
         </div>
       </div>
     </div>
+    </Portal>
   );
 }

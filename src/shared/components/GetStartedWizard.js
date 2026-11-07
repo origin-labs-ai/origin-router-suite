@@ -14,6 +14,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import ProviderIcon from "@/shared/components/ProviderIcon";
+import Portal from "@/shared/components/Portal";
 import { useTheme } from "@/shared/hooks/useTheme";
 import {
   APIKEY_PROVIDERS,
@@ -36,6 +37,8 @@ const BASE_STEPS = [
   { id: "combo", label: "Combo", icon: "route", hint: "Route several models as one" },
   { id: "cloud", label: "Cloud sync", icon: "cloud_upload", hint: "Back up to Google Drive" },
   { id: "extras", label: "Tuning", icon: "tune", hint: "How hard the router works" },
+  { id: "local-models", label: "Local Models", icon: "hard_drive", hint: "Download models? Where they save" },
+  { id: "skills", label: "Skills", icon: "extension", hint: "Install the skill pack from GitHub" },
   { id: "claude", label: "Claude Code", icon: "terminal", hint: "Point the CLI at the router" },
   { id: "done", label: "Finish", icon: "check_circle", hint: "Everything is ready" },
 ];
@@ -286,6 +289,16 @@ export default function GetStartedWizard({
   // Tuning.
   const [compression, setCompression] = useState("full");
   const [concurrency, setConcurrency] = useState(8);
+  // Local Models step: does the owner intend to download models at all, and
+  // where should downloaded files land? Empty dir keeps the <data>/models
+  // default; a filled dir is stored and the Local Models page uses it.
+  const [wantLocalModels, setWantLocalModels] = useState(null);
+  const [localModelsDir, setLocalModelsDir] = useState("");
+  // Skills step: one-click install of the GitHub skill pack. The result report
+  // (installed/skipped counts) shows inline; the Skills page stays the full
+  // surface for browsing and re-running.
+  const [skillsInstalled, setSkillsInstalled] = useState(null);
+  const [skillsBusy, setSkillsBusy] = useState(false);
   const [exposeAllModels, setExposeAllModels] = useState(true);
   const [originEndpoint, setOriginEndpoint] = useState(false);
   const [apiKey, setApiKey] = useState(null);
@@ -326,6 +339,12 @@ export default function GetStartedWizard({
       if (Array.isArray(data.apiKeys) && data.apiKeys.length) {
         const first = data.apiKeys.find((key) => key.isActive) || data.apiKeys[0];
         setApiKey({ key: first.key, name: first.name, created: false });
+      }
+      // The Local Models step rehydrates the stored preference so re-running
+      // the wizard shows what was chosen before, not blank fields.
+      if (data.settings?.localModels && typeof data.settings.localModels === "object") {
+        setWantLocalModels(Boolean(data.settings.localModels.wantDownload));
+        setLocalModelsDir(data.settings.localModels.dir || "");
       }
     } catch {
       // The wizard still works without the extra state.
@@ -512,6 +531,60 @@ export default function GetStartedWizard({
       setBusy(false);
     }
   }, [compression, concurrency, exposeAllModels, originEndpoint]);
+
+  // Local Models step: persist intent + save location. One PATCH-shaped
+  // onboarding action, same as saveTuning — the wizard never writes settings
+  // directly.
+  const saveLocalModels = useCallback(async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      await fetch("/api/onboarding", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "settings",
+          patch: {
+            localModels: {
+              wantDownload: wantLocalModels === true,
+              dir: String(localModelsDir || "").trim(),
+            },
+          },
+        }),
+      });
+      setNotice("Local models preference saved.");
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  }, [wantLocalModels, localModelsDir]);
+
+  // Skills step: one POST to the pipeline's install action. The pipeline
+  // resolves the configured GitHub source (settings.skillsSource) itself and
+  // reports per-skill installed/conflict rows.
+  const installSkills = useCallback(async () => {
+    setSkillsBusy(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/skills-pipeline", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "install" }),
+      });
+      const data = await res.json();
+      if (!res.ok || data?.error) {
+        setError(data?.error || "The skills install failed.");
+        return;
+      }
+      setSkillsInstalled(data);
+      setNotice("Skills installed from the GitHub catalog.");
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSkillsBusy(false);
+    }
+  }, []);
 
   const createApiKey = useCallback(async () => {
     setBusy(true);
@@ -1267,6 +1340,102 @@ export default function GetStartedWizard({
           </div>
         );
 
+      case "local-models":
+        return (
+          <div className="flex h-full flex-col gap-4">
+            <SectionTitle hint="Download open models to run on this machine, or skip entirely — the page stays available either way, in the sidebar under Local Models.">
+              Local Models
+            </SectionTitle>
+            <div className="grid gap-2 md:grid-cols-2">
+              <button
+                type="button"
+                onClick={() => setWantLocalModels(true)}
+                className={`flex items-center gap-3 rounded-xl border px-4 py-3 text-left transition-colors ${
+                  wantLocalModels === true ? "border-primary bg-primary/5" : "border-border bg-bg hover:bg-bg-subtle"
+                }`}
+              >
+                <span className={`material-symbols-outlined text-lg ${wantLocalModels === true ? "text-primary" : "text-text-subtle"}`}>
+                  download
+                </span>
+                <span className="flex min-w-0 flex-col">
+                  <span className="text-xs font-semibold text-text-main">Yes — I'll download models</span>
+                  <span className="text-[11px] leading-4 text-text-muted">
+                    Ollama, Hugging Face files and local engines stay reachable from the Local Models page.
+                  </span>
+                </span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setWantLocalModels(false)}
+                className={`flex items-center gap-3 rounded-xl border px-4 py-3 text-left transition-colors ${
+                  wantLocalModels === false ? "border-primary bg-primary/5" : "border-border bg-bg hover:bg-bg-subtle"
+                }`}
+              >
+                <span className={`material-symbols-outlined text-lg ${wantLocalModels === false ? "text-primary" : "text-text-subtle"}`}>
+                  do_not_disturb_on
+                </span>
+                <span className="flex min-w-0 flex-col">
+                  <span className="text-xs font-semibold text-text-main">No — skip downloads</span>
+                  <span className="text-[11px] leading-4 text-text-muted">
+                    The page stays; nothing downloads until you ask.
+                  </span>
+                </span>
+              </button>
+            </div>
+            {wantLocalModels === true ? (
+              <>
+                <label className="flex flex-col gap-1 text-xs font-medium text-text-muted">
+                  Where downloaded models save
+                  <input
+                    type="text"
+                    value={localModelsDir}
+                    onChange={(event) => setLocalModelsDir(event.target.value)}
+                    placeholder="Leave empty for the default: <data folder>/models"
+                    className="rounded-lg border border-border bg-bg px-3 py-2 text-sm text-text-main outline-none focus:border-primary"
+                  />
+                </label>
+                <div className="flex gap-2">
+                  <button type="button" className="or-action" disabled={busy} onClick={saveLocalModels}>
+                    {busy ? "Saving…" : "Save the local-models setup"}
+                  </button>
+                </div>
+              </>
+            ) : null}
+          </div>
+        );
+
+      case "skills":
+        return (
+          <div className="flex h-full flex-col gap-4">
+            <SectionTitle hint="One click pulls the skill pack from your GitHub catalog. Installed skills reach every model through the router's system prompt — bridges included. You can browse the full catalog later on the Skills page.">
+              Install skills
+            </SectionTitle>
+            <div className="rounded-xl border border-border bg-bg p-4">
+              <div className="flex items-center gap-3">
+                <span className="material-symbols-outlined text-primary text-lg">extension</span>
+                <div className="min-w-0">
+                  <div className="text-xs font-semibold text-text-main">GitHub skill pack</div>
+                  <div className="text-[11px] leading-4 text-text-muted">
+                    Fetched from the repo configured on the Skills page; conflicts are reported, never overwritten.
+                  </div>
+                </div>
+              </div>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <button type="button" className="or-action" disabled={skillsBusy} onClick={installSkills}>
+                  {skillsBusy ? "Installing…" : skillsInstalled ? "Install again" : "Install the skill pack"}
+                </button>
+                {skillsInstalled ? (
+                  <span className="text-xs text-text-muted self-center">
+                    {Array.isArray(skillsInstalled?.report)
+                      ? `${skillsInstalled.report.length} skills processed`
+                      : "Done."}
+                  </span>
+                ) : null}
+              </div>
+            </div>
+          </div>
+        );
+
       case "claude":
         return (
           <div className="flex h-full flex-col gap-4">
@@ -1361,6 +1530,7 @@ export default function GetStartedWizard({
   const isLast = stepIndex === steps.length - 1;
 
   return (
+    <Portal>
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       {/* macOS-style dismissal: the backdrop always closes. A first-run
           dialog that traps the user is a Windows-95 habit — the close
@@ -1497,5 +1667,6 @@ export default function GetStartedWizard({
         </div>
       </div>
     </div>
+    </Portal>
   );
 }

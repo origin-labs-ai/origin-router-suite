@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { cn } from "@/shared/utils/cn";
 import Button from "./Button";
 import Tooltip from "./Tooltip";
@@ -24,6 +25,10 @@ export default function Modal({
     full: "max-w-4xl",
   };
 
+  // SSR-safe portal mount: the modal only exists client-side once open.
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+
   useEffect(() => {
     if (isOpen) {
       document.body.style.overflow = "hidden";
@@ -41,9 +46,15 @@ export default function Modal({
     return () => document.removeEventListener("keydown", handleEscape);
   }, [isOpen, onClose]);
 
-  if (!isOpen) return null;
+  if (!isOpen || !mounted) return null;
 
-  return (
+  // Portal to document.body — the whole-project popup glitch fix. Rendered
+  // inline, a modal's position:fixed wrapper becomes relative to ANY ancestor
+  // carrying a transform/filter/backdrop-blur, and hover states toggling those
+  // styles made the popup teleport around the page as the cursor moved. From
+  // the body there is no such ancestor; the popup stays exactly where the
+  // viewport puts it, on every page that mounts this component.
+  return createPortal(
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       {/* Overlay */}
       <div
@@ -108,7 +119,8 @@ export default function Modal({
           </div>
         )}
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 

@@ -98,7 +98,42 @@ describe("headroom detect", () => {
     expect(status.running).toBe(true);
     expect(status.localUrl).toBe(false);
     expect(status.canStart).toBe(false);
+    // /livez answers instantly; /health stalls behind headroom's cached
+    // upstream probe, so it must not be consulted when /livez is healthy.
+    expect(global.fetch).toHaveBeenCalledWith("http://headroom:8787/livez", expect.any(Object));
+    expect(global.fetch).not.toHaveBeenCalledWith("http://headroom:8787/health", expect.any(Object));
+  });
+
+  it("falls back to /health when the proxy has no /livez (older builds)", async () => {
+    global.fetch = vi.fn(async (url) => {
+      if (String(url).endsWith("/livez")) return new Response("not found", { status: 404 });
+      return new Response("ok", { status: 200 });
+    });
+    mocks.execSync.mockImplementation((cmd) => {
+      if (String(cmd).includes("where") || String(cmd).includes("which")) throw new Error("not found");
+      throw new Error("unexpected execSync");
+    });
+    mocks.execFileSync.mockImplementation(() => { throw new Error("pip unavailable"); });
+
+    const status = await getHeadroomStatus("http://headroom:8787");
+
+    expect(status.running).toBe(true);
     expect(global.fetch).toHaveBeenCalledWith("http://headroom:8787/health", expect.any(Object));
+  });
+
+  it("reports stopped when neither liveness endpoint answers", async () => {
+    global.fetch = vi.fn(async () => { throw new TypeError("fetch failed"); });
+    mocks.execSync.mockImplementation((cmd) => {
+      if (String(cmd).includes("where") || String(cmd).includes("which")) throw new Error("not found");
+      throw new Error("unexpected execSync");
+    });
+    mocks.execFileSync.mockImplementation(() => { throw new Error("pip unavailable"); });
+
+    const status = await getHeadroomStatus("http://localhost:8787");
+
+    expect(status.running).toBe(false);
+    expect(global.fetch).toHaveBeenCalledWith("http://localhost:8787/livez", expect.any(Object));
+    expect(global.fetch).toHaveBeenCalledWith("http://localhost:8787/health", expect.any(Object));
   });
 
   it("recognizes loopback URLs for managed local mode", () => {

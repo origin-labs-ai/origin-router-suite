@@ -12,6 +12,7 @@ import { getSettings } from "@/lib/localDb";
 import { getModelInfo, getComboModels } from "../services/model.js";
 import { handleChatCore } from "open-sse/handlers/chatCore.js";
 import { DEFAULT_HEADROOM_URL } from "@/lib/headroom/detect";
+import { getSkillsPromptBlock } from "@/lib/skillsPipeline/promptBlock.js";
 import { getTransform as getPxpipeTransform } from "@/lib/pxpipe/loader.js";
 import { appendPxpipeEvent } from "@/lib/pxpipe/events.js";
 import { errorResponse, unavailableResponse } from "open-sse/utils/error.js";
@@ -418,6 +419,9 @@ async function handleSingleModelChat(body, modelStr, clientRawRequest = null, re
     // Resolved before the dispatch wrapper: the arrow below is not async, and
     // the lazy module warm-up must not delay holding the slot.
     const pxpipeTransform = chatSettings.pxpipeEnabled ? await getPxpipeTransform() : null;
+    // Built before the dispatch slot: the arrow below is not async, and the
+    // block itself is process-cached (60s) so this costs one settings read.
+    const skillsPrompt = await getSkillsPromptBlock();
     const result = await withDispatchSlot(activePolicy, credentials.connectionId, () => handleChatCore({
       body: { ...body, model: `${provider}/${model}` },
       modelInfo: { provider, model },
@@ -439,6 +443,9 @@ async function handleSingleModelChat(body, modelStr, clientRawRequest = null, re
       ponytailLevel: chatSettings.ponytailLevel || "full",
       customPromptEnabled: !!chatSettings.customPromptEnabled,
       customPrompt: chatSettings.customPrompt || "",
+      // The skills/local-models system-prompt block, built once per process
+      // (60s cache) in the pipeline module; null when disabled or empty.
+      skillsPrompt,
       pxpipeEnabled: !!chatSettings.pxpipeEnabled,
       pxpipeMinChars: chatSettings.pxpipeMinChars,
       pxpipeTimeoutMs: chatSettings.pxpipeTimeoutMs,

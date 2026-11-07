@@ -384,12 +384,57 @@ async function detectOmniRoute() {
   return null;
 }
 
+// Free Claude Code (the Claude Code CLI) keeps its gateway endpoint in
+// settings.json env — ANTHROPIC_BASE_URL plus a token. A remote base URL
+// imports as an anthropic-compatible node with the token attached. An entry
+// pointing at this gateway itself is reported as found-but-self, so the
+// wizard card stays accurate instead of lying "not installed".
+function readFreeClaudeCodeSettingsEnv() {
+  for (const file of [
+    path.join(HOME, ".claude", "settings.json"),
+    path.join(HOME, ".claude.json"),
+  ]) {
+    if (!exists(file)) continue;
+    try {
+      const parsed = JSON.parse(fs.readFileSync(file, "utf8"));
+      const env = parsed?.env;
+      if (!env || typeof env !== "object") continue;
+      const baseUrl = String(env.ANTHROPIC_BASE_URL || "").replace(/\/+$/, "");
+      if (!baseUrl) continue;
+      const token =
+        String(env.ANTHROPIC_AUTH_TOKEN || "") || String(env.ANTHROPIC_API_KEY || "");
+      return { baseUrl, token: token || null };
+    } catch {
+      continue;
+    }
+  }
+  return null;
+}
+
 async function detectFreeClaudeCode() {
   const dir = path.join(HOME, ".fcc");
-  if (!exists(dir)) return null;
-  const keys = readKeysFromEnvFiles(dir);
-  if (!keys.length) return null;
-  return { id: "free-claude-code", label: "Free Claude Code", path: dir, keys };
+  if (exists(dir)) {
+    const keys = readKeysFromEnvFiles(dir);
+    if (keys.length) {
+      return { id: "free-claude-code", label: "Free Claude Code", path: dir, keys };
+    }
+  }
+  const settings = readFreeClaudeCodeSettingsEnv();
+  if (settings) {
+    if (isSelfReferentialBaseUrl(settings.baseUrl)) {
+      return { id: "free-claude-code", label: "Free Claude Code", path: path.join(HOME, ".claude"), self: true, keys: [] };
+    }
+    if (settings.token) {
+      return {
+        id: "free-claude-code",
+        label: "Free Claude Code",
+        path: path.join(HOME, ".claude"),
+        endpoint: settings,
+        keys: [],
+      };
+    }
+  }
+  return null;
 }
 
 // ── the list the wizard shows ───────────────────────────────────────────────
@@ -446,9 +491,13 @@ export async function listSources() {
       ? {
           id: freeClaudeCode.id,
           label: freeClaudeCode.label,
-          detail: `Found in ${freeClaudeCode.path}`,
-          keyCount: freeClaudeCode.keys.length,
-          available: true,
+          detail: freeClaudeCode.self
+            ? `Found in ${freeClaudeCode.path} - it points at this gateway itself, so there is nothing to import.`
+            : `Found in ${freeClaudeCode.path}`,
+          keyCount: freeClaudeCode.self
+            ? 0
+            : freeClaudeCode.keys.length + (freeClaudeCode.endpoint ? 1 : 0),
+          available: !freeClaudeCode.self,
         }
       : {
           id: "free-claude-code",
@@ -794,27 +843,47 @@ async function runNineRouterImport(source) {
  */
 // ── the OpenCode CLI import ──────────────────────────────────────────────────
 //
-// OpenCode stores provider definitions (name, baseURL, apiKey) in a JSON
-// config at ~/.config/opencode/opencode.json. A provider whose baseURL
-// matches an OriginRouter registry entry imports onto that id; anything else
-// becomes an "openai-compatible" custom node — the same path the 9Router
-// import takes. Only api-key providers move; OAuth grants stay put.
+// OpenCode stores provider definitions (name, baseURL, apiKey) in a JSONC
+// config — opencode.json / opencode.jsonc under ~/.config/opencode or
+// ~/.opencode. Keys do NOT live inline only: OpenCode keeps them in its auth
+// store (~/.local/share/opencode/auth.json) keyed by the provider id. A
+// provider whose baseURL matches an OriginRouter registry entry imports onto
+// that id; anything else becomes an "openai-compatible" custom node — the
+// same path the 9Router import takes. EVERY provider entry imports, including
+// key-less and expired ones: the node (name + base URL) becomes a Hand Picked
+// configurable the owner can attach a key to later. Only the loop-back
+// entries that point at this gateway itself are left out.
 
 function openCodeConfigPaths() {
   // os.homedir() at call time (not the module-load HOME const) so tests can
   // fake the environment per call.
   const home = os.homedir();
   return [
+    path.join(home, ".config", "opencode", "opencode.jsonc"),
     path.join(home, ".config", "opencode", "opencode.json"),
+    path.join(home, ".opencode", "opencode.jsonc"),
     path.join(home, ".opencode", "opencode.json"),
   ];
 }
 
 function readOpenCodeProviders() {
   for (const file of openCodeConfigPaths()) {
-    if (!exists(file)) continue;
+    if (!exists(file)) {
+      continue;
+    }
     try {
-      const parsed = JSON.parse(fs.readFileSync(file, "utf8"));
+      const raw = fs.readFileSync(file, "utf8");
+      // JSONC: strip /* */ block and // line comments the way OpenCode's own
+      // loader does, then parse. A pure-JSON file survives both paths.
+      const jsonc = raw
+        .replace(/\/\*[\s\S]*?\*\//g, "")
+        .replace(/(^|\s)\/\/[^\n]*/g, "$1");
+      let parsed;
+      try {
+        parsed = JSON.parse(raw);
+      } catch {
+        parsed = JSON.parse(jsonc);
+      }
       const providerMap = parsed?.provider;
       if (!providerMap || typeof providerMap !== "object") continue;
       return { file, providers: providerMap };
@@ -825,18 +894,53 @@ function readOpenCodeProviders() {
   return null;
 }
 
+// OpenCode's credential store: keys keyed by the provider config id. Both
+// layouts exist in the wild (XDG and the legacy dot-folder); read whichever
+// is present. Every value is masked on read — nothing here logs keys.
+function openCodeAuthStores() {
+  const home = os.homedir();
+  return [
+    path.join(home, ".local", "share", "opencode", "auth.json"),
+    path.join(home, ".opencode", "auth.json"),
+  ];
+}
+
+function readOpenCodeAuthKeys() {
+  for (const file of openCodeAuthStores()) {
+    if (!exists(file)) continue;
+    try {
+      const parsed = JSON.parse(fs.readFileSync(file, "utf8"));
+      if (!parsed || typeof parsed !== "object") continue;
+      const keys = {};
+      for (const [id, entry] of Object.entries(parsed)) {
+        const value = entry?.key || entry?.access || entry?.api_key || entry?.token;
+        if (typeof value === "string" && value.length > 0) keys[String(id).toLowerCase()] = value;
+      }
+      return keys;
+    } catch {
+      continue;
+    }
+  }
+  return {};
+}
+
 async function detectOpenCode() {
   const found = readOpenCodeProviders();
   if (!found) return null;
+  const authKeys = readOpenCodeAuthKeys();
   const providers = [];
   for (const [id, cfg] of Object.entries(found.providers || {})) {
-    const apiKey = cfg?.options?.apiKey;
-    if (!apiKey || typeof apiKey !== "string") continue;
+    // Inline keys first (options.apiKey), then the auth store. A provider
+    // with neither still imports — its node (name + base URL) becomes a
+    // configurable the owner can attach a key to later.
+    const inlineKey = cfg?.options?.apiKey;
+    const inlineKeyOk = typeof inlineKey === "string" && inlineKey.length > 0;
+    const apiKey = inlineKeyOk ? inlineKey : authKeys[String(id).toLowerCase()] || null;
     providers.push({
       id: String(id),
       name: String(cfg?.name || id),
       baseUrl: String(cfg?.options?.baseURL || "").replace(/\/+$/, ""),
-      apiKey,
+      apiKey: apiKey || null,
       modelCount: Object.keys(cfg?.models || {}).length,
     });
   }
@@ -872,27 +976,122 @@ async function mapOpenCodeBaseUrls(providers) {
   });
 }
 
+// A base URL pointing at this gateway itself would make the gateway call
+// itself on every request — the "OmniRoute"/"9-Router" loop-back entries an
+// OpenCode config carries when the owner points OpenCode AT OriginRouter.
+function isSelfReferentialBaseUrl(baseUrl) {
+  try {
+    const url = new URL(baseUrl);
+    if (url.protocol !== "http:" && url.protocol !== "https:") return false;
+    const host = url.hostname.toLowerCase();
+    if (host !== "localhost" && host !== "127.0.0.1" && host !== "::1" && host !== "[::1]") return false;
+    const ownPort = Number(process.env.PORT || 20128);
+    return url.port === "" || Number(url.port) === ownPort;
+  } catch {
+    return false;
+  }
+}
+
+// One stable identity for an endpoint: lowercase origin+path, no trailing
+// slashes. Two config entries sharing it are the same provider no matter
+// what each is named.
+function endpointIdentity(baseUrl) {
+  return String(baseUrl || "").toLowerCase().replace(/\/+$/, "");
+}
+
+// Liveness probe for key-less entries: a dead host has nothing to offer even
+// after the owner pastes a key, so it is skipped, not imported. Any HTTP
+// response (even 401/404) proves the endpoint is alive; only DNS/connection/
+// TLS failures count as dead. Probes only https origins — http loopback
+// (local engines) imports without a probe, and private ranges are never
+// fetched from the server.
+async function probeEndpointAlive(baseUrl) {
+  try {
+    const url = new URL(baseUrl);
+    if (url.protocol !== "https:") return true; // loopback/other: assume alive
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 4000);
+    try {
+      await fetch(url.origin + "/", {
+        method: "GET",
+        signal: controller.signal,
+        redirect: "follow",
+      });
+      return true; // any response = host alive
+    } finally {
+      clearTimeout(timer);
+    }
+  } catch {
+    return false;
+  }
+}
+
 async function runOpenCodeImport(source) {
   const { getProviderConnections, createProviderConnection } = await import(
     "@/lib/db/repos/connectionsRepo"
   );
-  const { createProviderNode } = await import("@/lib/db/repos/nodesRepo");
+  const { getProviderNodes, createProviderNode } = await import("@/lib/db/repos/nodesRepo");
   const { generateId } = await import("@/shared/utils");
 
-  const existingKeys = new Set(
-    (await getProviderConnections().catch(() => [])).map((c) => c.apiKey).filter(Boolean)
+  const existingConnections = await getProviderConnections().catch(() => []);
+  const existingKeys = new Set(existingConnections.map((c) => c.apiKey).filter(Boolean));
+  // Endpoints already configured here — by URL identity, whatever they are
+  // named. The owner's dedup rule: a provider that is already with us (from
+  // any source, or added by hand) never imports twice.
+  let existingNodes = [];
+  try {
+    existingNodes = await getProviderNodes();
+  } catch {
+    existingNodes = [];
+  }
+  const existingUrls = new Map(
+    existingNodes
+      .map((n) => [endpointIdentity(n.baseUrl), n])
+      .filter(([id]) => id),
   );
+  // Registry providers that already hold at least one connection.
+  const connectedRegistryIds = new Set(
+    existingConnections.map((c) => c.provider).filter(Boolean),
+  );
+
   const mapped = await mapOpenCodeBaseUrls(source.providers || []);
   const imported = [];
   const skipped = [];
+  // Endpoints imported during THIS run — the same URL in two entries (or in
+  // two sources) imports once, under its first name.
+  const seenUrls = new Map();
 
   for (const p of mapped) {
     const label = p.name || p.id;
     try {
-      if (existingKeys.has(p.apiKey)) {
+      if (!p.baseUrl) {
+        skipped.push({ name: label, reason: "no base URL in the OpenCode config" });
+        continue;
+      }
+      if (isSelfReferentialBaseUrl(p.baseUrl)) {
+        skipped.push({ name: label, reason: "points at this gateway itself" });
+        continue;
+      }
+      const urlId = endpointIdentity(p.baseUrl);
+      const duplicateOf = seenUrls.get(urlId);
+      if (duplicateOf) {
+        skipped.push({ name: label, reason: `duplicate endpoint — same base URL as ${duplicateOf}` });
+        continue;
+      }
+      const alreadyNode = existingUrls.get(urlId);
+      if (alreadyNode) {
+        skipped.push({ name: label, reason: `already configured here as ${alreadyNode.name || alreadyNode.id}` });
+        continue;
+      }
+      if (!p.custom && connectedRegistryIds.has(p.targetProviderId)) {
+        skipped.push({ name: label, reason: `already connected here (${p.targetProviderId})` });
+        continue;
+      }
+      if (p.apiKey && existingKeys.has(p.apiKey)) {
         skipped.push({ name: label, reason: "already imported" });
         continue;
       }
+
       let provider = p.targetProviderId;
       let providerSpecificData = null;
       if (p.custom) {
@@ -905,6 +1104,7 @@ async function runOpenCodeImport(source) {
           name: label,
         });
         provider = created.id;
+        existingUrls.set(endpointIdentity(p.baseUrl), created);
         providerSpecificData = {
           prefix: p.id.toLowerCase().replace(/[^a-z0-9-]/g, "-").slice(0, 24) || "opencode",
           apiType: "chat",
@@ -912,6 +1112,23 @@ async function runOpenCodeImport(source) {
           nodeName: label,
         };
       }
+      seenUrls.set(urlId, label);
+
+      if (!p.apiKey) {
+        // Key-less entry: import only when the endpoint is actually alive —
+        // a dead host stays dead even after the owner pastes a key. The
+        // configurable lands in Hand Picked with its base URL; a connection
+        // appears once the owner attaches a key.
+        const alive = await probeEndpointAlive(p.baseUrl);
+        if (!alive) {
+          seenUrls.delete(urlId);
+          skipped.push({ name: label, reason: "endpoint unreachable (looks dead)" });
+          continue;
+        }
+        imported.push({ name: label, kind: "node", provider });
+        continue;
+      }
+
       const created = await createConnectionWithKeyDedup(createProviderConnection, {
         provider,
         label,
@@ -952,6 +1169,73 @@ export async function runMigration(sourceId) {
   const source = await findSource(sourceId);
   if (!source) {
     return { ok: false, error: "That source is not installed on this machine." };
+  }
+
+  // Free Claude Code endpoint import: its settings.json env carries one
+  // gateway endpoint (base URL + token). The same dedup rules as every other
+  // source — nothing imports twice, a loop-back URL imports nothing.
+  if (source.endpoint) {
+    const { getProviderNodes, createProviderNode } = await import("@/lib/db/repos/nodesRepo");
+    const { getProviderConnections, createProviderConnection } = await import(
+      "@/lib/db/repos/connectionsRepo"
+    );
+    const { generateId } = await import("@/shared/utils");
+
+    const baseUrl = source.endpoint.baseUrl;
+    if (isSelfReferentialBaseUrl(baseUrl)) {
+      return {
+        ok: true,
+        source: { id: source.id, label: source.label, path: source.path },
+        imported: [],
+        skipped: [{ name: source.label, reason: "points at this gateway itself" }],
+      };
+    }
+
+    const [connections, nodes] = await Promise.all([
+      getProviderConnections().catch(() => []),
+      getProviderNodes().catch(() => []),
+    ]);
+    const urlId = endpointIdentity(baseUrl);
+    const existingNode = nodes.find((n) => endpointIdentity(n.baseUrl) === urlId);
+    const imported = [];
+    const skipped = [];
+
+    let provider;
+    if (existingNode) {
+      provider = existingNode.id;
+    } else {
+      const created = await createProviderNode({
+        id: `anthropic-compatible-${generateId()}`,
+        type: "anthropic-compatible",
+        apiType: "messages",
+        baseUrl,
+        name: source.label,
+      });
+      provider = created.id;
+    }
+
+    const existingKeys = new Set(connections.map((c) => c.apiKey).filter(Boolean));
+    if (source.endpoint.token && !existingKeys.has(source.endpoint.token)) {
+      const created = await createProviderConnection({
+        provider,
+        authType: "apikey",
+        name: source.label,
+        apiKey: source.endpoint.token,
+        isActive: true,
+        testStatus: "unknown",
+        allowOverwrite: false,
+      });
+      imported.push({ id: created.id, name: created.name, kind: "connection", provider });
+    } else {
+      skipped.push({ name: source.label, reason: existingNode ? "already configured here" : "already imported" });
+    }
+
+    return {
+      ok: true,
+      source: { id: source.id, label: source.label, path: source.path },
+      imported,
+      skipped,
+    };
   }
 
   const { getApiKeyByKey, createApiKey, updateApiKey } = await import("@/lib/db/repos/apiKeysRepo");

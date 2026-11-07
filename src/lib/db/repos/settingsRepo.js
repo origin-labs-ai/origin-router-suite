@@ -88,6 +88,28 @@ const DEFAULT_SETTINGS = {
   // Ships OFF — injection only happens after an explicit opt-in, and every
   // consumer treats anything but `enabled === true` as disabled (fail-open).
   memoryFabric: { enabled: false },
+  // Local Models page + its wizard step: whether the owner intends to download
+  // local models at all, and where downloaded model files are saved. Empty dir
+  // means the default <data>/models.
+  localModels: { wantDownload: false, dir: "" },
+  // Skills page catalog source (src/lib/skillsPipeline/). `kind` is the source
+  // the page loads first (the UI toggle also remembers the user's last pick in
+  // localStorage on top of this); `github` names the repo the cloud catalog is
+  // fetched from — same shape as the payloads folder on disk (one dir per
+  // skill, each with a SKILL.md), so both sources render through one card grid.
+  skillsSource: {
+    kind: "github", // github | local
+    github: {
+      owner: "origin-labs-ai",
+      repo: "revolt-fusion",
+      branch: "main",
+      path: "skills",
+    },
+  },
+  // The skills system prompt: the router tells every model what skills and
+  // local models it can reach (open-sse/handlers/chatCore.js). The owner's
+  // default is ON — the block is a menu of what exists, not an instruction.
+  skills: { systemPrompt: { enabled: true } },
   // Routing resilience (see src/lib/routingPolicy.js). Concurrency is the
   // number of agent requests the router serves at once; the rest of the block
   // decides how long it keeps looking for a seat that answers, and the fact
@@ -149,6 +171,33 @@ export function mergeWithDefaults(raw) {
     ...DEFAULT_SETTINGS.fusion,
     ...(merged.fusion || {}),
     ...(merged.fusion?.source ? { source: { ...DEFAULT_SETTINGS.fusion.source, ...merged.fusion.source } } : {}),
+  };
+  // Same nested rule for localModels: a partial PATCH never erases wantDownload
+  // or dir, and an older install without the block gets the defaults.
+  merged.localModels = {
+    ...DEFAULT_SETTINGS.localModels,
+    ...(merged.localModels || {}),
+  };
+  // And for skillsSource: the github repo block is nested one level deeper, so
+  // a partial PATCH of just `kind` must not lose owner/repo/branch/path (and
+  // vice versa) — same drill as fusion.source above.
+  merged.skillsSource = {
+    ...DEFAULT_SETTINGS.skillsSource,
+    ...(merged.skillsSource || {}),
+    github: {
+      ...DEFAULT_SETTINGS.skillsSource.github,
+      ...((merged.skillsSource || {}).github || {}),
+    },
+  };
+  // Same nested rule for skills.systemPrompt: a partial PATCH must never lose
+  // the enabled flag, and an older install without the block gets the default.
+  merged.skills = {
+    ...DEFAULT_SETTINGS.skills,
+    ...(merged.skills || {}),
+    systemPrompt: {
+      ...DEFAULT_SETTINGS.skills.systemPrompt,
+      ...((merged.skills || {}).systemPrompt || {}),
+    },
   };
   return merged;
 }

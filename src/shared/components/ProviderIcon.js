@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import PropTypes from "prop-types";
-import { getProviderIconSrc, markProviderIconMissing } from "@/shared/utils/providerIcon";
+import { getProviderIconSrc } from "@/shared/utils/providerIcon";
 import { providerGlyph, providerAccentColor } from "@/shared/utils/providerGlyph";
 
 function resolveSrc(src, providerId) {
@@ -22,8 +22,27 @@ export default function ProviderIcon({
   fallbackText,
   fallbackColor,
 }) {
-  const effectiveSrc = resolveSrc(src, providerId);
+  const baseSrc = resolveSrc(src, providerId);
   const [errored, setErrored] = useState(false);
+  // One retry with a cache-buster before a miss is treated as real. While the
+  // gateway restarts under an open tab, icons 404 once — the old behaviour let
+  // that single miss stick for the whole browser session and painted healthy
+  // providers as letter glyphs. The retry lets a transient miss recover on its
+  // own; the cache-buster then stays so a browser-cached 404 cannot bounce the
+  // component into an error/retry loop.
+  const [retry, setRetry] = useState(0);
+
+  // Reused instances (a list re-rendering a card for a different provider)
+  // must forget the previous image's failure.
+  useEffect(() => {
+    setErrored(false);
+    setRetry(0);
+  }, [baseSrc]);
+
+  const effectiveSrc =
+    retry > 0 && baseSrc && !baseSrc.startsWith("data:") && baseSrc.includes("/")
+      ? `${baseSrc}${baseSrc.includes("?") ? "&" : "?"}r=${retry}`
+      : baseSrc;
 
   // Universal icon-less rule: any provider without an icon asset — Hand Picked
   // OpenAI Compatible endpoints, imports from other routers, anything new —
@@ -58,9 +77,10 @@ export default function ProviderIcon({
       loading="lazy"
       decoding="async"
       onError={() => {
-        const m = effectiveSrc.match(/^\/providers\/([^/]+)\.png$/i);
-        if (m) markProviderIconMissing(m[1]);
-        if (providerId) markProviderIconMissing(providerId);
+        if (retry < 1) {
+          setRetry(retry + 1);
+          return;
+        }
         setErrored(true);
       }}
     />

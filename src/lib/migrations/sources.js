@@ -576,6 +576,47 @@ export function mapNineRouterConnection(conn, nodesById, knownProviderIds) {
  * above), combos, and the per-combo strategies. Same report shape as the
  * key-only imports, so the wizard treats every source identically.
  */
+// ── smart key dedup (the "Key 2" rule) ──────────────────────────────────────
+//
+// The owner's rule for every migration source: when the SAME provider is
+// connected in both places, a MATCHING key means "already imported" (skip),
+// but a DIFFERENT key is still valuable — it imports as a second connection
+// named "<label> Key 2", then "Key 3", and so on. A provider with two real
+// keys gets both; nothing is silently lost and nothing is duplicated.
+
+// Exported for the migration tests and reuse by future import sources — the
+// naming sequence ("Key 2", "Key 3", …) is a product rule, not an accident.
+export async function createConnectionWithKeyDedup(createProviderConnection, spec) {
+  const base = {
+    provider: spec.provider,
+    authType: "apikey",
+    name: spec.label,
+    apiKey: spec.apiKey,
+    isActive: spec.isActive !== false,
+    testStatus: "unknown",
+    ...(spec.providerSpecificData ? { providerSpecificData: spec.providerSpecificData } : {}),
+    allowOverwrite: false,
+  };
+  try {
+    return await createProviderConnection(base);
+  } catch (error) {
+    // A name conflict with a DIFFERENT key is the "Key 2" case. A conflict
+    // with the SAME key never reaches here (the caller's existingKeys guard
+    // short-circuits first).
+    if (error?.code !== "PROVIDER_NAME_CONFLICT") throw error;
+    let last = error;
+    for (let n = 2; n <= 12; n += 1) {
+      try {
+        return await createProviderConnection({ ...base, name: `${spec.label} Key ${n}` });
+      } catch (err) {
+        if (err?.code !== "PROVIDER_NAME_CONFLICT") throw err;
+        last = err;
+      }
+    }
+    throw last;
+  }
+}
+
 async function runNineRouterImport(source) {
   const { getProviderConnections, createProviderConnection } = await import(
     "@/lib/db/repos/connectionsRepo"
@@ -671,17 +712,12 @@ async function runNineRouterImport(source) {
         };
       }
 
-      const created = await createProviderConnection({
+      const created = await createConnectionWithKeyDedup(createProviderConnection, {
         provider,
-        authType: "apikey",
-        name: conn.name || target.nodeName || conn.provider,
+        label: conn.name || target.nodeName || conn.provider,
         apiKey: conn.apiKey,
         isActive: conn.isActive !== false,
-        testStatus: "unknown",
-        ...(providerSpecificData ? { providerSpecificData } : {}),
-        // Never overwrite a same-named local connection; the conflict is the
-        // "already here" signal, same as the key dedupe above.
-        allowOverwrite: false,
+        providerSpecificData,
       });
       existingKeys.add(conn.apiKey);
       imported.push({ id: created.id, name: created.name, kind: "connection", provider });
@@ -876,15 +912,12 @@ async function runOpenCodeImport(source) {
           nodeName: label,
         };
       }
-      const created = await createProviderConnection({
+      const created = await createConnectionWithKeyDedup(createProviderConnection, {
         provider,
-        authType: "apikey",
-        name: label,
+        label,
         apiKey: p.apiKey,
         isActive: true,
-        testStatus: "unknown",
-        ...(providerSpecificData ? { providerSpecificData } : {}),
-        allowOverwrite: false,
+        providerSpecificData,
       });
       existingKeys.add(p.apiKey);
       imported.push({ id: created.id, name: created.name, kind: "connection", provider });

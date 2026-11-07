@@ -31,10 +31,10 @@ describe("MCP JSON-RPC surface", () => {
     expect(res.data.result.serverInfo.name).toBe("origin-router");
   });
 
-  it("tools/list exposes six tools", async () => {
+  it("tools/list exposes seven tools (six router + hub status)", async () => {
     const res = await POST(rpc("tools/list", {}));
     const tools = res.data.result.tools;
-    expect(tools).toHaveLength(6);
+    expect(tools).toHaveLength(7);
     for (const t of tools) {
       expect(t.name).toBeTruthy();
       expect(t.description.length).toBeLessThanOrEqual(200);

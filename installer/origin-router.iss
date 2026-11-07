@@ -61,12 +61,68 @@ Name: "{autodesktop}\{#AppName}"; Filename: "{app}\{#AppExe}"; WorkingDir: "{app
 ; Autostart must not leave a console window on the desktop: the tray-mode CLI is
  ; launched through a hidden PowerShell so the gateway starts silently.
 Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: string; ValueName: "OriginRouter"; ValueData: """{sys}\WindowsPowerShell\v1.0\powershell.exe"" -WindowStyle Hidden -NoProfile -ExecutionPolicy Bypass -Command ""Start-Process -FilePath '{app}\originrouter.cmd' -ArgumentList '--tray' -WindowStyle Hidden"""; Tasks: autostart
-Root: HKCU; Subkey: "Environment"; ValueType: expandsz; ValueName: "Path"; ValueData: "{olddata};{app}"; Check: NeedsAddPath('{app}')
+; The user PATH is written by CleanUserPath() in [Code]. Doing it here with
+; {olddata} appended the install folder again on every update, so a machine
+; that was updated a few times carried a dozen copies of the same path.
 
 [Run]
 Filename: "{app}\{#AppExe}"; Description: "Launch {#AppName}"; Flags: nowait postinstall skipifsilent
 
 [Code]
+{ Puts the install folder on the user PATH exactly once.
+  Every copy of it is removed first, so a machine that was installed or
+  updated several times ends up with one clean entry instead of a dozen. }
+procedure CleanUserPath;
+var
+  OrigPath, NewPath, Target, Part: String;
+  StartPos, SepPos: Integer;
+  Last: Boolean;
+begin
+  Target := ExpandConstant('{app}');
+
+  OrigPath := '';
+  RegQueryStringValue(HKEY_CURRENT_USER, 'Environment', 'Path', OrigPath);
+
+  NewPath := '';
+  StartPos := 1;
+  Last := False;
+  while not Last do
+  begin
+    SepPos := Pos(';', Copy(OrigPath, StartPos, MaxInt));
+    if SepPos = 0 then
+    begin
+      Part := Trim(Copy(OrigPath, StartPos, MaxInt));
+      Last := True;
+    end
+    else
+    begin
+      Part := Trim(Copy(OrigPath, StartPos, SepPos - 1));
+      StartPos := StartPos + SepPos;
+    end;
+
+    if (Part <> '') and
+       (Uppercase(Part) <> Uppercase(Target)) and
+       (Uppercase(Part) <> Uppercase(Target + '\')) then
+    begin
+      if NewPath <> '' then
+        NewPath := NewPath + ';';
+      NewPath := NewPath + Part;
+    end;
+  end;
+
+  if NewPath <> '' then
+    NewPath := NewPath + ';';
+  NewPath := NewPath + Target;
+
+  if RegWriteStringValue(HKEY_CURRENT_USER, 'Environment', 'Path', NewPath) then
+  begin
+    { Tell the running programs that the environment changed, so a shell that
+      is already open picks the new PATH up. (WM_SETTINGCHANGE = 26,
+      HWND_BROADCAST = 0xFFFF - Inno does not name them.) }
+    SendMessage(HWND_BROADCAST, 26, 0, 'Environment');
+  end;
+end;
+
 procedure CurStepChanged(CurStep: TSetupStep);
 var
   Marker: String;
@@ -81,6 +137,8 @@ begin
     SaveStringToFile(Marker,
       '{"mode":"installer","name":"@origin-labs-ai/origin-router","version":"' + '{#AppVersion}' +
       '","updateRepo":"origin-labs-ai/origin-router-suite"}', False);
+
+    CleanUserPath;
   end;
 end;
 

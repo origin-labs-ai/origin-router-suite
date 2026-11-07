@@ -19,6 +19,7 @@ import StatusAlert from "./components/StatusAlert";
 import Tooltip from "./components/Tooltip";
 import SecurityWarning from "./components/SecurityWarning";
 import KeyAccessControls from "./components/KeyAccessControls";
+import KeyLimitsControls from "./components/KeyLimitsControls";
 export default function APIPageClient({ machineId }) {
   const [keys, setKeys] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -1192,6 +1193,7 @@ export default function APIPageClient({ machineId }) {
                       }
                     })}
                   />
+                  <KeyLimitsControls apiKey={key} />
                 </div>
                 <div className="flex items-center gap-2 shrink-0 pt-0.5">
                   <Toggle

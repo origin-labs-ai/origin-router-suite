@@ -253,6 +253,15 @@ export async function saveRequestUsage(entry) {
     const promptTokens = tokens.prompt_tokens || tokens.input_tokens || 0;
     const completionTokens = tokens.completion_tokens || tokens.output_tokens || 0;
 
+    // The request is done: free the key's slot and add its tokens to the
+    // per-key budgets.
+    try {
+      const { finishKeyRequest } = await import("@/lib/keyRateLimit");
+      finishKeyRequest(entry.apiKey, promptTokens + completionTokens);
+    } catch {
+      // The limiter is optional - a failure here must not lose the usage.
+    }
+
     let inserted = false;
 
     // All 3 writes (history insert, daily upsert, lifetime counter) in ONE transaction.

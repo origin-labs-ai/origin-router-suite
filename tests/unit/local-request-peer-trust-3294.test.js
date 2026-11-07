@@ -12,13 +12,17 @@ const mocks = vi.hoisted(() => ({
   verifyDashboardAuthToken: vi.fn(),
 }));
 
-vi.mock("next/server", () => ({
-  NextResponse: {
-    next: vi.fn(() => mocks.nextResponse),
-    json: mocks.jsonResponse,
-    redirect: vi.fn((url) => ({ status: 307, url })),
-  },
-}));
+vi.mock("next/server", () => {
+  // NextResponse is used both as a constructor (the LAN-disabled HTML page)
+  // and through its static helpers.
+  function MockNextResponse(body, init = {}) {
+    return { status: init.status || 200, headers: init.headers || {}, body };
+  }
+  MockNextResponse.next = vi.fn(() => mocks.nextResponse);
+  MockNextResponse.json = mocks.jsonResponse;
+  MockNextResponse.redirect = vi.fn((url) => ({ status: 307, url }));
+  return { NextResponse: MockNextResponse };
+});
 
 vi.mock("@/lib/localDb", () => ({
   getSettings: mocks.getSettings,
@@ -54,7 +58,10 @@ describe("peer header trust", () => {
     vi.clearAllMocks();
     process.env.NINEROUTER_PEER_TOKEN = PEER_TOKEN;
     process.env.NODE_ENV = "production";
-    mocks.getSettings.mockResolvedValue({ requireLogin: true });
+    // LAN access is on so a request that carries a LAN Host/peer is judged by the
+    // peer-trust and API-key gates instead of being turned away by the LAN
+    // block, which answers 403 before either of them runs.
+    mocks.getSettings.mockResolvedValue({ requireLogin: true, lanAccessEnabled: true });
     mocks.validateApiKey.mockResolvedValue(false);
     mocks.getConsistentMachineId.mockResolvedValue("cli-token");
     mocks.verifyDashboardAuthToken.mockResolvedValue(false);
@@ -153,7 +160,7 @@ describe("peer header trust", () => {
   });
 
   it("blocks spoofed local-only routes that would otherwise spawn processes", async () => {
-    mocks.getSettings.mockResolvedValue({ requireLogin: false });
+    mocks.getSettings.mockResolvedValue({ requireLogin: false, lanAccessEnabled: true });
 
     const response = await proxy(request("/api/mcp/filesystem/sse", {
       host: "172.18.192.1:20140",

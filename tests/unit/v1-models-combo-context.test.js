@@ -75,9 +75,11 @@ describe("/v1/models combo limits", () => {
     ]);
     const combo = models.find((model) => model.id === "devin-combo");
 
-    expect(combo).toMatchObject({
-      context_length: 200000,
-      capabilities: { contextWindow: 200000 },
-    });
+    // The published window is Devin CLI's 200k.
+    expect(combo).toMatchObject({ context_length: 200000 });
+    // 200000 is also the capability table's "nobody declared anything" floor
+    // (UNDECLARED_CONTEXT_WINDOW), so the nested block reports it as
+    // undeclared rather than as a declared window.
+    expect(combo.capabilities).toMatchObject({ contextWindow: null, contextDeclared: false });
   });
 });

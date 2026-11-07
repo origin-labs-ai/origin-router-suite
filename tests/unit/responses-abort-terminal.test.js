@@ -1,8 +1,9 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, beforeEach, afterEach } from "vitest";
 
 import { createDisconnectAwareStream, pipeWithDisconnect, createStreamController } from "../../open-sse/utils/streamHandler.js";
 import { buildAbortedResponsesTerminalBytes } from "../../open-sse/utils/responsesStreamHelpers.js";
 import { buildStreamErrorBytes } from "../../open-sse/utils/streamHelpers.js";
+import { setMidStreamSilent } from "../../open-sse/utils/midStreamPolicy.js";
 import { FORMATS } from "../../open-sse/translator/formats.js";
 
 // Minimal stream controller stub
@@ -81,6 +82,12 @@ describe("buildStreamErrorBytes", () => {
   const jsonOf = (sse) => JSON.parse(sse.match(/\{.*\}/s)[0]);
   const textOf = (bytes) => new TextDecoder().decode(bytes);
 
+  // The gateway's default mid-stream policy is silent (a truncated-but-valid
+  // answer instead of an API error). The strict mode — an error frame — is the
+  // operator's opt-in, so the error-frame cases below run with it switched on.
+  beforeEach(() => setMidStreamSilent(false));
+  afterEach(() => setMidStreamSilent(true));
+
   // onAbortTerminal callbacks are enqueued verbatim, so a string here is a
   // silent no-op at runtime (createDisconnectAwareStream swallows the throw).
   it("returns bytes, not a string", () => {
@@ -107,11 +114,25 @@ describe("buildStreamErrorBytes", () => {
     expect(out).not.toContain("[DONE]");
     expect(jsonOf(out)).toMatchObject({ type: "error", error: { message: "stream stall timeout" } });
   });
+
+  // Default policy: the client gets a well-formed terminal frame, never an
+  // API error — a truncated-but-valid answer beats an exception that aborts
+  // an agent run.
+  it("emits a silent terminal frame (no error frame) under the default mid-stream policy", () => {
+    setMidStreamSilent(true);
+    const out = textOf(buildStreamErrorBytes(504, "stream stall timeout", FORMATS.OPENAI));
+
+    expect(out).not.toContain('"error"');
+    expect(out).toContain("data: [DONE]");
+  });
 });
 
 // The wiring, not just the frame builder: the watchdog must hand its reason to
 // onAbortTerminal and the bytes must reach a real consumer.
 describe("stall abort through pipeWithDisconnect", () => {
+  beforeEach(() => setMidStreamSilent(false));
+  afterEach(() => setMidStreamSilent(true));
+
   it("delivers the error frame and closes the stream", async () => {
     // Real controller: the stub above never fires its signal, and the abort
     // must reach the upstream body for the pipe to end.

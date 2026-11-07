@@ -5,6 +5,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
+import { removeTempDir } from "../helpers/tempCleanup.js";
 
 const originalDataDir = process.env.DATA_DIR;
 let tempDir;
@@ -31,7 +32,7 @@ beforeAll(async () => {
 });
 
 afterAll(() => {
-  if (tempDir) fs.rmSync(tempDir, { recursive: true, force: true });
+  if (tempDir) removeTempDir(tempDir);
   if (originalDataDir === undefined) delete process.env.DATA_DIR;
   else process.env.DATA_DIR = originalDataDir;
 });
@@ -125,6 +126,19 @@ function getInputTokens(tokens) {
   return prompt < cache ? cache : prompt;
 }
 
+// Open the backup file. better-sqlite3 is an optional native dependency and its
+// binding may not be built for the running Node (the DB layer falls back to
+// node:sqlite on Node >= 22.5), so prefer the built-in driver when present.
+async function openBackupDb(dest) {
+  try {
+    const { DatabaseSync } = await import("node:sqlite");
+    return new DatabaseSync(dest);
+  } catch {
+    const Database = (await import("better-sqlite3")).default;
+    return new Database(dest);
+  }
+}
+
 describe("backupDbLite — excludes requestDetails, keeps critical data", () => {
   it("backup file omits requestDetails rows but keeps other tables", async () => {
     const { backupDbLite } = await import("@/lib/db/backup.js");
@@ -135,8 +149,7 @@ describe("backupDbLite — excludes requestDetails, keeps critical data", () => 
     expect(fs.existsSync(dest)).toBe(true);
 
     // Open backup and assert requestDetails is empty, settings present
-    const Database = (await import("better-sqlite3")).default;
-    const bak = new Database(dest);
+    const bak = await openBackupDb(dest);
     try {
       // requestDetails is fully excluded — table must not exist in the backup
       const rdTable = bak.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='requestDetails'").get();

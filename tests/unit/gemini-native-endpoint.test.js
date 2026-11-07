@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   handleChat: vi.fn(),
   getSettings: vi.fn(),
+  getCombos: vi.fn(),
   isValidApiKey: vi.fn(),
   getProviderCredentials: vi.fn(),
   markAccountUnavailable: vi.fn(),
@@ -22,6 +23,7 @@ vi.mock("@/sse/services/auth.js", () => ({
 
 vi.mock("@/lib/localDb", () => ({
   getSettings: mocks.getSettings,
+  getCombos: mocks.getCombos,
 }));
 
 const { GET } = await import("../../src/app/api/v1beta/models/route.js");
@@ -59,7 +61,10 @@ function audioBody() {
 describe("Gemini native v1beta endpoint", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mocks.getSettings.mockResolvedValue({ requireApiKey: true });
+    // exposeAllModels publishes the full provider catalog; without it the Gemini
+    // surface serves combo ids only (Settings → Combos).
+    mocks.getSettings.mockResolvedValue({ requireApiKey: true, exposeAllModels: true });
+    mocks.getCombos.mockResolvedValue([]);
     mocks.isValidApiKey.mockResolvedValue(true);
     mocks.getProviderCredentials.mockResolvedValue({
       apiKey: "real-gemini-key",
@@ -80,6 +85,9 @@ describe("Gemini native v1beta endpoint", () => {
   });
 
   it("lists Gemini TTS models using standard Google model names", async () => {
+    // /v1beta/models publishes combo ids only unless the owner turned the full
+    // catalog on, so this list needs the switch.
+    mocks.getSettings.mockResolvedValue({ requireApiKey: true, exposeAllModels: true });
     const response = await GET();
     const body = await response.json();
     const names = body.models.map((model) => model.name);

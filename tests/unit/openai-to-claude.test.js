@@ -189,7 +189,9 @@ describe("openaiToClaudeResponse", () => {
               })
             }
           }]
-        }
+        },
+        // The translator flushes the buffered tool arguments on the finish chunk.
+        finish_reason: "tool_calls"
       }]
     };
 

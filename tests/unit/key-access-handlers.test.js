@@ -15,7 +15,18 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock("@/lib/localDb", () => ({
-  getSettings: async () => ({ requireApiKey: false, comboStrategy: "fallback" }),
+  getSettings: async () => ({
+    requireApiKey: false,
+    comboStrategy: "fallback",
+    exposeAllModels: true,
+    // The routing policy defaults (resilience on, merged router brain with a
+    // fairness term) are product behaviour, not what this suite is about: with
+    // them on, an unserved seat is answered with a synthesized completion and
+    // the combo seats are re-ordered, so the key-access assertions could not
+    // be read. Turn the resilience off and ask for the Jev-only brain, which
+    // leaves the owner's seat order alone when no System One service is set up.
+    routingPolicy: { enabled: false, seatFairness: 0, routerBrain: "jev" },
+  }),
   getModelAliases: async () => ({}),
   getComboByName: async (name) => fx.combos.find((c) => c.name === name) || null,
   getProviderNodes: async () => [],

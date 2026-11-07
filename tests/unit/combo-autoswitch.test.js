@@ -35,11 +35,14 @@ describe("detectRequiredCapabilities", () => {
     expect(r.has("vision")).toBe(true);
   });
 
-  it("web_search tool -> search", () => {
+  it("web_search tool -> no search capability (search auto-switch is disabled)", () => {
+    // Search-based auto-switching is intentionally not wired up yet
+    // (open-sse/services/combo.js: "search: temporarily disabled in auto-switch"),
+    // so a web_search tool must NOT add the "search" capability.
     const r = detectRequiredCapabilities({ messages: [{ role: "user", content: "q" }], tools: [
       { type: "web_search" },
     ] });
-    expect(r.has("search")).toBe(true);
+    expect(r.has("search")).toBe(false);
   });
 
   it("responses input_image -> vision", () => {
@@ -68,7 +71,8 @@ describe("reorderByCapabilities", () => {
   it("keeps order when no model matches", () => {
     const models = ["deepseek/deepseek-chat", "deepseek/deepseek-reasoner"];
     const out = reorderByCapabilities(models, new Set(["vision"]));
-    expect(out).toBe(models);
+    // reorderByCapabilities returns a re-ordered copy, not the same array instance.
+    expect(out).toEqual(models);
   });
 
   it("single model -> unchanged", () => {

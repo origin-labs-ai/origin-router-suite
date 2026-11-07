@@ -20,6 +20,7 @@ import {
   parseZedCallbackPayload,
   decryptZedAccessToken,
 } from "open-sse/shared/zedAuth.js";
+import { removeTempDir } from "../helpers/tempCleanup.js";
 
 // Imports must be dynamic so DATA_DIR is set before the DB layer loads.
 const originalDataDir = process.env.DATA_DIR;
@@ -37,7 +38,7 @@ beforeAll(async () => {
 }, 30_000);
 
 afterAll(() => {
-  fs.rmSync(process.env.DATA_DIR, { recursive: true, force: true });
+  removeTempDir(process.env.DATA_DIR);
   if (originalDataDir === undefined) delete process.env.DATA_DIR;
   else process.env.DATA_DIR = originalDataDir;
 });

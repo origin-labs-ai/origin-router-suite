@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { pandaHealth } from "@/sse/services/pandaRouter.js";
 import { brainStats } from "@/sse/services/routerBrain.js";
+import { pandaLocalStatus } from "@/lib/panda/spawn.js";
 import { resolveRoutingPolicy } from "@/lib/routingPolicy";
 import { getSettings } from "@/lib/localDb";
 import { getModelInfo } from "@/sse/services/model.js";
@@ -65,7 +66,14 @@ export async function GET(request) {
       brain: active,
       weights: { jev: policy.jevWeight, panda: policy.pandaWeight, tier: policy.tierBias },
       fairness: { seatFairness: policy.seatFairness, windowMs: policy.seatFairnessWindowMs },
-      panda: { ready: pandaReady, baseUrl: policy.panda.baseUrl, enabled: policy.panda.enabled !== false },
+      panda: {
+        ready: pandaReady,
+        baseUrl: policy.panda.baseUrl,
+        enabled: policy.panda.enabled !== false,
+        // v0.6.000: local-install detection with the exact start hint — the
+        // router reports, the user starts (no third-party process spawning).
+        local: pandaLocalStatus(),
+      },
       jev: { ...jev, enabled: active !== "panda", timeoutMs: policy.jevTimeoutMs },
       // What the brains have actually decided since the gateway started. This is the
       // evidence for "was Jev consulted? was Panda? did any seat sit idle?" instead of

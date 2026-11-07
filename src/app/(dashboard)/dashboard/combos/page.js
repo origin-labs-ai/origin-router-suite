@@ -10,6 +10,7 @@ import { Card, Button, Modal, Input, CardSkeleton, ModelSelectModal, ConfirmModa
 import { useCopyToClipboard } from "@/shared/hooks/useCopyToClipboard";
 import { useModelCaps } from "@/shared/hooks/useModelCaps";
 import { aggregateComboCapabilities } from "open-sse/providers/capabilities.js";
+import { listStrategies } from "@/lib/routing/strategies.js";
 import { resolveProviderId, AI_PROVIDERS } from "@/shared/constants/providers";
 import { prettyModelName } from "@/shared/utils/modelDisplayName";
 
@@ -49,12 +50,12 @@ function normalizeCapEntry(entry) {
   return { ...EMPTY_CAP_ENTRY };
 }
 
-const STRATEGY_OPTIONS = [
-  { value: "fallback", label: "Fallback — try in order" },
-  { value: "round-robin", label: "Round Robin — rotate" },
-  { value: "smart", label: "Smart Router — System One" },
-  { value: "fusion", label: "Fusion — panel + judge" },
-];
+// All 24 strategies from the registry (v0.6.000). Imported rather than
+// hard-coded so the picker can never drift from what the engine dispatches.
+const STRATEGY_OPTIONS = listStrategies().map((s) => ({
+  value: s.id,
+  label: `${s.label} — ${s.hint}`,
+}));
 
 // Which brain orders this combo's seats. "" inherits the global setting, so the
 // normal case stays "whatever Settings says" and only the exception is pinned.

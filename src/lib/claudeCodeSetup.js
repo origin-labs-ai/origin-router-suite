@@ -227,3 +227,81 @@ export async function removeClaudeSetup() {
   await writeClaudeSettings(current);
   return { ok: true, settingsPath, removed };
 }
+
+// ---------------------------------------------------------------------------
+// Restore-default. Undoes a native setup by putting ~/.claude/settings.json
+// back the way it was before OriginRouter touched it:
+//
+//   1. A backup of the pre-OriginRouter file exists  → restore it verbatim.
+//   2. No backup                                     → surgical removal of
+//      ONLY the keys OriginRouter manages, so every unrelated user setting
+//      (themes, hooks, permissions, ...) survives untouched.
+//
+// The backup lives next to the live file (claudeBackupPath) and is
+// overwritten on every backed-up setup, so that single path IS the most
+// recent backup — there is no history to sort through.
+// ---------------------------------------------------------------------------
+
+// The env keys OriginRouter writes. ORIGINROUTER_ENV_KEYS is the canonical
+// managed list (a superset of the legacy list in the claude-settings route);
+// buildClaudeEnv additionally always sets CLAUDE_CODE_MAX_OUTPUT_TOKENS, so
+// it belongs on this list too or a surgical reset would leave it behind.
+const RESTORE_MANAGED_ENV_KEYS = [...ORIGINROUTER_ENV_KEYS, "CLAUDE_CODE_MAX_OUTPUT_TOKENS"];
+
+// Write through a temp file in the same directory, then rename over the
+// target. rename(2) replaces the destination atomically on every platform
+// Node supports (Windows included), so a crash mid-write can never leave
+// Claude Code with a half-written or missing settings file.
+async function atomicWriteSettings(filePath, content) {
+  const tmp = `${filePath}.restore-${process.pid}-${Date.now()}.tmp`;
+  await fs.writeFile(tmp, content);
+  await fs.rename(tmp, filePath);
+}
+
+export async function restoreClaudeDefaults() {
+  const settingsPath = claudeSettingsPath();
+
+  // (1) Backup present and parseable → put the user's original file back
+  // byte for byte. Fail-open: an empty or corrupt backup is ignored and we
+  // fall through to the surgical path instead of restoring garbage.
+  try {
+    const backupContent = await fs.readFile(claudeBackupPath(), "utf-8");
+    const parsed = parseJsonc(backupContent);
+    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+      await atomicWriteSettings(settingsPath, backupContent);
+      return { ok: true, restored: "backup", path: settingsPath };
+    }
+  } catch {
+    // No backup file (or unreadable) → surgical path below.
+  }
+
+  // (2) Surgical: remove only the router-managed keys, keep everything else.
+  // Never deletes the file itself and never touches ~/.claude.json — unrelated
+  // user settings must survive a restore no matter what.
+  const current = await readClaudeSettings();
+  if (!current || typeof current !== "object") {
+    // Nothing on disk (or unparseable) → there is nothing of ours to undo.
+    return { ok: true, restored: "was-default", path: settingsPath };
+  }
+
+  let changed = false;
+  if (current.env && typeof current.env === "object") {
+    for (const key of RESTORE_MANAGED_ENV_KEYS) {
+      if (key in current.env) changed = true;
+      delete current.env[key];
+    }
+    if (Object.keys(current.env).length === 0) {
+      delete current.env;
+      changed = true;
+    }
+  }
+  // None of our keys were present → the file is already at its default state
+  // as far as OriginRouter is concerned. Skip the write so the user's exact
+  // formatting is preserved.
+  if (!changed) {
+    return { ok: true, restored: "was-default", path: settingsPath };
+  }
+
+  await atomicWriteSettings(settingsPath, `${JSON.stringify(current, null, 2)}\n`);
+  return { ok: true, restored: "surgical", path: settingsPath };
+}

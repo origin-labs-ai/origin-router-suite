@@ -1,4 +1,5 @@
 // Auto-generated: static imports for all registry entries
+import v060Port from "./v060-port.js";
 import p0 from "./alicode-intl.js";
 import p1 from "./alicode.js";
 import p2 from "./anthropic.js";
@@ -294,4 +295,5 @@ export default [
   p151,
   p152,
   p153,
+  v060Port,
 ];

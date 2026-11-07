@@ -10,6 +10,7 @@ import {
   detectClaudeCode,
   normalizeBaseUrl,
   readClaudeSettings,
+  restoreClaudeDefaults,
 } from "@/lib/claudeCodeSetup";
 
 // Exa MCP def — reuse from coworkPlugins (DRY).
@@ -88,8 +89,19 @@ export async function GET() {
 // POST - Backup old fields and write new settings
 export async function POST(request) {
   try {
-    const { env, exaMcpEnabled, autoCompactWindow } = await request.json();
-    
+    const body = await request.json();
+
+    // Action branch: POST { action: "restore-default" } hands Claude Code its
+    // previous configuration back. The backup written next to the live file is
+    // restored when one exists; without one, only the keys this route and the
+    // native setup manage are removed and the rest of the user's file is left
+    // exactly as it was (see restoreClaudeDefaults in claudeCodeSetup.js).
+    if (body?.action === "restore-default") {
+      return NextResponse.json(await restoreClaudeDefaults());
+    }
+
+    const { env, exaMcpEnabled, autoCompactWindow } = body;
+
     if (!env || typeof env !== "object") {
       return NextResponse.json(
         { error: "Invalid env object" },

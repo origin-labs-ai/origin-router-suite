@@ -31,7 +31,9 @@ export const PROVIDERS = {};
 export const PROVIDER_MODELS = {};
 export const PROVIDER_OAUTH = {};
 export const PROVIDER_MEDIA = {};
-for (const entry of REGISTRY) {
+// REGISTRY entries may be a single provider object or an array of them (the
+// v0.6.000 port table ships its expansion in one module); flat() accepts both.
+for (const entry of REGISTRY.flat()) {
   if (entry.transport) {
     PROVIDERS[entry.id] = buildTransport(entry.transport, entry.oauth);
     if (entry.transports) PROVIDERS[entry.id].transports = entry.transports;

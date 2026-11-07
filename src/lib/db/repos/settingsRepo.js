@@ -6,6 +6,16 @@ const DEFAULT_MITM_ROUTER_BASE = "http://localhost:20128";
 const DEFAULT_HEADROOM_URL = process.env.HEADROOM_URL || "http://localhost:8787";
 
 const DEFAULT_SETTINGS = {
+  // Revolt Fusion extension-pack state: the setup tier the user picked, the
+  // hand-picked feature categories (pro tier), and the installed pack registry.
+  // `enabled: false` = the featherlight base — nothing extra is ever fetched.
+  fusion: {
+    enabled: false,
+    tier: "daily", // daily | pro | monster
+    features: [], // resolved category ids (see src/lib/fusion/catalog.js)
+    packs: {}, // packId → { version, installedAt, features, dir }
+    source: { kind: "github", repo: "origin-labs-ai/revolt-fusion" }, // or { kind: "local", dir }
+  },
   cloudEnabled: false,
   tunnelEnabled: false,
   tunnelUrl: "",
@@ -74,6 +84,10 @@ const DEFAULT_SETTINGS = {
   pxpipeTimeoutMs: 15000,
   // Per-provider user header overrides applied at dispatch: { [providerId]: { headers: {..} } }
   providerOverrides: {},
+  // Memory Fabric (src/lib/memoryFabric/): shared cross-agent context layer.
+  // Ships OFF — injection only happens after an explicit opt-in, and every
+  // consumer treats anything but `enabled === true` as disabled (fail-open).
+  memoryFabric: { enabled: false },
   // Routing resilience (see src/lib/routingPolicy.js). Concurrency is the
   // number of agent requests the router serves at once; the rest of the block
   // decides how long it keeps looking for a seat that answers, and the fact
@@ -123,6 +137,18 @@ export function mergeWithDefaults(raw) {
       ...DEFAULT_SETTINGS.routingPolicy.panda,
       ...((merged.routingPolicy || {}).panda || {}),
     },
+  };
+  // Same nested-object rule for memoryFabric: a stored `{}` (older install or
+  // partial write) must still resolve to the default `{ enabled: false }`.
+  merged.memoryFabric = {
+    ...DEFAULT_SETTINGS.memoryFabric,
+    ...(merged.memoryFabric || {}),
+  };
+  // And for fusion: partial writes keep the tier but never lose the defaults.
+  merged.fusion = {
+    ...DEFAULT_SETTINGS.fusion,
+    ...(merged.fusion || {}),
+    ...(merged.fusion?.source ? { source: { ...DEFAULT_SETTINGS.fusion.source, ...merged.fusion.source } } : {}),
   };
   return merged;
 }

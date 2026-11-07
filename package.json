@@ -1,6 +1,6 @@
 {
   "name": "origin-router-app",
-  "version": "0.5.117",
+  "version": "0.6.000",
   "description": "OriginRouter web dashboard",
   "private": true,
   "scripts": {

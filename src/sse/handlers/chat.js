@@ -16,7 +16,8 @@ import { getTransform as getPxpipeTransform } from "@/lib/pxpipe/loader.js";
 import { appendPxpipeEvent } from "@/lib/pxpipe/events.js";
 import { errorResponse, unavailableResponse } from "open-sse/utils/error.js";
 import { upstreamResponseHeaders } from "open-sse/utils/upstreamHeaders.js";
-import { handleComboChat, handleFusionChat, detectRequiredCapabilities } from "open-sse/services/combo.js";
+import { handleComboChat, handleFusionChat, handlePipelineChat, detectRequiredCapabilities } from "open-sse/services/combo.js";
+import { normalizeStrategy } from "@/lib/routing/strategies.js";
 import { augmentModelsWithCapacityAdapter, withCapacityAdapterStripping, getActiveAdapterStrategy } from "open-sse/services/capacityAdapter.js";
 import { handleBypassRequest, synthesizeResponse } from "open-sse/utils/bypassHandler.js";
 import { LAST_RESORT_TEXT } from "open-sse/utils/lastResortText.js";
@@ -125,6 +126,7 @@ export async function handleChat(request, clientRawRequest = null, options = {})
   // capacity adapter, nested — walks on the same rule without repeating the knob.
   const comboChat = (args) => serve(handleComboChat({ seatSilenceMs: policy.seatSilenceMs, ...args }), resilience);
   const fusionChat = (args) => serve(handleFusionChat(args), resilience);
+  const pipelineChat = (args) => serve(handlePipelineChat(args), resilience);
   if (settings.requireApiKey && options.internal !== true) {
     if (!apiKey) {
       log.warn("AUTH", "Missing API key (requireApiKey=true)");
@@ -159,12 +161,33 @@ export async function handleChat(request, clientRawRequest = null, options = {})
   // Check if model is a combo (has multiple models with fallback)
   const comboModels = await getComboModels(modelStr);
   if (comboModels) {
-    // Check for combo-specific strategy first, fallback to global
+    // Check for combo-specific strategy first, fallback to global. Legacy and
+    // alternate names normalize through the strategy registry (24 strategies
+    // since v0.6.000); unknown ids fall back to the declaration order.
     const comboStrategies = settings.comboStrategies || {};
     const comboSpecificStrategy = comboStrategies[modelStr]?.fallbackStrategy;
-    const comboStrategy = comboSpecificStrategy || settings.comboStrategy || "fallback";
+    const comboStrategy = normalizeStrategy(comboSpecificStrategy || settings.comboStrategy || "fallback");
     const augmentedModels = await filterAdapterModels(keyAccess, augmentModelsWithCapacityAdapter(comboModels, requiredCapabilities, settings), comboModels);
     const adapterAdded = augmentedModels.filter((m) => !comboModels.includes(m));
+
+    if (comboStrategy === "pipeline") {
+      log.info("CHAT", `Combo "${modelStr}" with ${comboModels.length} models (strategy: pipeline)`);
+      return pipelineChat({
+        body,
+        models: comboModels,
+        handleSingleModel: (b, m, isPanel) => {
+          let cleanRawReq = clientRawRequest;
+          if (isPanel && clientRawRequest) {
+            const { tools, tool_choice, ...cleanBody } = clientRawRequest.body || {};
+            cleanRawReq = { ...clientRawRequest, body: cleanBody };
+          }
+          return handleSingleModelChat(b, m, cleanRawReq, request, apiKey, null, policy);
+        },
+        log,
+        comboName: modelStr,
+        steps: comboStrategies[modelStr]?.pipelineSteps,
+      });
+    }
 
     if (comboStrategy === "fusion") {
       log.info("CHAT", `Combo "${modelStr}" with ${comboModels.length} models (strategy: fusion)`);
@@ -217,9 +240,14 @@ export async function handleChat(request, clientRawRequest = null, options = {})
       smartPolicy: comboCfg.smartPolicy || "smart",
       sessionSticky: comboCfg.sessionSticky !== false,
       confidenceThreshold: typeof comboCfg.confidenceThreshold === "number" ? comboCfg.confidenceThreshold : 0.8,
-      resolveSmartChoice: comboStrategy === "smart" && brain.mode !== "panda"
+      weights: comboCfg.weights || {},
+      // Brain strategies let the merged Jev+Panda gate pick the seat per request.
+      // AutoAgressive switches more eagerly than smart (lower confidence bar) so
+      // a degrading seat is abandoned sooner — the situation adjusts the knobs.
+      resolveSmartChoice: (comboStrategy === "smart" || comboStrategy === "auto" || comboStrategy === "autoaggressive") && brain.mode !== "panda"
         ? (b, m) => brain.choose(m)
         : null,
+      confidenceThresholdOverride: comboStrategy === "autoaggressive" ? 0.6 : null,
     });
   }
 

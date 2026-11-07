@@ -21,6 +21,7 @@ import {
 } from "@/shared/constants/providers";
 import Link from "next/link";
 import { getErrorCode, getRelativeTime } from "@/shared/utils";
+import { providerGlyph, providerAccentColor } from "@/shared/utils/providerGlyph";
 import { useNotificationStore } from "@/store/notificationStore";
 import { useHeaderSearchStore } from "@/store/headerSearchStore";
 import ModelAvailabilityBadge from "./components/ModelAvailabilityBadge";
@@ -263,13 +264,16 @@ export default function ProvidersPage() {
     }
   };
 
+  // Hand Picked OpenAI Compatible: the user's own configured compatible
+  // endpoints. They never ship an icon asset, so the letter glyph + accent
+  // color come from the name/id (NexAPI → "N", OrcaRouter → "OR").
   const compatibleProviders = providerNodes
     .filter((node) => node.type === "openai-compatible")
     .map((node) => ({
       id: node.id,
       name: node.name || "OpenAI Compatible",
-      color: "#10A37F",
-      textIcon: "OC",
+      color: providerAccentColor(node.id),
+      textIcon: providerGlyph(node.name || node.id),
       apiType: node.apiType,
     }))
     .filter(
@@ -281,8 +285,8 @@ export default function ProvidersPage() {
     .map((node) => ({
       id: node.id,
       name: node.name || "Anthropic Compatible",
-      color: "#2B7FFF",
-      textIcon: "AC",
+      color: providerAccentColor(node.id),
+      textIcon: providerGlyph(node.name || node.id),
     }))
     .filter(
       (p) => matchSearch(p.name) && matchStatus(getProviderStats(p.id, "apikey")),
@@ -434,7 +438,7 @@ export default function ProvidersPage() {
       <div className="flex flex-col gap-4">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <h2 className="text-lg sm:text-xl font-semibold flex items-center gap-2 leading-tight">
-            Custom Providers (OpenAI/Anthropic Compatible){" "}
+            Hand Picked OpenAI Compatible{" "}
           </h2>
           <div className="grid grid-cols-1 gap-2 sm:flex sm:w-auto">
             <Button
@@ -736,9 +740,7 @@ function ProviderCard({ providerId, provider, stats, authType, onToggle }) {
                 alt={provider.name}
                 size={30}
                 className="object-contain rounded-lg max-w-[32px] max-h-[32px]"
-                fallbackText={
-                  provider.textIcon || provider.id.slice(0, 2).toUpperCase()
-                }
+                fallbackText={provider.textIcon || undefined}
                 fallbackColor={provider.color}
               />
             </div>
@@ -871,7 +873,7 @@ function ApiKeyProviderCard({
                 size={30}
                 className="object-contain rounded-lg max-w-[30px] max-h-[30px]"
                 fallbackText={
-                  provider.textIcon || provider.id.slice(0, 2).toUpperCase()
+                  provider.textIcon || undefined
                 }
                 fallbackColor={provider.color}
               />

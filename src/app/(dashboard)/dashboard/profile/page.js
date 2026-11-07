@@ -82,6 +82,14 @@ export default function ProfilePage() {
   const [proxyLoading, setProxyLoading] = useState(false);
   const [proxyTestLoading, setProxyTestLoading] = useState(false);
 
+  // Danger zone: restore default Claude Code config + factory reset.
+  const [claudeRestoreLoading, setClaudeRestoreLoading] = useState(false);
+  const [claudeRestoreStatus, setClaudeRestoreStatus] = useState({ type: "", message: "" });
+  const [resetScope, setResetScope] = useState("settings");
+  const [resetConfirmText, setResetConfirmText] = useState("");
+  const [resetLoading, setResetLoading] = useState(false);
+  const [resetStatus, setResetStatus] = useState({ type: "", message: "" });
+
   const [isRemoteHost, setIsRemoteHost] = useState(false);
   useEffect(() => {
     if (typeof window !== "undefined")
@@ -761,6 +769,61 @@ export default function ProfilePage() {
       }
     } catch (err) {
       console.error("Failed to logout:", err);
+    }
+  };
+
+  // Danger zone: put ~/.claude/settings.json back the way it was before
+  // OriginRouter configured it. The server restores the kept backup when one
+  // exists, otherwise it removes only the keys OriginRouter manages.
+  const handleRestoreClaudeConfig = async () => {
+    setClaudeRestoreLoading(true);
+    setClaudeRestoreStatus({ type: "", message: "" });
+    try {
+      const res = await fetch("/api/cli-tools/claude-settings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "restore-default" }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data.error || "Failed to restore default config");
+      }
+      const how =
+        data.restored === "backup"
+          ? "Restored your previous settings from backup"
+          : data.restored === "surgical"
+            ? "Removed OriginRouter's keys from your settings"
+            : "Settings were already at their defaults";
+      setClaudeRestoreStatus({ type: "success", message: `${how} (${data.path})` });
+    } catch (err) {
+      setClaudeRestoreStatus({ type: "error", message: err.message || "Failed to restore default config" });
+    } finally {
+      setClaudeRestoreLoading(false);
+    }
+  };
+
+  // Danger zone: factory reset for the selected scope. The button only
+  // enables once the user typed RESET; the API re-checks the same string.
+  const handleResetOriginRouter = async () => {
+    if (resetConfirmText !== "RESET") return;
+    setResetLoading(true);
+    setResetStatus({ type: "", message: "" });
+    try {
+      const res = await fetch("/api/settings/reset", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ scope: resetScope, confirm: resetConfirmText }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data.error || "Reset failed");
+      }
+      setResetConfirmText("");
+      setResetStatus({ type: "success", message: `Reset done. Backup saved to ${data.backupDir}` });
+    } catch (err) {
+      setResetStatus({ type: "error", message: err.message || "Reset failed" });
+    } finally {
+      setResetLoading(false);
     }
   };
 
@@ -1624,6 +1687,89 @@ export default function ProfilePage() {
 
         {/* Routing resilience (concurrency, failover, error suppression) */}
         <RoutingResilienceCard />
+
+        {/* Danger zone — destructive actions, each with its own confirmation */}
+        <Card>
+          <div className="flex items-center gap-3 mb-4">
+            <div className="p-2 rounded-lg bg-red-500/10 text-red-500 shrink-0">
+              <span className="material-symbols-outlined text-[20px]">warning</span>
+            </div>
+            <h3 className="text-base sm:text-lg font-semibold">Danger zone</h3>
+          </div>
+
+          <div className="flex flex-col gap-4">
+            {/* Restore default Claude Code config */}
+            <div className="flex flex-col gap-2 pb-4 border-b border-border/50">
+              <div className="flex items-start sm:items-center justify-between gap-4">
+                <div className="flex-1 min-w-0">
+                  <p className="font-medium text-sm sm:text-base">Restore default Claude Code config</p>
+                  <p className="text-xs sm:text-sm text-text-muted">
+                    Undo the OriginRouter setup: restore the kept backup of ~/.claude/settings.json, or remove only the keys OriginRouter manages. Other settings are never touched.
+                  </p>
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  icon="settings_backup_restore"
+                  loading={claudeRestoreLoading}
+                  onClick={handleRestoreClaudeConfig}
+                  className="shrink-0 text-red-500 border-red-200 hover:bg-red-50 hover:border-red-300"
+                >
+                  Restore
+                </Button>
+              </div>
+              {claudeRestoreStatus.message && (
+                <p className={`text-xs sm:text-sm break-all ${claudeRestoreStatus.type === "error" ? "text-red-500" : "text-green-500"}`}>
+                  {claudeRestoreStatus.message}
+                </p>
+              )}
+            </div>
+
+            {/* Reset OriginRouter (factory reset, backed up first) */}
+            <div className="flex flex-col gap-2">
+              <div>
+                <p className="font-medium text-sm sm:text-base">Reset OriginRouter</p>
+                <p className="text-xs sm:text-sm text-text-muted">
+                  Backs up the database, then clears the selected data. API keys always survive a reset.
+                </p>
+              </div>
+              <select
+                value={resetScope}
+                onChange={(e) => setResetScope(e.target.value)}
+                disabled={resetLoading}
+                className="w-full px-2 py-2 bg-surface rounded text-xs border border-border focus:outline-none focus:ring-1 focus:ring-primary/50"
+              >
+                <option value="settings">Settings only</option>
+                <option value="combos">Combos</option>
+                <option value="connections">Connections</option>
+                <option value="usage">Usage history</option>
+                <option value="all">Everything except API keys</option>
+              </select>
+              <Input
+                placeholder="Type RESET to confirm"
+                value={resetConfirmText}
+                onChange={(e) => setResetConfirmText(e.target.value)}
+                disabled={resetLoading}
+              />
+              <Button
+                type="button"
+                variant="outline"
+                icon="restart_alt"
+                loading={resetLoading}
+                disabled={resetConfirmText !== "RESET"}
+                onClick={handleResetOriginRouter}
+                className="text-red-500 border-red-200 hover:bg-red-50 hover:border-red-300"
+              >
+                Reset OriginRouter
+              </Button>
+              {resetStatus.message && (
+                <p className={`text-xs sm:text-sm break-all ${resetStatus.type === "error" ? "text-red-500" : "text-green-500"}`}>
+                  {resetStatus.message}
+                </p>
+              )}
+            </div>
+          </div>
+        </Card>
 
         {/* Account actions */}
         <div className="flex flex-col sm:flex-row gap-2">

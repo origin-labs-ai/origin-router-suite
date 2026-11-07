@@ -11,9 +11,10 @@
 // "openai-compatible-chat-…". The icon is the same letter glyph + accent
 // color the Providers page uses, so a provider looks like itself everywhere.
 //
-// Balance rule: the card shows a FIXED number of rows (the worst-offending
-// seats first), so Provider Health and Cost Forecast stand side by side at
-// the same visual weight. The count is a product default, not a knob.
+// Balance rule: the list scrolls inside the card (bounded height), so
+// Provider Health and Cost Forecast stand side by side without the health
+// card stretching the whole page — and every entry stays reachable here,
+// in this card, on this page. The height is a product default, not a knob.
 
 import { useEffect, useState } from "react";
 import Button from "@/shared/components/Button";
@@ -23,11 +24,6 @@ import ProviderIcon from "@/shared/components/ProviderIcon";
 import { PROVIDER_DISPLAY } from "@/shared/constants/providersDisplay";
 import { providerGlyph, providerAccentColor } from "@/shared/utils/providerGlyph";
 import { buildProviderNameMap, resolveProviderLabel } from "@/shared/utils/providerLabel";
-
-// Fixed row budget — deliberately not configurable: the card's job is a
-// balanced glance next to Cost Forecast, not an exhaustive audit (the
-// Providers page and the request log carry the full detail).
-const VISIBLE_ROWS = 8;
 
 const WINDOWS = [
   { value: "24h", label: "24h" },
@@ -154,14 +150,14 @@ export default function ProviderHealthCard() {
 
   const allProviders = data.providers || [];
   // Worst first: down, then degraded, then by request volume. Idle seats sink.
+  // EVERY entry stays in this card — the list scrolls, nothing is hidden on
+  // some other page.
   const providers = [...allProviders]
     .sort((a, b) => {
       const rankDiff = (STATUS_RANK[a.status] ?? 9) - (STATUS_RANK[b.status] ?? 9);
       if (rankDiff !== 0) return rankDiff;
       return (b.requests || 0) - (a.requests || 0);
-    })
-    .slice(0, VISIBLE_ROWS);
-  const hiddenCount = Math.max(0, allProviders.length - VISIBLE_ROWS);
+    });
   const summary = data.summary || {};
 
   return (
@@ -204,7 +200,7 @@ export default function ProviderHealthCard() {
           No provider traffic in this window. Connect a provider and send a request - it shows up here.
         </p>
       ) : (
-        <div className="flex min-w-0 flex-col gap-1.5">
+        <div className="flex min-w-0 flex-col gap-1.5 overflow-y-auto" style={{ maxHeight: 460 }}>
           {providers.map((entry) => {
             const name = nameFor(entry);
             return (
@@ -216,10 +212,11 @@ export default function ProviderHealthCard() {
                   className={`h-2 w-2 shrink-0 rounded-full ${DOT_CLASS[entry.status] || DOT_CLASS.unknown}`}
                   title={STATUS_LABEL[entry.status] || entry.status}
                 />
-                {/* The glyph + accent the Providers page uses — an icon-less
-                    provider renders as its own letter, never a foreign logo
-                    or a two-letter id chip. */}
+                {/* The provider's own icon when one exists (Antigravity, Qoder,
+                    Cursor, MiniMax, Kimi, …); the letter glyph + accent only
+                    for icon-less endpoints. Never a foreign logo. */}
                 <ProviderIcon
+                  providerId={entry.provider}
                   alt={name}
                   size={18}
                   className="h-[18px] w-[18px] shrink-0 rounded object-contain"
@@ -253,11 +250,6 @@ export default function ProviderHealthCard() {
               </div>
             );
           })}
-          {hiddenCount > 0 ? (
-            <p className="text-[11px] text-text-muted">
-              +{hiddenCount} more provider{hiddenCount === 1 ? "" : "s"} in this window — the full list lives on the Providers page.
-            </p>
-          ) : null}
         </div>
       )}
 

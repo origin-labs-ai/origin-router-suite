@@ -104,6 +104,9 @@ export default function UsageTable({
   // the account/api-key tables render plain headers (the owner's call —
   // grouping already carries the meaning there).
   sortable = true,
+  // Group headline formatter: the group key is often a raw id; this maps it
+  // to the name the user reads.
+  formatGroupLabel,
   viewMode,
   storageKey,
   renderDetailCells,
@@ -210,7 +213,9 @@ export default function UsageTable({
                         className={`truncate font-medium transition-colors ${group.summary.pending > 0 ? "text-primary" : ""}`}
                         title={String(group.groupKey || "")}
                       >
-                        {group.groupKey}
+                        {/* The headline is the display name; the raw key stays
+                            in the tooltip for debugging. */}
+                        {formatGroupLabel ? formatGroupLabel(group.groupKey) : group.groupKey}
                       </span>
                     </div>
                   </td>

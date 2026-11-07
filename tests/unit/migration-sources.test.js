@@ -81,15 +81,17 @@ describe("migration sources", () => {
     expect(fcc.keys.some((entry) => entry.key === "ignored")).toBe(false);
   });
 
-  it("always lists the three kinds of sources, found or not", async () => {
+  it("always lists the five kinds of sources, found or not", async () => {
     const { listSources } = await import("../../src/lib/migrations/sources.js");
     const { sources } = await listSources();
     const ids = sources.map((source) => source.id);
 
-    expect(sources).toHaveLength(3);
+    expect(sources).toHaveLength(5);
     expect(ids.some((id) => id.startsWith("router:"))).toBe(true);
     expect(ids).toContain("omniroute");
     expect(ids).toContain("free-claude-code");
+    expect(ids).toContain("9router");
+    expect(ids).toContain("opencode");
     // A source that is not on this machine is shown, but not offered.
     for (const source of sources) {
       expect(typeof source.available).toBe("boolean");

@@ -19,5 +19,15 @@ export async function register() {
 
     const { startModelCatalogSync } = await import("@/lib/modelCatalog/sync.js");
     startModelCatalogSync();
+
+    // Discarded-feature revival: report a local PandaOrchestrator install at
+    // boot (detection only — the router never spawns third-party binaries).
+    const { reportPandaStatusAtBoot } = await import("@/lib/panda/spawn.js");
+    await reportPandaStatusAtBoot();
+
+    // OriginFold disk persistence: folds survive a gateway restart. Best-effort
+    // — without the store, folds live in memory only (fail-open either way).
+    const { installFoldStore } = await import("@/lib/foldStore.js");
+    await installFoldStore();
   }
 }

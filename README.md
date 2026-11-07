@@ -5,7 +5,7 @@
 
   **One endpoint for every AI provider. Never stop coding.**
 
-  Route across **90+ providers** from a single local port, fall back before an upstream error ever reaches your code, and cut **60-90%** of tool-output tokens.
+  Route across **140+ providers** and **24 routing strategies** from a single local port, fold months-long conversations to a fraction of their tokens (OriginFold), fall back before an upstream error ever reaches your code, and cut **60-90%** of tool-output tokens.
 
   <p>
     <a href="#-install"><b>Install</b></a> •
@@ -16,6 +16,7 @@
     <a href="#-install"><b>Install</b></a> •
     <a href="#-docs"><b>Docs</b></a>
   </p>
+
 
   [![GitHub release](https://img.shields.io/github/v/release/origin-labs-ai/origin-router-suite?style=flat-square&label=release)](https://github.com/origin-labs-ai/origin-router-suite/releases/latest)
   [![License: MIT](https://img.shields.io/github/license/origin-labs-ai/origin-router-suite?style=flat-square)](LICENSE)
@@ -321,6 +322,23 @@ The dashboard's **Token Saver** page is where the money is:
 | **Ponytail** | Biases the model towards minimal code: YAGNI, reuse still, deletion over addition. | shorter diffs |
 
 RTK is **fail-open by design**: if compression cannot make a payload smaller, the original payload is sent unchanged. A savings feature must never break a request.
+
+OriginRouter's saver stack runs in a fixed order, each layer owning one job: **OriginFold** folds the consumed conversation itself (tiered summary blocks, verbatim recent zone, prefix-cache-safe), the **compression engines** (session-dedup, lite — behind fidelity and risk gates) clean the message list, **reasoning replay** keeps strict thinking-mode upstreams happy, and then RTK / Headroom / Caveman / Ponytail do their in-place work. Every layer fails open.
+
+## ⚡ Modular Power Without Bloat (the Revolt Fusion architecture)
+
+OmniRoute shoved everything into one repo and became a heavyweight TypeScript monorepo (223 DB migrations). 9Router stayed half-built and kept its NineRemote paid/promo popups.
+
+OriginRouter's philosophy: **the base is always clean, fast ESM JavaScript + a single SQLite (`~/.or/db/data.sqlite`)** — and the heavy/monster features (the revolt-fusion packs) hot-load on demand with the `webpackIgnore` dynamic-import pattern, chosen by the user's use-case in Get Started:
+
+- **Daily Code** — featherlight, zero extra download.
+- **Pro** — hand-pick the heavy categories you want.
+- **MHHRSM** — the full Monster Homelab Hub Rebel Strike Mode pack.
+- **Ultra Ultimate Max** — everything, every knob at its ceiling, nothing held back.
+
+Packs are hash-verified against their manifest before a byte lands on disk, load without a restart, and remove cleanly. No bloat in the base, no dead code, no schema museum — the DB manager (Fusion Setup page) shows every table by category and lets the user pick the data-retention preset (minimal / standard / full).
+
+The provider graveyard ([docs/PROVIDER-GRAVEYARD.md](docs/PROVIDER-GRAVEYARD.md)) records, per provider in the reference catalogs, whether it is alive, shut down, or not portable — dead and expired providers are documented and excluded, not silently counted.
 
 ---
 

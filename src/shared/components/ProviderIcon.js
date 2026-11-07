@@ -3,6 +3,7 @@
 import { useState } from "react";
 import PropTypes from "prop-types";
 import { getProviderIconSrc, markProviderIconMissing } from "@/shared/utils/providerIcon";
+import { providerGlyph, providerAccentColor } from "@/shared/utils/providerGlyph";
 
 function resolveSrc(src, providerId) {
   if (providerId) return getProviderIconSrc(providerId);
@@ -18,11 +19,18 @@ export default function ProviderIcon({
   alt,
   size = 32,
   className = "",
-  fallbackText = "?",
+  fallbackText,
   fallbackColor,
 }) {
   const effectiveSrc = resolveSrc(src, providerId);
   const [errored, setErrored] = useState(false);
+
+  // Universal icon-less rule: any provider without an icon asset — Hand Picked
+  // OpenAI Compatible endpoints, imports from other routers, anything new —
+  // renders the letter glyph + deterministic accent color from its name/id
+  // (NexAPI → "N", OrcaRouter → "OR"). Callers may still override both.
+  const glyphText = fallbackText != null && fallbackText !== "" ? fallbackText : providerGlyph(alt || providerId || "");
+  const glyphColor = fallbackColor || providerAccentColor(providerId || alt || "");
 
   if (!effectiveSrc || errored) {
     return (
@@ -31,11 +39,11 @@ export default function ProviderIcon({
         style={{
           width: size,
           height: size,
-          color: fallbackColor,
+          color: glyphColor,
           fontSize: Math.max(10, Math.floor(size * 0.38)),
         }}
       >
-        {fallbackText}
+        {glyphText}
       </span>
     );
   }

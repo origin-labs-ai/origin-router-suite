@@ -2,6 +2,20 @@
  * Shared combo (model combo) handling with fallback support
  */
 
+// The pipeline judge prompt: how the final seat uses the draft thread.
+function buildPipelinePrompt(drafts) {
+  const parts = drafts.map(
+    (d, i) => `--- Draft ${i + 1} (from ${d.model}) ---\n${d.text}`
+  );
+  return [
+    "You are the final stage of a pipeline. Earlier stages produced the drafts below.",
+    "Produce the final answer: improve on the drafts, resolve their disagreements,",
+    "and answer the user's actual request. Do not mention the drafts or the pipeline.",
+    "",
+    ...parts,
+  ].join("\n");
+}
+
 import { checkFallbackError, formatRetryAfter } from "./accountFallback.js";
 import { unavailableResponse } from "../utils/error.js";
 import { getCapabilitiesForModel } from "../providers/capabilities.js";
@@ -15,6 +29,7 @@ import {
   clearStickyComboSession,
   orderModelsByChoice,
 } from "./systemoneRouter.js";
+import { orderSeats, recordComboOutcome } from "./comboOrderers.js";
 
 // Peek a 2xx combo response for real content. Returns null for non-SSE responses (leave
 // them untouched). For SSE, returns { outcome: "content"|"empty", finishReason, response }
@@ -414,6 +429,10 @@ export async function handleComboChat({
   sessionSticky = true,
   confidenceThreshold = 0.8,
   resolveSmartChoice = null,
+  // Per-seat weights for the "weighted" strategy (comboStrategies[name].weights)
+  weights = {},
+  // AutoAgressive tightens the smart-switch bar (lower = switch sooner).
+  confidenceThresholdOverride = null,
   // How long a member may hold the turn without sending a single byte before the
   // walk cuts it and advances. Tunable from Settings → Routing resilience.
   seatSilenceMs = EMPTY_PEEK_DEADLINE_MS,
@@ -435,6 +454,10 @@ export async function handleComboChat({
     else if (policy.startsWith("smart-switch") || policy === "smart") {
       const custom = Number(confidenceThreshold);
       if (Number.isFinite(custom) && custom > 0) switchThreshold = custom;
+    }
+    // AutoAgressive: the strategy, not the operator, adjusts the bar.
+    if (typeof confidenceThresholdOverride === "number" && confidenceThresholdOverride > 0) {
+      switchThreshold = confidenceThresholdOverride;
     }
 
     if (!isPerTurn && sessionId) {
@@ -501,6 +524,15 @@ export async function handleComboChat({
   } else {
     // Apply rotation strategy if enabled
     rotatedModels = getRotatedModels(models, comboName, comboStrategy, comboStickyLimit);
+    // Strategy-registry orderers (strict-random, weighted, p2c, lkgp, cost-/
+    // context-/cache-optimized, shadow-cache, quota family, latency-arbitrage).
+    // Random/round-robin/fallback are rotation strategies already applied above;
+    // orderSeats passes them through untouched.
+    rotatedModels = orderSeats(rotatedModels, comboStrategy, {
+      comboName,
+      body,
+      weights,
+    });
   }
 
   // Auto-switch: float models that satisfy the request's required capabilities to the front.
@@ -583,6 +615,7 @@ export async function handleComboChat({
           }
 
           log.info("COMBO", `Model ${modelStr} succeeded`);
+          recordComboOutcome(modelStr, { comboName }, { ok: true, status: result.status });
           return result;
         }
 
@@ -598,6 +631,7 @@ export async function handleComboChat({
             const silenceSec = Math.round(seatSilenceMs / 1000);
             silenceCuts += 1;
             log.warn("COMBO", `Model ${modelStr} produced no frame in ${silenceSec}s (queued/dead) — cut ${silenceCuts}/${MAX_SILENCE_CUTS}, trying the next member`);
+            recordComboOutcome(modelStr, { comboName }, { ok: false, status: 504, errorKind: "silence-cut" });
             peeked.response.body?.cancel?.().catch(() => {});
             lastError = `no response frame in ${silenceSec}s`;
             if (!lastStatus) lastStatus = 504;
@@ -609,6 +643,7 @@ export async function handleComboChat({
           // Committed. From here the answer belongs to the client: the remaining
           // budget is the caller's 7200s, and no further member is ever asked.
           log.info("COMBO", `Model ${modelStr} succeeded${peeked.timedOut ? " (peek deadline; generating, waiting it out)" : ""}`);
+          recordComboOutcome(modelStr, { comboName }, { ok: true, status: peeked.response.status });
           return peeked.response;
         }
 
@@ -662,6 +697,7 @@ export async function handleComboChat({
       // Check if should fallback to next model
       const { provider } = parseModel(modelStr);
       const { shouldFallback, cooldownMs, requestScoped } = checkFallbackError(result.status, errorText, 0, provider);
+      recordComboOutcome(modelStr, { comboName }, { ok: false, status: result.status, errorKind: shouldFallback ? "fallback" : "no-fallback" });
 
       if (!shouldFallback && !requestScoped) {
         log.warn("COMBO", `Model ${modelStr} failed (no fallback)`, { status: result.status });
@@ -979,6 +1015,88 @@ export async function handleFusionChat({ body, models, handleSingleModel, log, c
   const judgeBody = appendUserTurn(body, buildJudgePrompt(answers));
   log.info("FUSION", `Judging ${answers.length} answers with ${judge}`);
   return handleSingleModel(judgeBody, judge);
+}
+
+/**
+ * Pipeline combo strategy: runs the seats in sequence, feeding each step's
+ * output into the next. Step N's answer is appended to the conversation as a
+ * "draft" turn; the final seat produces the answer the client sees (streamed,
+ * tools intact). Intermediate steps run non-streaming with tools stripped —
+ * they are drafting stages, not tool-runners. If a step fails or returns
+ * nothing, the chain skips it: a pipeline that loses a stage still answers,
+ * it just has one fewer draft.
+ *
+ * @param {Object} options - Same shape as handleFusionChat
+ * @param {string[]} [options.steps] - Optional per-step prompt hints (comboStrategies[name].pipelineSteps)
+ * @returns {Promise<Response>}
+ */
+export async function handlePipelineChat({ body, models, handleSingleModel, log, comboName, steps }) {
+  const chain = Array.isArray(models) ? models.filter(Boolean) : [];
+  if (chain.length === 0) {
+    return new Response(
+      JSON.stringify({ error: { message: "Pipeline combo has no models" } }),
+      { status: 400, headers: { "Content-Type": "application/json" } }
+    );
+  }
+  if (chain.length === 1) {
+    return handleSingleModel(body, chain[0]);
+  }
+
+  log.info("PIPELINE", `Combo "${comboName}" | chain=${chain.length} [${chain.join(" → ")}]`);
+
+  // Intermediate drafting body: non-streaming, tools stripped, tool history
+  // flattened to prose (the same discipline the fusion panel gets).
+  const { tools, tool_choice, stream_options, ...rest } = body;
+  const draftBody = { ...rest, stream: false };
+  if (Array.isArray(draftBody.messages)) {
+    draftBody.messages = flattenToolHistory(draftBody.messages);
+  } else if (Array.isArray(draftBody.input)) {
+    draftBody.input = flattenToolHistory(draftBody.input);
+  }
+
+  const drafts = [];
+  for (let i = 0; i < chain.length - 1; i++) {
+    const model = chain[i];
+    const stepHint = Array.isArray(steps) && steps[i] ? String(steps[i]) : "";
+    const stepBody = JSON.parse(JSON.stringify(draftBody));
+    if (stepHint) {
+      stepBody.messages = [
+        ...(stepBody.messages || []),
+        { role: "user", content: `[Pipeline stage ${i + 1} focus] ${stepHint}` },
+      ];
+    }
+    try {
+      const res = await handleSingleModel(stepBody, model, true);
+      if (!res || !res.ok) {
+        log.warn("PIPELINE", `Stage ${i + 1} (${model}) failed — skipping`, { status: res?.status });
+        continue;
+      }
+      const json = await res.clone().json();
+      const text = extractPanelText(json);
+      if (text) {
+        drafts.push({ model, text });
+        log.info("PIPELINE", `Stage ${i + 1} (${model}) ok (${text.length} chars)`);
+      } else {
+        log.warn("PIPELINE", `Stage ${i + 1} (${model}) returned no content — skipping`);
+      }
+    } catch (err) {
+      log.warn("PIPELINE", `Stage ${i + 1} (${model}) threw — skipping`, { error: err?.message || String(err) });
+    }
+  }
+
+  if (drafts.length === 0) {
+    // No drafts survived: a degenerate pipeline is just a fallback walk on the
+    // final seat, which is the safest degradation.
+    log.warn("PIPELINE", "No stage produced a draft — answering directly on the final seat");
+    return handleSingleModel(body, chain[chain.length - 1]);
+  }
+
+  // Final seat: original body (streaming, tools), plus the draft thread so the
+  // last model can synthesize instead of starting cold.
+  const finalModel = chain[chain.length - 1];
+  const finalBody = appendUserTurn(body, buildPipelinePrompt(drafts));
+  log.info("PIPELINE", `Final answer from ${finalModel} with ${drafts.length} draft(s)`);
+  return handleSingleModel(finalBody, finalModel);
 }
 
 export {

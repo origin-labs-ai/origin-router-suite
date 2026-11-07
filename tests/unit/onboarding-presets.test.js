@@ -10,16 +10,33 @@ import {
 } from "../../src/lib/onboardingPresets.js";
 
 describe("onboarding presets", () => {
-  it("offers exactly three choices", () => {
+  it("offers exactly four choices", () => {
     expect(COMBO_STRATEGY_PRESETS.map((preset) => preset.id)).toEqual([
-      "max",
+      "mythos",
       "revolt-deffusion",
+      "auto-aggressive",
       "custom",
     ]);
   });
 
+  it("uses the owner's display names with spacing", () => {
+    expect(getPreset("revolt-deffusion").label).toBe("Revolt Deffusion");
+    expect(getPreset("auto-aggressive").label).toBe("Auto Agressive");
+  });
+
+  it("Auto Agressive rides the autoaggressive strategy with the tighter bar", () => {
+    const strategy = presetComboStrategy("auto-aggressive");
+    expect(strategy.fallbackStrategy).toBe("autoaggressive");
+    expect(strategy.routerBrain).toBe("merged");
+    expect(strategy.confidenceThreshold).toBe(0.6);
+  });
+
+  it("resolves the pre-Mythos 'max' id as an alias", () => {
+    expect(getPreset("max").id).toBe("mythos");
+  });
+
   it("maxes everything out", () => {
-    const patch = presetSettingsPatch("max");
+    const patch = presetSettingsPatch("mythos");
     expect(patch.routingPolicy.routerBrain ?? "merged").toBe("merged");
     expect(patch.routingPolicy.maxAgentsConcurrency).toBe(64);
     expect(patch.routingPolicy.perConnectionConcurrency).toBe(64);
@@ -29,7 +46,7 @@ describe("onboarding presets", () => {
     expect(patch.tokenSaver.ponytailLevel).toBe("ultra");
     expect(patch.tokenSaver.rtkEnabled).toBe(true);
 
-    const strategy = presetComboStrategy("max");
+    const strategy = presetComboStrategy("mythos");
     expect(strategy.routerBrain).toBe("merged");
     expect(strategy.fallbackStrategy).toBe("smart");
   });
@@ -74,7 +91,7 @@ describe("onboarding presets", () => {
   });
 
   it("reads the compression of a preset", () => {
-    expect(presetCompression("max").cavemanLevel).toBe("ultra");
+    expect(presetCompression("mythos").cavemanLevel).toBe("ultra");
     expect(presetCompression("revolt-deffusion").cavemanLevel).toBe("full");
     expect(presetCompression("custom").cavemanEnabled).toBe(false);
   });

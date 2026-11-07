@@ -28,6 +28,7 @@ import { injectCustomPrompt } from "../rtk/customPrompt.js";
 import { compressMessages, formatRtkLog } from "../rtk/index.js";
 import { compressWithHeadroom, formatHeadroomLog, formatHeadroomSizeLog, isHeadroomPhantomSavings } from "../rtk/headroom.js";
 import { compressWithPxpipe } from "../rtk/pxpipe.js";
+import { processTurn as foldProcessTurn } from "../fold/index.js";
 import { getCapabilitiesForModel } from "../providers/capabilities.js";
 import { stripUnsupportedModalities } from "../translator/concerns/modality.js";
 import { prefetchRemoteImages } from "../translator/concerns/prefetch.js";
@@ -130,6 +131,41 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
 
   // Per-request opt-out: client can bypass all token savers via header
   const tokenSaverEnabled = clientRawRequest?.headers?.[TOKEN_SAVER_HEADER]?.toLowerCase() !== "off";
+
+  // OriginFold: the conversation-level fold pass (billion-context design).
+  // Runs before every other token saver on the source-format body, fails open,
+  // and only engages past the nudge threshold of the model's context window.
+  if (tokenSaverEnabled) {
+    try {
+      const foldResult = foldProcessTurn({ body, provider, model, settings: null, log });
+      if (foldResult?.folded) body = foldResult.body;
+    } catch { /* fail open */ }
+
+    // Compression engine pipeline: the lossless stack (session-dedup, lite)
+    // behind the fidelity/risk gates. Engines are plugins — the fusion pack
+    // registers the lossy ones only after their eval harnesses pass. Runs
+    // after the fold (folded summaries are engines' input too) and fails open.
+    try {
+      const { runCompressionPipeline } = await import("../compression/gates.js");
+      const piped = runCompressionPipeline({ messages: body?.messages, provider, model });
+      if (piped?.applied?.length > 0 && piped.savedBytes > 0 && Array.isArray(piped.messages)) {
+        body = { ...body, messages: piped.messages };
+        log?.info?.("COMPRESSION", `engines [${piped.applied.join(", ")}] trimmed ~${piped.savedBytes}B`);
+      }
+    } catch { /* fail open */ }
+  }
+
+  // Reasoning-state replay: strict thinking-mode upstreams (DeepSeek, Gemini
+  // thinking, Kiro) reject follow-up turns whose tool_call ids lack their prior
+  // reasoning. The harness re-attaches captured reasoning (≤20 blocks) where
+  // the same tool_call id reappears. Fail-open; a miss changes nothing.
+  try {
+    const { replayReasoning } = await import("../harness/reasoningState.js");
+    const replayed = replayReasoning({ model, messages: body?.messages });
+    if (replayed?.messages && replayed.messages !== body?.messages) {
+      body = { ...body, messages: replayed.messages };
+    }
+  } catch { /* fail open */ }
 
   // Cursor's translator rewrites tool_result into user text, so RTK must run on
   // the source body before translation. Every other pair translates the tool
@@ -529,6 +565,13 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
   // True non-streaming response
   if (!stream) {
     const result = await handleNonStreamingResponse({ ...sharedCtx, providerResponse, sourceFormat, targetFormat: providerResponseFormat, reqLogger, toolNameMap, customToolNames, trackDone, appendLog });
+    // Reasoning-state capture (v1: non-streaming responses only — the SSE
+    // capture path lands with the stream-recovery work). Silent on any shape.
+    try {
+      const { captureReasoning } = await import("../harness/reasoningState.js");
+      const clone = result?.clone ? result.clone() : null;
+      if (clone) captureReasoning({ model, response: await clone.json() });
+    } catch { /* fail open */ }
     streamController.handleComplete();
     return result;
   }

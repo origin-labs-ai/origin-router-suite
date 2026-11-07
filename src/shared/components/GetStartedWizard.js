@@ -2,11 +2,11 @@
 
 // The first-run wizard.
 //
-// One window, seven steps, and every step can be skipped. The order matters:
+// One window, eight steps, and every step can be skipped. The order matters:
 // the theme first (it is the only step that changes what the user sees while
 // they are still inside the wizard), then where the keys come from, then one
-// provider, then a combo to route with, then how hard the router works, then
-// Claude Code, and last the summary.
+// provider, then a combo to route with, then the Google Drive backup, then
+// how hard the router works, then Claude Code, and last the summary.
 //
 // The portable build has two extra steps and they come first: where the data
 // is stored, and how the app starts. Everything else is the same.
@@ -29,10 +29,12 @@ import {
 } from "@/lib/onboardingPresets";
 
 const BASE_STEPS = [
+  { id: "setup", label: "Setup", icon: "rocket_launch", hint: "Daily Code, Pro, MHHRSM or Ultra Ultimate Max" },
   { id: "theme", label: "Theme", icon: "palette", hint: "How OriginRouter looks" },
   { id: "migrate", label: "Migrate", icon: "move_to_inbox", hint: "Bring your keys with you" },
   { id: "provider", label: "Provider", icon: "hub", hint: "Your first provider" },
   { id: "combo", label: "Combo", icon: "route", hint: "Route several models as one" },
+  { id: "cloud", label: "Cloud sync", icon: "cloud_upload", hint: "Back up to Google Drive" },
   { id: "extras", label: "Tuning", icon: "tune", hint: "How hard the router works" },
   { id: "claude", label: "Claude Code", icon: "terminal", hint: "Point the CLI at the router" },
   { id: "done", label: "Finish", icon: "check_circle", hint: "Everything is ready" },
@@ -56,6 +58,7 @@ const SOURCE_LOGOS = {
   "router-install": { text: "OR", color: "#2B7FFF" },
   omniroute: { text: "OM", color: "#6366f1" },
   "free-claude-code": { text: "FC", color: "#14b8a6" },
+  "9router": { text: "9R", color: "#0FA3B1" },
 };
 
 function SourceLogo({ sourceId, name }) {
@@ -109,6 +112,53 @@ function PortablePanel({ children }) {
       </div>
       {children}
     </div>
+  );
+}
+
+// The Pro tier's category hand-pick. Fetches the fusion catalog once and
+// renders a checkbox per heavy category; selection feeds apply-setup.
+function ProCategoryPicker({ selected, onChange }) {
+  const [categories, setCategories] = useState(null);
+
+  useEffect(() => {
+    let alive = true;
+    fetch("/api/fusion", { cache: "no-store" })
+      .then((r) => r.json())
+      .then((data) => {
+        if (alive && Array.isArray(data?.categories)) setCategories(data.categories);
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  if (!categories) return <div className="text-xs text-text-muted">Loading categories…</div>;
+  return (
+    <>
+      {categories.map((cat) => {
+        const checked = (selected || []).includes(cat.id);
+        return (
+          <label key={cat.id} className="flex items-start gap-2 cursor-pointer rounded-lg border border-border p-2">
+            <input
+              type="checkbox"
+              className="mt-0.5"
+              checked={checked}
+              onChange={(e) =>
+                onChange((prev) => {
+                  const base = Array.isArray(prev) ? prev : categories.filter((c) => c.defaultOn).map((c) => c.id);
+                  return e.target.checked ? [...new Set([...base, cat.id])] : base.filter((x) => x !== cat.id);
+                })
+              }
+            />
+            <span>
+              <span className="font-medium">{cat.label}</span>
+              <span className="block text-text-muted mt-0.5">{cat.hint}</span>
+            </span>
+          </label>
+        );
+      })}
+    </>
   );
 }
 
@@ -174,13 +224,64 @@ export default function GetStartedWizard({
   // Combo.
   const [comboName, setComboName] = useState("Main");
   const [comboModels, setComboModels] = useState([]);
-  const [presetId, setPresetId] = useState("max");
+  const [presetId, setPresetId] = useState("mythos");
   const [customStrategy, setCustomStrategy] = useState({
     fallbackStrategy: "smart",
     routerBrain: "merged",
     compression: "full",
   });
   const [comboCreated, setComboCreated] = useState(null);
+
+  // Setup tier (Revolt Fusion): the use-case choice that gates the heavy
+  // categories. Applied via /api/fusion — nothing downloads behind the
+  // user's back; Pro hand-picks categories, Ultra maxes every knob.
+  const [setupTiers, setSetupTiers] = useState(null);
+  const [setupTier, setSetupTier] = useState("daily");
+  const [setupHandPicked, setSetupHandPicked] = useState(null);
+  const [setupBusy, setSetupBusy] = useState(false);
+  const [setupApplied, setSetupApplied] = useState(null);
+
+  const applySetupTier = useCallback(async (tier) => {
+    setSetupTier(tier);
+    setSetupBusy(true);
+    try {
+      const res = await fetch("/api/fusion", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "apply-setup", tier, features: tier === "pro" ? setupHandPicked : undefined }),
+      });
+      const data = await res.json();
+      setSetupApplied(data?.ok ? { tier, peak: Boolean(data.peak) } : { error: data?.error || "failed" });
+    } catch (err) {
+      setSetupApplied({ error: err?.message || String(err) });
+    } finally {
+      setSetupBusy(false);
+    }
+  }, [setupHandPicked]);
+
+  // Initial tier load: .then-style so no setState is called synchronously in
+  // the effect body (the react-hooks rule's exact requirement).
+  useEffect(() => {
+    let alive = true;
+    fetch("/api/fusion", { cache: "no-store" })
+      .then((r) => r.json())
+      .then((data) => {
+        if (!alive) return;
+        if (data?.tiers) setSetupTiers(data.tiers);
+        if (data?.tier) setSetupTier(data.tier);
+      })
+      .catch(() => { /* tiers fall back to a static render below */ });
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  // Cloud sync (Google Drive). Exactly one option, exactly one provider:
+  // the user types their own OAuth client id, we send them to Google, and
+  // the callback route bounces them back with ?cloudsync=ok|error.
+  const [cloudClientId, setCloudClientId] = useState("");
+  const [cloudStatus, setCloudStatus] = useState(null);
+  const [cloudBusy, setCloudBusy] = useState(false);
 
   // Tuning.
   const [compression, setCompression] = useState("full");
@@ -231,9 +332,26 @@ export default function GetStartedWizard({
     }
   }, []);
 
+  // Cloud sync status: signed in? last sync? last error? Everything on the
+  // card comes from this one read. Fail-open — a missing endpoint or an old
+  // build just leaves the card in its neutral state.
+  const loadCloudStatus = useCallback(async () => {
+    try {
+      const res = await fetch("/api/cloudsync/status", { cache: "no-store" });
+      if (!res.ok) return;
+      const data = await res.json();
+      setCloudStatus(data);
+      // Surface the stored client id so the input shows what is configured.
+      if (data.clientIdConfigured) setCloudClientId((current) => current || "");
+    } catch {
+      // Optional.
+    }
+  }, []);
+
   useEffect(() => {
     if (!isOpen) return;
     loadState();
+    loadCloudStatus();
     (async () => {
       try {
         const res = await fetch("/api/migrations/claude-setup", { cache: "no-store" });
@@ -243,7 +361,7 @@ export default function GetStartedWizard({
         // Optional.
       }
     })();
-  }, [isOpen, loadState]);
+  }, [isOpen, loadState, loadCloudStatus]);
 
   const goNext = useCallback(() => {
     setNotice(null);
@@ -481,6 +599,32 @@ export default function GetStartedWizard({
     }
   }, [tray]);
 
+  // Cloud sync: exactly one option. The signin route persists the typed
+  // client id and returns the Google consent URL; this tab follows it. When
+  // Google finishes, the callback redirects to /dashboard/profile with
+  // ?cloudsync=ok (or =error&reason=…), so there is nothing to await here.
+  const cloudSignIn = useCallback(async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      const params = new URLSearchParams();
+      if (cloudClientId.trim()) params.set("clientId", cloudClientId.trim());
+      const res = await fetch(`/api/cloudsync/signin?${params.toString()}`, { cache: "no-store" });
+      const data = await res.json();
+      if (!res.ok || !data?.authUrl) {
+        setError(data?.error || "Google sign-in could not start.");
+        return;
+      }
+      // Leave the dashboard for Google's consent screen. The card keeps its
+      // state; the callback decides where the user lands next.
+      window.location.href = data.authUrl;
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  }, [cloudClientId]);
+
   const finish = useCallback(async () => {
     // The wizard is shown once. Marking it done stops the dashboard from
     // asking for it again - even if every step was skipped.
@@ -570,6 +714,45 @@ export default function GetStartedWizard({
               </button>
             </div>
           </PortablePanel>
+        );
+
+      case "setup":
+        return (
+          <div className="flex h-full flex-col gap-4 overflow-y-auto pr-1">
+            <SectionTitle hint="The base router is featherlight no matter what. Heavy categories hydrate on demand from the extension pack — hash-verified, hot-loaded, removable. Pro hand-picks; Ultra Ultimate Max turns every knob to its ceiling.">
+              Choose your setup
+            </SectionTitle>
+            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+              {(setupTiers || [
+                { id: "daily", label: "Daily Code", tagline: "Featherlight — ready in 0s", description: "Core providers, the Panda+Jev brain, the token saver. Zero extra download." },
+                { id: "pro", label: "Pro", tagline: "Pick your customs", description: "Hand-pick the heavy categories you actually want." },
+                { id: "monster", label: "MHHRSM", tagline: "Monster Homelab Hub Rebel Strike Mode", description: "The full extension pack, hyper-tuned." },
+                { id: "ultra", label: "Ultra Ultimate Max", tagline: "Everything, at absolute peak", description: "Every category, every knob at maximum, nothing held back." },
+              ]).map((tier) => (
+                <ChoiceCard
+                  key={tier.id}
+                  active={setupTier === tier.id}
+                  icon={tier.id === "daily" ? "bolt" : tier.id === "pro" ? "tune" : tier.id === "monster" ? "local_fire_department" : "rocket_launch"}
+                  title={tier.label}
+                  subtitle={tier.description}
+                  badge={tier.tagline}
+                  onClick={() => applySetupTier(tier.id)}
+                />
+              ))}
+            </div>
+            {setupTier === "pro" ? (
+              <div className="grid gap-2 sm:grid-cols-2 text-xs">
+                <ProCategoryPicker selected={setupHandPicked} onChange={setSetupHandPicked} />
+              </div>
+            ) : null}
+            <div className="flex items-center gap-3">
+              <button type="button" className="or-action" disabled={setupBusy} onClick={() => applySetupTier(setupTier)}>
+                {setupBusy ? "Applying…" : setupApplied?.tier === setupTier ? "Applied ✓" : "Apply this setup"}
+              </button>
+              {setupApplied?.error ? <span className="text-xs text-red-500">{setupApplied.error}</span> : null}
+              {setupApplied?.peak ? <span className="text-xs text-text-muted">Peak tuning applied: every knob at its ceiling.</span> : null}
+            </div>
+          </div>
         );
 
       case "theme":
@@ -813,12 +996,12 @@ export default function GetStartedWizard({
 
             <div>
               <div className="mb-2 text-xs font-semibold text-text-muted">Routing strategy</div>
-              <div className="grid gap-3 md:grid-cols-3">
+              <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
                 {COMBO_STRATEGY_PRESETS.map((preset) => (
                   <ChoiceCard
                     key={preset.id}
                     active={presetId === preset.id}
-                    icon={preset.id === "max" ? "bolt" : preset.id === "revolt-deffusion" ? "balance" : "tune"}
+                    icon={preset.id === "mythos" ? "bolt" : preset.id === "revolt-deffusion" ? "balance" : preset.id === "auto-aggressive" ? "speed" : "tune"}
                     title={preset.label}
                     subtitle={preset.description}
                     badge={preset.tagline}
@@ -890,6 +1073,96 @@ export default function GetStartedWizard({
               >
                 {busy ? "Creating…" : comboCreated ? "Create another" : "Create the combo"}
               </button>
+            </div>
+          </div>
+        );
+
+      case "cloud":
+        return (
+          <div className="flex h-full flex-col gap-4">
+            <SectionTitle hint="One backup option, chosen on purpose: Google Drive. Your settings, provider setups and combos are copied into the hidden per-app folder Google reserves for this app - never your API keys or tokens, those are removed before anything is uploaded. Skipping this loses nothing; the dashboard can sync later.">
+              Cloud backup with Google Drive
+            </SectionTitle>
+
+            {/* The single option: sign in with Google Drive. */}
+            <button
+              type="button"
+              onClick={() => {}}
+              className="flex w-full flex-col gap-2 rounded-xl border border-primary bg-primary/5 p-4 text-left shadow-[0_0_0_1px_var(--color-primary)]"
+            >
+              <div className="flex items-center justify-between gap-2">
+                <span className="material-symbols-outlined flex h-8 w-8 items-center justify-center rounded-lg text-lg text-primary">
+                  cloud_upload
+                </span>
+                <span className="or-chip">backup + restore</span>
+              </div>
+              <span className="text-sm font-semibold text-text-main">Sign in with Google Drive</span>
+              <span className="text-xs leading-5 text-text-muted">
+                Settings, provider connections and combos are backed up to the hidden
+                appDataFolder in your Drive. Restore pulls them onto any machine running
+                OriginRouter — credentials stay behind, so keys must be added locally after
+                a restore.
+              </span>
+            </button>
+
+            {cloudStatus?.connected ? (
+              <div className="rounded-xl border border-primary/40 bg-primary/5 p-4">
+                <div className="mb-1 flex items-center gap-2 text-sm font-semibold text-text-main">
+                  <span className="material-symbols-outlined text-primary">check_circle</span>
+                  Signed in{cloudStatus?.email ? ` as ${cloudStatus.email}` : ""}
+                </div>
+                <p className="text-xs leading-5 text-text-muted">
+                  {cloudStatus?.hasBackup
+                    ? `A backup exists in Drive${cloudStatus?.backupAt ? ` (${new Date(cloudStatus.backupAt).toLocaleString()})` : ""}. Sync again any time from the dashboard.`
+                    : "No backup in Drive yet. Run a sync from the dashboard to create the first one."}
+                </p>
+              </div>
+            ) : (
+              <div className="rounded-xl border border-border bg-bg-subtle p-4">
+                <div className="flex flex-col gap-2">
+                  <label className="flex flex-col gap-1 text-xs font-medium text-text-muted">
+                    Google OAuth Client ID
+                    <input
+                      value={cloudClientId}
+                      onChange={(event) => setCloudClientId(event.target.value)}
+                      placeholder="1234567890-abc.apps.googleusercontent.com"
+                      className="rounded-lg border border-border bg-bg px-3 py-2 font-mono text-xs text-text-main outline-none focus:border-primary"
+                    />
+                  </label>
+                  <p className="text-xs leading-5 text-text-muted">
+                    Cloud sync uses your own Google OAuth client. Create one at
+                    console.cloud.google.com (OAuth client &rarr; Web application), enable the
+                    Drive appdata scope, and add
+                    <code className="mx-1 rounded bg-bg px-1 py-0.5 font-mono text-[10px]">
+                      /api/cloudsync/callback
+                    </code>
+                    as an authorized redirect URI.
+                  </p>
+                  <div>
+                    <button
+                      type="button"
+                      className="or-action"
+                      disabled={busy || !cloudClientId.trim()}
+                      onClick={cloudSignIn}
+                    >
+                      {busy ? "Opening Google…" : "Sign in"}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Status line: what the router knows about Drive right now. */}
+            <div className="rounded-lg border border-border bg-bg-subtle px-3 py-2 text-xs text-text-muted">
+              {cloudStatus
+                ? cloudStatus.connected
+                  ? cloudStatus.lastError
+                    ? `Last error: ${cloudStatus.lastError}`
+                    : cloudStatus.lastSyncAt
+                      ? `Last sync ${new Date(cloudStatus.lastSyncAt).toLocaleString()}`
+                      : "Signed in — no sync yet."
+                  : "Not signed in. Google Drive backup is optional."
+                : "Checking Google Drive status…"}
             </div>
           </div>
         );
@@ -1052,6 +1325,7 @@ export default function GetStartedWizard({
                 { done: Boolean(imported), label: "Migrated", value: imported?.source?.label || "skipped" },
                 { done: connected.length > 0, label: "Providers", value: connected.length ? `${connected.length} connected` : "skipped" },
                 { done: Boolean(comboCreated), label: "Combo", value: comboCreated?.name || "skipped" },
+                { done: Boolean(cloudStatus?.connected), label: "Cloud sync", value: cloudStatus?.connected ? "Google Drive" : "skipped" },
                 { done: Boolean(apiKey), label: "API key", value: apiKey ? apiKey.name : "skipped" },
                 { done: Boolean(claudeDone), label: "Claude Code", value: claudeDone ? "configured" : "skipped" },
               ].map((row) => (
@@ -1088,7 +1362,12 @@ export default function GetStartedWizard({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
-      <div className="absolute inset-0 bg-black/60 backdrop-blur-[3px]" onClick={firstRun ? undefined : onClose} />
+      {/* macOS-style dismissal: the backdrop always closes. A first-run
+          dialog that traps the user is a Windows-95 habit — the close
+          affordance works on every exit path, and the owner of `onClose`
+          (the welcome page) marks onboarding complete so the wizard is
+          never shown twice. */}
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-[3px]" onClick={onClose} />
 
       <div
         className="relative flex h-[75vh] w-[75vw] max-h-[980px] max-w-[1500px] flex-col overflow-hidden rounded-2xl border border-border bg-surface shadow-[var(--shadow-elev)]"

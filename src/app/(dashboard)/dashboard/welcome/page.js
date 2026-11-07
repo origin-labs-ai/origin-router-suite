@@ -33,6 +33,20 @@ export default function WelcomePage() {
     router.push("/dashboard");
   }, [router]);
 
+  // Closing the wizard (X button, backdrop click, any non-finish exit) still
+  // marks onboarding complete: a macOS-style close never traps the user into
+  // seeing the same first-run dialog on every navigation. Whatever the user
+  // configured stays; "scratch" only records that the wizard was seen.
+  const closeAndMark = useCallback(() => {
+    fetch("/api/migrations", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ sourceId: "scratch" }),
+    })
+      .catch(() => {})
+      .finally(() => router.push("/dashboard"));
+  }, [router]);
+
   if (onboarded === null) {
     return (
       <div className="flex min-h-[60vh] items-center justify-center">
@@ -47,7 +61,7 @@ export default function WelcomePage() {
     <GetStartedWizard
       isOpen
       firstRun={!onboarded}
-      onClose={onboarded ? finish : undefined}
+      onClose={onboarded ? finish : closeAndMark}
       onFinished={finish}
     />
   );

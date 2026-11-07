@@ -13,6 +13,7 @@ import {
 import "@xyflow/react/dist/style.css";
 import { AI_PROVIDERS } from "@/shared/constants/providers";
 import { getProviderIconSrc, markProviderIconMissing } from "@/shared/utils/providerIcon";
+import { providerGlyph } from "@/shared/utils/providerGlyph";
 
 // Force-stop FE animation if a provider stays active longer than this
 const FE_ACTIVE_TIMEOUT_MS = 60000;
@@ -308,7 +309,7 @@ function buildLayout(providers, activeSet, lastSet, errorSet) {
       label: (config.name !== p.provider ? config.name : null) || p.nodeName || p.name || p.provider,
       color: config.color || "#6b7280",
       imageUrl: getProviderImageUrl(p.provider),
-      textIcon: config.textIcon || (p.provider || "?").slice(0, 2).toUpperCase(),
+      textIcon: config.textIcon || providerGlyph(p.nodeName || p.name || p.provider),
       active,
     };
 

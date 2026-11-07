@@ -3,7 +3,7 @@
 // pre-change safety backup in migrate.js: when the stored version is lower,
 // one lightweight DB backup is taken before applying schema changes. Forgetting
 // to bump only skips that backup — it does NOT break the additive auto-sync.
-export const SCHEMA_VERSION = 2;
+export const SCHEMA_VERSION = 4;
 
 export const PRAGMA_SQL = `
 PRAGMA journal_mode = WAL;
@@ -160,6 +160,38 @@ export const TABLES = {
       "CREATE INDEX IF NOT EXISTS idx_rd_model ON requestDetails(model)",
       "CREATE INDEX IF NOT EXISTS idx_rd_conn ON requestDetails(connectionId)",
     ],
+  },
+  // Memory Fabric (src/lib/memoryFabric/): persistent, shared context across
+  // coding agents. `scope` is an opaque key (see deriveScopeKey) so each
+  // conversation/workspace only recalls its own slice; `hits`/`lastHitAt`
+  // track which entries actually earn their place in the injection prompt.
+  memories: {
+    columns: {
+      id: "INTEGER PRIMARY KEY AUTOINCREMENT",
+      scope: "TEXT NOT NULL",
+      content: "TEXT NOT NULL",
+      source: "TEXT",
+      createdAt: "TEXT NOT NULL",
+      updatedAt: "TEXT NOT NULL",
+      hits: "INTEGER DEFAULT 0",
+      lastHitAt: "TEXT",
+    },
+    indexes: ["CREATE INDEX IF NOT EXISTS idx_mem_scope ON memories(scope)"],
+  },
+  // Local Models (src/lib/localModels/): models the user runs on their own
+  // machine — pulled from Ollama/Hugging Face or registered in place. We only
+  // ever store the path; the file itself stays wherever the user put it.
+  localModels: {
+    columns: {
+      id: "INTEGER PRIMARY KEY AUTOINCREMENT",
+      name: "TEXT NOT NULL",
+      source: "TEXT NOT NULL",
+      path: "TEXT",
+      sizeBytes: "INTEGER",
+      addedAt: "TEXT NOT NULL",
+      updatedAt: "TEXT NOT NULL",
+    },
+    indexes: ["CREATE INDEX IF NOT EXISTS idx_lm_source ON localModels(source)"],
   },
 };
 

@@ -5,6 +5,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach, vi } from "vitest";
+import { removeTempDir } from "../helpers/tempCleanup.js";
 
 // Transport stub BELOW resolveZedModels: proxyAwareFetch captures the native
 // fetch at import time, so stubbing globalThis.fetch cannot intercept it.
@@ -86,7 +87,7 @@ beforeAll(async () => {
 });
 
 afterAll(() => {
-  fs.rmSync(process.env.DATA_DIR, { recursive: true, force: true });
+  removeTempDir(process.env.DATA_DIR);
   if (originalDataDir === undefined) delete process.env.DATA_DIR;
   else process.env.DATA_DIR = originalDataDir;
 });

@@ -1,10 +1,11 @@
-# OriginRouter Embeddings Tests
+# OriginRouter Tests
 
-Unit tests for the `/v1/embeddings` endpoint implementation.
+The OriginRouter test suite — unit, translator, auth and baseline-regression tests for the gateway engine (`open-sse/`) and dashboard (`src/`).
 
 ## Setup
 
-Install test dependencies from the `tests/` directory:
+Install test dependencies (the suite is an independent package so it can run
+against the repo root without installing root devDependencies):
 
 ```bash
 cd tests/ && npm install
@@ -12,41 +13,35 @@ cd tests/ && npm install
 
 ## Running Tests
 
+From the repo root:
+
+```bash
+npm test          # runs the full suite via vitest
+```
+
 From the `tests/` directory:
 
 ```bash
-npm test
+npm test                      # full suite
+npm run test:verbose          # verbose reporter
+npx vitest run unit           # a directory subset
+npx vitest run unit/foo.test.js
 ```
 
-Or run vitest directly with npx:
+## Layout
 
-```bash
-npx vitest run --reporter=verbose --config ./vitest.config.js
-```
+| Path | What it covers |
+|------|----------------|
+| `unit/` | Gateway engine + dashboard unit tests (providers, strategies, compression, oauth, handlers) |
+| `translator/` | Wire-format translation tests with golden snapshots |
+| `auth/` | Auth / API-key / token-refresh tests |
+| `__baseline__/` | Regression gate: `verify-no-regression.mjs`, `verify-providers.mjs`, `verify-alias.mjs`, `verify-oauth-urls.mjs` + committed snapshots (`providers-baseline.json`, `alias-baseline.json`, `oauth-urls-baseline.json`) |
+| `vitest.config.js` | Aliases `open-sse/` and `@/` to the repo root |
 
-## Test Files
+## Known-fails catalog
 
-| File | What it tests |
-|------|--------------|
-| `unit/embeddingsCore.test.js` | `open-sse/handlers/embeddingsCore.js` — core logic: body builder, URL router, headers, handler flow |
-| `unit/embeddings.cloud.test.js` | `cloud/src/handlers/embeddings.js` — cloud worker handler: auth, validation, rate limits, CORS |
-
-## Coverage Summary (59 tests)
-
-### `embeddingsCore.test.js` (36 tests)
-- `buildEmbeddingsBody`: single string, array, encoding_format, default float
-- `buildEmbeddingsUrl`: openai, openrouter, openai-compatible-*, unsupported providers
-- `buildEmbeddingsHeaders`: per-provider header sets, fallback to accessToken
-- `handleEmbeddingsCore` input validation: missing, wrong type, null, empty
-- `handleEmbeddingsCore` success: response format, CORS, Content-Type, callbacks
-- `handleEmbeddingsCore` errors: 400/429/500, network error, invalid JSON
-- `handleEmbeddingsCore` token refresh: 401 retry, graceful fallback
-
-### `embeddings.cloud.test.js` (23 tests)
-- CORS OPTIONS: 200 response, empty body, correct headers
-- Authentication: missing key, bad format, old-format key, wrong key value, valid key
-- Body validation: invalid JSON, missing model, missing input, bad model
-- Happy path: single string, array, correct delegation, CORS header, machineId override
-- Rate limiting: all accounts rate-limited → 503 + Retry-After, no credentials → 400
-- Error propagation: non-fallback errors passed through, 429 exhausts accounts
-- machineId override: validates key, rejects wrong key
+`__baseline__/known-fails.txt` catalogs tests that were allowed to fail at the
+time it was written. As of v0.6.000 the suite target is **zero unexpected
+failures**: every test either passes or is an explicitly-skipped live test
+(`*.live.test.js` requiring real credentials). Fixes land as product code or
+test updates — not by growing the known-fails list.

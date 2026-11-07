@@ -12,13 +12,17 @@ const mocks = vi.hoisted(() => ({
   verifyDashboardAuthToken: vi.fn(),
 }));
 
-vi.mock("next/server", () => ({
-  NextResponse: {
-    next: vi.fn(() => mocks.nextResponse),
-    json: mocks.jsonResponse,
-    redirect: vi.fn((url) => ({ status: 307, url })),
-  },
-}));
+vi.mock("next/server", () => {
+  // NextResponse is used both as a constructor (the LAN-disabled HTML page)
+  // and through its static helpers.
+  function MockNextResponse(body, init = {}) {
+    return { status: init.status || 200, headers: init.headers || {}, body };
+  }
+  MockNextResponse.next = vi.fn(() => mocks.nextResponse);
+  MockNextResponse.json = mocks.jsonResponse;
+  MockNextResponse.redirect = vi.fn((url) => ({ status: 307, url }));
+  return { NextResponse: MockNextResponse };
+});
 
 vi.mock("@/lib/localDb", () => ({
   getSettings: mocks.getSettings,
@@ -71,6 +75,10 @@ describe("dashboard guard public LLM API access", () => {
   });
 
   it("rejects remote Host-spoof when real peer IP is non-loopback", async () => {
+    // LAN access is on so the request reaches the API-key gate instead of being
+    // turned away by the LAN block: this case is about a spoofed Host: localhost
+    // from a remote peer not being treated as a local request.
+    mocks.getSettings.mockResolvedValue({ requireLogin: true, lanAccessEnabled: true });
     const response = await proxy(localRequest("/v1/chat/completions", {
       host: "localhost",
       "x-9r-real-ip": "10.204.111.34",

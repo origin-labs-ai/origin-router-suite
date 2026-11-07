@@ -4,6 +4,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { describe, it, beforeAll, afterAll, vi } from "vitest";
+import { removeTempDir } from "../helpers/tempCleanup.js";
 
 const N_ITEMS = 500;
 const N_QUERIES = 200;
@@ -43,8 +44,8 @@ beforeAll(async () => {
 });
 
 afterAll(() => {
-  if (tempSqlite) fs.rmSync(tempSqlite, { recursive: true, force: true });
-  if (tempLowdb) fs.rmSync(tempLowdb, { recursive: true, force: true });
+  if (tempSqlite) removeTempDir(tempSqlite);
+  if (tempLowdb) removeTempDir(tempLowdb);
   if (originalDataDir === undefined) delete process.env.DATA_DIR;
   else process.env.DATA_DIR = originalDataDir;
 });

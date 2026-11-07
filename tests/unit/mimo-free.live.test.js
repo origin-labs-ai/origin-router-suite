@@ -52,7 +52,11 @@ describe("MiMo Free bootstrap (live)", () => {
 });
 
 describe("MiMo Free anti-abuse gate (live)", () => {
-  it("chat WITH Chrome User-Agent → 200", async () => {
+  // Xiaomi ended the free MiMo channel ("MiMo free API service has ended") — the
+  // upstream now answers 400 "Unsupported model mimo-auto", so the live chat
+  // call can no longer pass. The provider registry hides mimo-free/mmf for the
+  // same reason (open-sse/providers/registry/mimo-free.js).
+  it.skip("chat WITH Chrome User-Agent → 200", async () => {
     const { jwt } = await bootstrapWith(CHROME_UA);
     const r = await chatWith(jwt, CHROME_UA);
     expect(r.status).toBe(200);

@@ -15,6 +15,11 @@ export default defineConfig({
     exclude: ["**/node_modules/**", "**/.claude/**", "**/dist/**"],
     // Allow many it.concurrent cases (real provider smoke runs ~50 providers in parallel)
     maxConcurrency: 60,
+    // Generous global budget: on a cold vitest transform cache (fresh CI runner)
+    // import time alone can exceed the 5s default and turn passing tests into
+    // timeout flakes. Per-test overrides stay in place; this only raises the floor.
+    testTimeout: 60_000,
+    hookTimeout: 60_000,
     // Suppress noisy console output from handlers under test
     silent: false,
   },

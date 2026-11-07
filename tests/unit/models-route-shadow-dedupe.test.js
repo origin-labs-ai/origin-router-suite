@@ -53,7 +53,11 @@ describe("/api/models — custom-model shadow dedupe", () => {
 
     expect(routed).toHaveLength(1);
     expect(routed[0].fullModel).toBe("opencode-go/claude-haiku-5-5");
-    expect(routed[0].caps.contextWindow).toBe(1000000);
+    // The window is only published when somebody DECLARED it (the owner's
+    // ceiling file, the provider's registry record or the model row). The
+    // capability table's family patterns are guesses, so they are not published.
+    expect(routed[0].caps.contextWindow).toBeNull();
+    expect(routed[0].caps.contextDeclared).toBe(false);
     expect(routed[0].caps.maxOutput).toBe(128000);
   });
 
@@ -68,8 +72,10 @@ describe("/api/models — custom-model shadow dedupe", () => {
     expect(kept).toBeDefined();
     // `cmc` maps to commandcode; the commandcode branch (1M/384k for unlisted
     // models) must fire — an alias lookup would miss it entirely and fall to
-    // the 200k floor.
-    expect(kept.caps.contextWindow).toBe(1000000);
+    // the 200k floor. The window itself is a pattern guess, so it is not
+    // published; the output cap proves the provider-id lookup fired.
+    expect(kept.caps.contextWindow).toBeNull();
+    expect(kept.caps.contextDeclared).toBe(false);
     expect(kept.caps.maxOutput).toBe(384000);
   });
 });

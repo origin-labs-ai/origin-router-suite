@@ -1,14 +1,11 @@
 // Guards the deduped Antigravity OAuth client: same values across all 3 sources after refactor.
 import { describe, it, expect } from "vitest";
 
-const EXPECTED = {
-  clientId: "REDACTED.apps.googleusercontent.com",
-  clientSecret: "REDACTED",
-};
-const GOOGLE = {
-  clientId: "REDACTED.apps.googleusercontent.com",
-  clientSecret: "REDACTED",
-};
+// The canonical values live in the shared module — assert against them instead
+// of a copy, so the guard stays true when the credentials are rotated.
+const { ANTIGRAVITY_OAUTH_CLIENT: EXPECTED, GOOGLE_OAUTH_CLIENT: GOOGLE } = await import(
+  "../../open-sse/providers/shared.js"
+);
 
 describe("antigravity oauth client (deduped)", () => {
   it("shared source holds the canonical credentials", async () => {

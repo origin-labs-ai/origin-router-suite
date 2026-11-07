@@ -1,6 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 describe("xai/oauth service", () => {
+  // Importing the OAuth modules after vi.resetModules() pulls in the whole
+  // provider graph (and with it open-sse/), which exceeds the default 5s
+  // timeout when the suite runs under load (it passes in isolation), so every
+  // case here gets a 30s budget.
   beforeEach(() => {
     vi.resetModules();
     vi.restoreAllMocks();
@@ -19,7 +23,7 @@ describe("xai/oauth service", () => {
     expect(() => validateOAuthEndpoint("https://example.com/oauth2/authorize", "authorization_endpoint")).toThrow(
       /is not on x\.ai/
     );
-  });
+  }, 30_000);
 
   it("discovers endpoints without custom user-agent headers", async () => {
     fetch.mockResolvedValueOnce({
@@ -39,7 +43,7 @@ describe("xai/oauth service", () => {
       "https://auth.x.ai/.well-known/openid-configuration",
       expect.objectContaining({ headers: { Accept: "application/json" } })
     );
-  });
+  }, 30_000);
 
   it("builds authorize URLs with CLIProxyAPI query extras", async () => {
     const { XaiService } = await import("../../src/lib/oauth/services/xai.js");
@@ -61,7 +65,7 @@ describe("xai/oauth service", () => {
     expect(parsed.searchParams.get("nonce")).toMatch(/^[a-f0-9]{32}$/);
     expect(parsed.searchParams.get("plan")).toBe("generic");
     expect(parsed.searchParams.get("referrer")).toBe("cli-proxy-api");
-  });
+  }, 30_000);
 
   it("generates dashboard auth data with CLIProxyAPI PKCE size and discovered endpoints", async () => {
     fetch.mockResolvedValueOnce({
@@ -82,7 +86,7 @@ describe("xai/oauth service", () => {
     expect(parsed.searchParams.get("code_challenge_method")).toBe("S256");
     expect(parsed.searchParams.get("plan")).toBe("generic");
     expect(parsed.searchParams.get("referrer")).toBe("cli-proxy-api");
-  });
+  }, 30_000);
 
   it("exchanges dashboard codes against the discovered xAI token endpoint", async () => {
     const fetchMock = fetch;
@@ -121,5 +125,5 @@ describe("xai/oauth service", () => {
       refreshToken: "refresh-token",
       expiresIn: 3600,
     });
-  });
+  }, 30_000);
 });

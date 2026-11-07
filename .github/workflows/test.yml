@@ -1,0 +1,40 @@
+name: test
+
+# The test gate: run the full vitest suite on every push to main and every PR.
+# This workflow did not exist before v0.6.000 — CI previously built and released
+# without ever running the tests. Every job runs `npm test` (wired at the root
+# package.json to `npm --prefix tests run test`), which is the same command a
+# contributor runs locally.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: test-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  unit:
+    name: tests (ubuntu, node 22)
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      # Root deps first (the suite imports open-sse/ and src/ from the repo root),
+      # then the tests/ package. `npm install` not `npm ci`: there is no committed
+      # lockfile (see .gitignore).
+      - name: Install dependencies
+        run: |
+          npm install --no-audit --no-fund
+          npm --prefix tests install --no-audit --no-fund
+
+      - name: Run test suite
+        run: npm test

@@ -16,9 +16,9 @@ import {
 // spelled three ways must read as one model.
 describe("model display names", () => {
   it("reduces an id to the model itself", () => {
-    expect(prettyModelName("cl/z-ai/glm-5.3-flash:batch")).toBe("GLM-5.3 Flash");
-    expect(prettyModelName("glm/glm-5.3")).toBe("GLM-5.3");
-    expect(prettyModelName("glm-5-3")).toBe("GLM-5.3");
+    expect(prettyModelName("cl/z-ai/glm-5.3-flash:batch")).toBe("GLM 5.3 Flash");
+    expect(prettyModelName("glm/glm-5.3")).toBe("GLM 5.3");
+    expect(prettyModelName("glm-5-3")).toBe("GLM 5.3");
     expect(prettyModelName("deepseek/deepseek-v4.1-flash")).toBe("DeepSeek V4.1 Flash");
     expect(prettyModelName("cl/deepseek/deepseek-chat")).toBe("DeepSeek Chat");
   });
@@ -54,7 +54,7 @@ describe("model display names", () => {
   it("keeps tier and size words, because they identify a different model", () => {
     expect(prettyModelName("glm/glm-5.3")).not.toBe(prettyModelName("glm/glm-5.3-flash"));
     expect(prettyModelName("ollama-local/phonon:40m-multilingual")).toContain("40M");
-    expect(prettyModelName("cl/openai/gpt-6.1-sol-pro")).toBe("GPT-6.1 Sol Pro");
+    expect(prettyModelName("cl/openai/gpt-6.1-sol-pro")).toBe("GPT 6.1 Sol Pro");
   });
 
   // Deployment noise folds; publisher casing survives on the words that stay.
@@ -104,10 +104,10 @@ describe("model display names", () => {
   it("exposes the raw parts for callers that need them, and hides @-routed models", () => {
     expect(cleanModelLabel("openai/gpt-5.6-sol-pro:free")).toBe("gpt-5.6-sol-pro");
     expect(modelIdentity("openai/gpt-5.6-sol-pro:free")).toBe("gpt-5.6-sol-pro");
-    expect(modelCategoryName("kr/glm-5.3-flash-free")).toBe("GLM-5.3 Flash");
+    expect(modelCategoryName("kr/glm-5.3-flash-free")).toBe("GLM 5.3 Flash");
     expect(isHiddenModelName("cf/@xai/grok-4")).toBe(true);
     expect(isHiddenModelName("cf/grok-4")).toBe(false);
     expect(comboDisplayLabel({ name: "claude-opus-5-5", displayName: "Opus 5.5" })).toBe("Opus 5.5");
-    expect(comboDisplayLabel({ name: "claude-opus-5-5" })).toBe("Claude Opus-5.5");
+    expect(comboDisplayLabel({ name: "claude-opus-5-5" })).toBe("Claude Opus 5.5");
   });
 });

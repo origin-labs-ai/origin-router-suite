@@ -1,5 +1,12 @@
 // Provider icon paths under /public/providers.
-// Alias related brands; session-cache 404s so one miss never spams again.
+// Alias related brands; resolution is stateless.
+//
+// There is deliberately NO session-wide "missing" cache here anymore. The old
+// Set remembered a single 404 for the whole browser session — one gateway
+// restart under an open tab painted every healthy provider as a letter glyph
+// until a hard reload, which read as "the icons broke". Per-mount misses now
+// cost at most one retry (ProviderIcon retries once with a cache-buster), so
+// a truly absent asset shows its glyph, and everything else keeps its image.
 
 const ICON_ALIASES = {
   "perplexity-agent": "perplexity",
@@ -18,34 +25,23 @@ const ICON_ALIASES = {
   "chatgpt-web": "openai",
 };
 
-// Runtime only — first 404 remembers id for the whole session
-const failedIds = new Set();
-
 function normalizeId(providerId) {
   if (!providerId || typeof providerId !== "string") return "";
   return providerId.trim().toLowerCase();
 }
 
-/** Resolve icon file id (after alias). Empty if previously failed this session. */
+/** Resolve icon file id (after alias). Empty when the id itself is empty. */
 export function resolveProviderIconId(providerId) {
   const id = normalizeId(providerId);
   if (!id) return "";
-  if (failedIds.has(id)) return "";
-  const aliased = ICON_ALIASES[id] || id;
-  if (failedIds.has(aliased)) return "";
-  return aliased;
+  return ICON_ALIASES[id] || id;
 }
 
-/** `/providers/{id}.png` or null when previously failed. */
+/** `/providers/{id}.png` or null when no id was given. */
 export function getProviderIconSrc(providerId) {
   const id = resolveProviderIconId(providerId);
   return id ? `/providers/${id}.png` : null;
 }
 
-/** Call from img onError so later mounts skip the request. */
-export function markProviderIconMissing(providerId) {
-  const id = normalizeId(providerId);
-  if (id) failedIds.add(id);
-  const aliased = ICON_ALIASES[id];
-  if (aliased) failedIds.add(aliased);
-}
+/** Kept for call-site compatibility; the miss cache is gone, so this is a no-op. */
+export function markProviderIconMissing() {}

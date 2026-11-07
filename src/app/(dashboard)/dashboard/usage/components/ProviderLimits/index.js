@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import ProviderIcon from "@/shared/components/ProviderIcon";
+import Portal from "@/shared/components/Portal";
 import QuotaTable from "./QuotaTable";
 import Toggle from "@/shared/components/Toggle";
 import Tooltip from "@/shared/components/Tooltip";
@@ -782,16 +783,36 @@ export default function ProviderLimits() {
     };
   }, [autoRefresh, refreshAll, hasHydratedAutoRefresh]);
 
+  // The owner's rule for this page: only what actually loads shows up. A
+  // connection with no credential is not connected — it gets no card here —
+  // and a connection whose quota fetch fails gets no error card either; it
+  // just does not appear.
+  const connectedWithCredentials = useMemo(
+    () =>
+      connections.filter((conn) => {
+        const auth = String(conn.authType || "").toLowerCase();
+        const isKeyAuth = auth === "apikey" || auth === "api_key";
+        return !(isKeyAuth && !conn.apiKey);
+      }),
+    [connections],
+  );
+
   const sortedConnections = useMemo(
     () =>
       sortVisibleConnections(
-        connections,
+        connectedWithCredentials,
         quotaData,
         expiringFirst,
         providerFilter,
         quotaSortMode,
       ),
-    [connections, quotaData, expiringFirst, providerFilter, quotaSortMode],
+    [connectedWithCredentials, quotaData, expiringFirst, providerFilter, quotaSortMode],
+  );
+
+  // Failed loads vanish from the display instead of showing an error card.
+  const displayConnections = useMemo(
+    () => sortedConnections.filter((conn) => !errors[conn.id]),
+    [sortedConnections, errors],
   );
 
   // Connection is depleted when any quota entry hit the threshold
@@ -845,7 +866,7 @@ export default function ProviderLimits() {
   const selectedProviderLabel =
     providerFilter === "all" ? "All providers" : providerLabel(providerFilter);
   const hasEligibleConnections = totals.eligibleConnections > 0;
-  const hasVisibleConnections = sortedConnections.length > 0;
+  const hasVisibleConnections = displayConnections.length > 0;
   const emptyState = getConnectionsEmptyMessage(
     totals,
     providerFilter,
@@ -1119,7 +1140,7 @@ export default function ProviderLimits() {
       )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-        {sortedConnections.map((conn) => {
+        {displayConnections.map((conn) => {
           const quota = quotaData[conn.id];
           const isLoading = loading[conn.id];
           const error = errors[conn.id];
@@ -1564,6 +1585,7 @@ export default function ProviderLimits() {
       />
 
       {resetCreditsState && (
+        <Portal>
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4 backdrop-blur-sm">
           <div className="w-full max-w-2xl overflow-hidden rounded-2xl border border-black/15 bg-white shadow-2xl ring-1 ring-black/10 dark:border-white/15 dark:bg-neutral-950 dark:ring-white/10">
             <div className="flex items-start justify-between gap-3 border-b border-black/10 bg-black/[0.03] px-4 py-3 dark:border-white/10 dark:bg-white/[0.04]">
@@ -1672,6 +1694,7 @@ export default function ProviderLimits() {
             </div>
           </div>
         </div>
+        </Portal>
       )}
 
       <EditConnectionModal

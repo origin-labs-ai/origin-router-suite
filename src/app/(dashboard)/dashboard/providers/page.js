@@ -10,6 +10,7 @@ import {
   Toggle,
 } from "@/shared/components";
 import ProviderIcon from "@/shared/components/ProviderIcon";
+import Portal from "@/shared/components/Portal";
 import { getProviderIconSrc } from "@/shared/utils/providerIcon";
 import { OAUTH_PROVIDERS, APIKEY_PROVIDERS } from "@/shared/constants/config";
 import {
@@ -275,6 +276,7 @@ export default function ProvidersPage() {
       color: providerAccentColor(node.id),
       textIcon: providerGlyph(node.name || node.id),
       apiType: node.apiType,
+      baseUrl: node.baseUrl || "",
     }))
     .filter(
       (p) => matchSearch(p.name) && matchStatus(getProviderStats(p.id, "apikey")),
@@ -287,6 +289,7 @@ export default function ProvidersPage() {
       name: node.name || "Anthropic Compatible",
       color: providerAccentColor(node.id),
       textIcon: providerGlyph(node.name || node.id),
+      baseUrl: node.baseUrl || "",
     }))
     .filter(
       (p) => matchSearch(p.name) && matchStatus(getProviderStats(p.id, "apikey")),
@@ -675,6 +678,7 @@ export default function ProvidersPage() {
 
       {/* Test Results Modal */}
       {testResults && (
+        <Portal>
         <div
           className="fixed inset-0 z-50 flex items-start justify-center px-3 pt-[6vh] sm:pt-[10vh]"
           onClick={() => setTestResults(null)}
@@ -699,6 +703,7 @@ export default function ProvidersPage() {
             </div>
           </div>
         </div>
+        </Portal>
       )}
     </div>
   );
@@ -880,6 +885,17 @@ function ApiKeyProviderCard({
             </div>
             <div className="min-w-0">
               <h3 className="truncate font-semibold">{provider.name}</h3>
+              {/* Hand Picked configurables carry their endpoint: the base URL
+                  sits right under the name so an imported provider reads as
+                  "name + where it points", ready for a key. */}
+              {provider.baseUrl ? (
+                <div
+                  className="max-w-[220px] truncate font-mono text-[10px] text-text-muted"
+                  title={provider.baseUrl}
+                >
+                  {provider.baseUrl}
+                </div>
+              ) : null}
               <div className="flex min-w-0 items-center gap-1.5 text-xs flex-wrap">
                 {allDisabled ? (
                   <Badge variant="default" size="sm">
@@ -946,6 +962,7 @@ ApiKeyProviderCard.propTypes = {
     color: PropTypes.string,
     textIcon: PropTypes.string,
     apiType: PropTypes.string,
+    baseUrl: PropTypes.string,
   }).isRequired,
   stats: PropTypes.shape({
     connected: PropTypes.number,

@@ -8,8 +8,9 @@
 // The owner's rules, taken from what actually broke in the picker:
 //   • no provider head, no `@` routing code, no `/` in a label;
 //   • the model's own name is kept whole, including the vendor word *inside* it:
-//     `deepseek/deepseek-v4.1-flash` is "DeepSeek-V4.1-Flash", never "V4.1 Flash";
-//   • `glm-5-3` and `glm-5.3` are the same model and read the same: "GLM-5.3";
+//     `deepseek/deepseek-v4.1-flash` is "DeepSeek 4.1 Flash", never "4.1 Flash";
+//   • `glm-5-3` and `glm-5.3` are the same model and read the same: "GLM 5.3" —
+//     a version never hyphen-attaches to the word before it;
 //   • a publisher's own capitalisation survives (MiniMax, DeepSeek, TEE); an
 //     all-lowercase id is humanized;
 //   • tier and size words belong to the model (flash, pro, mini, 40m) and are never
@@ -204,8 +205,13 @@ function humanizeToken(token) {
 /**
  * Human-friendly model name derived from an id.
  *
+ * The owner's rule (what actually read wrong in combos/playground): a version
+ * never hyphen-attaches to the word before it — `claude-opus-5-5` reads
+ * "Claude Opus 5.5", never "Opus-5.5", and `glm-5.3-flash` reads
+ * "GLM 5.3 Flash". Consecutive version pieces still merge (`5` + `5` → `5.5`).
+ *
  * @param {string} raw e.g. "cl/z-ai/glm-5.3-flash:free"
- * @returns {string} e.g. "GLM-5.3-Flash"
+ * @returns {string} e.g. "GLM 5.3 Flash"
  */
 export function prettyModelName(raw = "") {
   const tokens = nameTokens(raw);
@@ -218,13 +224,8 @@ export function prettyModelName(raw = "") {
       if (lastIndex >= 0 && NUMERIC.test(out[lastIndex])) {
         // `5` followed by `1` is one version, not two words.
         out[lastIndex] = `${out[lastIndex]}.${version}`;
-      } else if (lastIndex >= 0 && /\d$/.test(out[lastIndex])) {
-        // `GLM-5` then `3` is still the same version: "GLM-5.3".
-        out[lastIndex] = `${out[lastIndex]}.${version}`;
-      } else if (lastIndex >= 0 && /^[A-Za-z]/.test(out[lastIndex]) && !out[lastIndex].includes("-")) {
-        // A version attached to the stem reads `GLM-5.3`, not `GLM 5.3`.
-        out[lastIndex] = `${out[lastIndex]}-${version}`;
       } else {
+        // Always its own word: "Opus 5.5", "GLM 5.3" — never "Opus-5.5".
         out.push(version);
       }
       continue;

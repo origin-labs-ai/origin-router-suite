@@ -43,7 +43,12 @@ const EXTRA_BINS = IS_WIN
 const EXTENDED_PATH = [...EXTRA_BINS, process.env.PATH || ""].filter(Boolean).join(path.delimiter);
 const PYTHON_CANDIDATES = ["python3.13", "python3.12", "python3.11", "python3.10", "python3", "python"];
 const MIN_VERSION = [3, 10];
-const HEADROOM_HEALTH_TIMEOUT_MS = 1500;
+const HEADROOM_LIVEZ_TIMEOUT_MS = 1500;
+// /health waits on headroom's own cached upstream probe (a HEAD to the upstream
+// API with a 5s timeout) before answering, so on slow routes to the upstream it
+// stalls well past a short probe timeout — which made a running proxy read as
+// stopped. The fallback probe gets a window wide enough for that stall.
+const HEADROOM_HEALTH_TIMEOUT_MS = 6500;
 const LOOPBACK_HOSTS = new Set(["localhost", "127.0.0.1", "::1", "[::1]", "0.0.0.0"]);
 
 export const DEFAULT_HEADROOM_URL = process.env.HEADROOM_URL || "http://localhost:8787";
@@ -120,10 +125,20 @@ export function findPython310() {
   return fallback;
 }
 
-// Probe whether a Headroom proxy is reachable at the given URL by hitting /health.
+// Probe whether a Headroom proxy is reachable at the given URL. /livez is the
+// fast liveness answer (headroom ≥ 0.25): it never blocks on the cached
+// upstream check that /health awaits first — that stall ran past the probe
+// timeout and left the Token Saver card saying "Stopped" for a running proxy
+// (the compress path itself doesn't care about upstream health). Falls back to
+// /health for older builds without /livez, and so a non-200 /livez still gets
+// the slower authoritative answer.
 export async function probeProxyRunning(url) {
   if (!url) return false;
   const base = String(url).replace(/\/$/, "");
+  try {
+    const res = await fetch(`${base}/livez`, { signal: AbortSignal.timeout(HEADROOM_LIVEZ_TIMEOUT_MS) });
+    if (res.ok) return true;
+  } catch { /* fall through to /health */ }
   try {
     const res = await fetch(`${base}/health`, { signal: AbortSignal.timeout(HEADROOM_HEALTH_TIMEOUT_MS) });
     return res.ok;

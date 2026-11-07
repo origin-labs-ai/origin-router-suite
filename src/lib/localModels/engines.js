@@ -160,3 +160,88 @@ export async function probeAllEngines({ timeoutMs = 3000 } = {}) {
   ]);
   return { ollama, lmstudio, llamacpp };
 }
+
+// ── installed detection ──────────────────────────────────────────────────────
+//
+// "Offline" alone lied to the owner: an engine that is installed but not
+// running reads very differently from one that was never installed. Detection
+// is pure filesystem checks over well-known install locations — no process
+// spawning, no PATH execution — so it stays inside the scanner's rules.
+
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+
+function firstExisting(candidates) {
+  for (const candidate of candidates) {
+    try {
+      if (fs.existsSync(candidate)) return candidate;
+    } catch {
+      // Unreadable path — treat as absent.
+    }
+  }
+  return null;
+}
+
+function findOnPath(executables) {
+  const pathVar = process.env.PATH || "";
+  for (const dir of pathVar.split(path.delimiter).filter(Boolean)) {
+    for (const exe of executables) {
+      try {
+        if (fs.existsSync(path.join(dir, exe))) return path.join(dir, exe);
+      } catch {
+        // Skip unreadable PATH entries.
+      }
+    }
+  }
+  return null;
+}
+
+// llama.cpp ships no installer — its release zip is a drop folder of exes +
+// DLLs. PATH detection alone missed the layout this app manages, so we also
+// probe the owner-stable folders `~/.or/bin/llama.cpp/` (release-extract target)
+// and a bare `~/.or/bin/` (alongside the other helpers like cloudflared that
+// already live there). Same pure-filesystem rule as the rest of detection:
+// no process spawning, no PATH execution.
+function OR_BIN_LLAMA_CANDIDATES() {
+  const home = os.homedir();
+  return [
+    path.join(home, ".or", "bin", "llama.cpp", "llama-server.exe"),
+    path.join(home, ".or", "bin", "llama.cpp", "llama-server"),
+    path.join(home, ".or", "bin", "llama-server.exe"),
+    path.join(home, ".or", "bin", "llama-server"),
+  ];
+}
+
+/** Which engines have an installation on this machine. Never spawns. */
+export function detectInstalledEngines() {
+  const localAppData = process.env.LOCALAPPDATA || path.join(os.homedir(), "AppData", "Local");
+  const programFiles = process.env.ProgramFiles || path.join(process.env.SystemDrive || "C:", "Program Files");
+  return {
+    ollama: Boolean(
+      firstExisting([
+        path.join(localAppData, "Programs", "Ollama", "ollama.exe"),
+        path.join(programFiles, "Ollama", "ollama.exe"),
+        path.join(localAppData, "Ollama"),
+      ]) || findOnPath(["ollama.exe", "ollama"]),
+    ),
+    lmstudio: Boolean(
+      firstExisting([
+        path.join(os.homedir(), ".lmstudio"),
+        path.join(localAppData, "LM-Studio"),
+        path.join(localAppData, "Programs", "LM Studio"),
+      ]) || findOnPath(["lms.exe", "lms"]),
+    ),
+    llamacpp: Boolean(
+      firstExisting(OR_BIN_LLAMA_CANDIDATES())
+        || findOnPath(["llama-server.exe", "llama-cli.exe", "llama-server", "llama-cli"]),
+    ),
+  };
+}
+
+// Full llama-server resolution for the managed-server launcher (llamaServer.js):
+// PATH first, then the ~/.or/bin drop folders. Exported so the launcher and
+// this detector share ONE source of truth for "where is the binary".
+export function findLlamaServerBinary() {
+  return findOnPath(["llama-server.exe", "llama-server"]) || firstExisting(OR_BIN_LLAMA_CANDIDATES());
+}

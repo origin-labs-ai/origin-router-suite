@@ -5,6 +5,8 @@ import { Card, Button, Toggle, Input } from "@/shared/components";
 import Modal, { ConfirmModal } from "@/shared/components/Modal";
 import LanguageSwitcher from "@/shared/components/LanguageSwitcher";
 import RoutingResilienceCard from "@/shared/components/RoutingResilienceCard";
+import FusionSetupSection from "@/shared/components/FusionSetupSection";
+import DataManagerSection from "@/shared/components/DataManagerSection";
 import { useTheme } from "@/shared/hooks/useTheme";
 import { cn } from "@/shared/utils/cn";
 import { APP_CONFIG } from "@/shared/constants/config";
@@ -1688,7 +1690,13 @@ export default function ProfilePage() {
         {/* Routing resilience (concurrency, failover, error suppression) */}
         <RoutingResilienceCard />
 
-        {/* Danger zone — destructive actions, each with its own confirmation */}
+        {/* Revolt Fusion — Choose Your Setup (moved off its standalone page) */}
+        <FusionSetupSection />
+
+        {/* DB manager — table stats, retention presets, vacuum */}
+        <DataManagerSection />
+
+        {/* Danger zone — destructive actions, with confirmations, last */}
         <Card>
           <div className="flex items-center gap-3 mb-4">
             <div className="p-2 rounded-lg bg-red-500/10 text-red-500 shrink-0">

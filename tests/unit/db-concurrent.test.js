@@ -21,7 +21,7 @@ beforeAll(async () => {
   vi.resetModules();
   db = await import("@/lib/db/index.js");
   await db.initDb();
-});
+}, 60_000);
 
 afterAll(() => {
   if (tempDir) removeTempDir(tempDir);

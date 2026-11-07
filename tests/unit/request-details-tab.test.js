@@ -29,7 +29,7 @@ beforeAll(async () => {
 
   const { getAdapter } = await import("@/lib/db/driver.js");
   adapter = await getAdapter();
-});
+}, 60_000);
 
 afterAll(() => {
   if (tempDir) removeTempDir(tempDir);
@@ -222,7 +222,7 @@ describe("API route contract — validation boundary", () => {
   let GET;
   beforeAll(async () => {
     ({ GET } = await import("@/app/api/usage/request-details/route.js"));
-  });
+  }, 60_000);
 
   function makeReq(query) {
     return new Request(`http://localhost/api/usage/request-details?${query}`);

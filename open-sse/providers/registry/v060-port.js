@@ -83,6 +83,13 @@ const TABLE = [
   ["qianfan", "Qianfan", "https://qianfan.baidubce.com/v2", "https://qianfan.baidubce.com", "", "apikey", "Baidu Qianfan platform, OpenAI-compatible v2 surface."],
   ["sparkdesk", "iFlyTek Spark", "https://spark-api-open.xf-yun.com/v1", "https://www.xfyun.cn", "", "apikey", "iFlyTek Spark open platform, OpenAI-compatible."],
   ["modelscope", "ModelScope API-Inference", "https://api-inference.modelscope.cn/v1", "https://modelscope.cn", "https://modelscope.cn/my/myaccesstoken", "apikey", "Alibaba model hub; free tier for many OSS models."],
+  // ── From the owner's OpenCode CLI catalog (alive endpoints, key-less imports) ──
+  ["naga", "NagaAI", "https://api.naga.ac/v1", "https://naga.ac", "", "apikey", ""],
+  ["modal", "Modal Research", "https://api.us-west-2.modal.direct/v1", "https://modal.com", "", "apikey", "Research endpoint; the wire base carries a /chat/completions suffix."],
+  ["interfaceai", "InterfaceAI", "https://api.jiekou.ai/openai/v1", "https://jiekou.ai", "", "apikey", "OpenAI-compatible surface under /openai/v1."],
+  ["aerolink", "Aerolink", "https://capi.aerolink.lat", "https://aerolink.lat", "", "apikey", ""],
+  ["g0i", "G0I", "https://api.g0i.ai/v1", "https://g0i.ai", "", "apikey", ""],
+  ["kie", "Kie", "https://api.kie.ai/claude/v1", "https://kie.ai", "", "apikey", "Claude-compatible surface at /claude/v1."],
 ];
 
 export default TABLE.map(([id, name, base, website, keyUrl, category, note]) => ({

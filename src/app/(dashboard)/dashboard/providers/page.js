@@ -885,17 +885,6 @@ function ApiKeyProviderCard({
             </div>
             <div className="min-w-0">
               <h3 className="truncate font-semibold">{provider.name}</h3>
-              {/* Hand Picked configurables carry their endpoint: the base URL
-                  sits right under the name so an imported provider reads as
-                  "name + where it points", ready for a key. */}
-              {provider.baseUrl ? (
-                <div
-                  className="max-w-[220px] truncate font-mono text-[10px] text-text-muted"
-                  title={provider.baseUrl}
-                >
-                  {provider.baseUrl}
-                </div>
-              ) : null}
               <div className="flex min-w-0 items-center gap-1.5 text-xs flex-wrap">
                 {allDisabled ? (
                   <Badge variant="default" size="sm">

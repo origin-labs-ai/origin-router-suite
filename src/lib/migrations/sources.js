@@ -953,23 +953,26 @@ async function detectOpenCode() {
 }
 
 // Match a baseURL onto a registry provider id by comparing origin+path
-// prefixes (registry baseUrls end at /v1-style roots).
+// prefixes (registry baseUrls end at /v1-style roots). The registry is the
+// source — the transports map drops entry.baseUrl, so matching against it
+// silently missed every catalog provider (bluesminds imported as a node).
 async function mapOpenCodeBaseUrls(providers) {
   const known = new Map(); // baseUrl → provider id from OUR registry
   try {
-    const { PROVIDERS } = await import("open-sse/providers/index.js");
-    for (const [id, cfg] of Object.entries(PROVIDERS || {})) {
-      const base = String(cfg?.baseUrl || "").replace(/\/chat\/completions$/, "").replace(/\/+$/, "");
-      if (base) known.set(base.toLowerCase(), id);
+    const REGISTRY = (await import("open-sse/providers/registry/index.js")).default;
+    for (const entry of Array.isArray(REGISTRY) ? REGISTRY.flat() : [REGISTRY]) {
+      const base = String(entry?.baseUrl || "").replace(/\/chat\/completions$/, "").replace(/\/+$/, "");
+      if (base && entry?.id) known.set(base.toLowerCase(), entry.id);
     }
   } catch { /* registry unavailable → all custom */ }
   return providers.map((p) => {
-    const exact = known.get(String(p.baseUrl).toLowerCase());
+    const url = String(p.baseUrl || "").toLowerCase().replace(/\/+$/, "");
+    const exact = known.get(url);
     if (exact) return { ...p, targetProviderId: exact, custom: false };
     // Prefix match: a config baseURL under a known registry root.
     let prefixHit = null;
     for (const [base, id] of known) {
-      if (base && String(p.baseUrl).toLowerCase().startsWith(base)) { prefixHit = id; break; }
+      if (base && url.startsWith(base)) { prefixHit = id; break; }
     }
     if (prefixHit) return { ...p, targetProviderId: prefixHit, custom: false };
     return { ...p, custom: true };
@@ -1115,10 +1118,15 @@ async function runOpenCodeImport(source) {
       seenUrls.set(urlId, label);
 
       if (!p.apiKey) {
-        // Key-less entry: import only when the endpoint is actually alive —
-        // a dead host stays dead even after the owner pastes a key. The
-        // configurable lands in Hand Picked with its base URL; a connection
-        // appears once the owner attaches a key.
+        // Key-less registry-matched entry needs NO node: the provider already
+        // has its categorized card (API Key Providers) — the owner just adds
+        // a key on it. Only genuinely unknown endpoints become configurables.
+        if (!p.custom) {
+          skipped.push({ name: label, reason: `catalog provider "${p.targetProviderId}" — add your key on its card` });
+          continue;
+        }
+        // Key-less unknown endpoint: import only when the host is alive —
+        // a dead endpoint stays dead even after the owner pastes a key.
         const alive = await probeEndpointAlive(p.baseUrl);
         if (!alive) {
           seenUrls.delete(urlId);

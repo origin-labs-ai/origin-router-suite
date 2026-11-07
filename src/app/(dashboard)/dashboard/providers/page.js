@@ -438,7 +438,7 @@ export default function ProvidersPage() {
       <div className="flex flex-col gap-4">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <h2 className="text-lg sm:text-xl font-semibold flex items-center gap-2 leading-tight">
-            Hand Picked OpenAI Compatible{" "}
+            Hand Picked OpenAI Compatibles{" "}
           </h2>
           <div className="grid grid-cols-1 gap-2 sm:flex sm:w-auto">
             <Button
@@ -839,11 +839,11 @@ function ApiKeyProviderCard({
   };
 
   const getIconPath = () => {
-    if (isCompatible && provider.apiType)
-      return provider.apiType === "responses"
-        ? "/providers/oai-r.png"
-        : "/providers/oai-cc.png";
-    if (isAnthropicCompatible) return "/providers/anthropic-m.png";
+    // Hand Picked cards carry no brand asset on purpose: the owner's letter
+    // glyph + accent color (providerGlyph) IS the identity. The old
+    // hardcoded oai-cc.png / anthropic-m.png placeholders stamped someone
+    // else's logo on every card — they are gone.
+    if (isCompatible || isAnthropicCompatible) return null;
     return getProviderIconSrc(provider.id);
   };
 

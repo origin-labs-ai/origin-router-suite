@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Card from "@/shared/components/Card";
+import { buildProviderNameMap, resolveProviderLabel } from "@/shared/utils/providerLabel";
 
 function money(value) {
   const number = Number(value) || 0;
@@ -24,6 +25,20 @@ function Stat({ label, value, hint }) {
 export default function CostForecastCard() {
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
+  // The spend breakdown's provider rows must carry the name the user set —
+  // a compatible node's real name lives on its node, not the raw id.
+  const [nodeNames, setNodeNames] = useState({});
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/provider-nodes", { cache: "no-store" })
+      .then((res) => (res.ok ? res.json().catch(() => ({})) : {}))
+      .then((json) => {
+        if (!cancelled) setNodeNames(buildProviderNameMap(json.nodes));
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -33,6 +48,12 @@ export default function CostForecastCard() {
       .catch(() => { if (!cancelled) setError(true); });
     return () => { cancelled = true; };
   }, []);
+
+  const nameFor = (entry) =>
+    resolveProviderLabel(entry.provider || entry.name, {
+      nodeNames,
+      fallback: entry.name,
+    });
 
   if (error) return null;
   if (!data) {
@@ -73,9 +94,10 @@ export default function CostForecastCard() {
         <div className="flex flex-col gap-1.5">
           {byProvider.slice(0, 5).map((entry) => {
             const share = spend > 0 ? Math.round((entry.cost / spend) * 100) : 0;
+            const label = nameFor(entry);
             return (
               <div key={entry.name} className="flex items-center gap-2 text-xs">
-                <span className="w-32 shrink-0 truncate text-text-muted">{entry.name}</span>
+                <span className="w-32 shrink-0 truncate text-text-muted" title={label}>{label}</span>
                 <span className="h-1.5 flex-1 overflow-hidden rounded-full bg-bg-subtle">
                   <span
                     className="block h-full rounded-full bg-primary"

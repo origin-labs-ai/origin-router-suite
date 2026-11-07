@@ -100,6 +100,10 @@ export default function UsageTable({
   sortBy,
   sortOrder,
   onToggleSort,
+  // Sort toggles are a per-table choice: the model/endpoint tables keep them,
+  // the account/api-key tables render plain headers (the owner's call —
+  // grouping already carries the meaning there).
+  sortable = true,
   viewMode,
   storageKey,
   renderDetailCells,
@@ -166,21 +170,25 @@ export default function UsageTable({
               {columns.map((col) => (
                 <th
                   key={col.field}
-                  className={`px-6 py-3 cursor-pointer hover:bg-bg-subtle/50 ${col.align === "right" ? "text-right" : ""}`}
-                  onClick={() => onToggleSort(tableType, col.field)}
+                  className={`px-6 py-3 ${sortable ? "cursor-pointer hover:bg-bg-subtle/50" : ""} ${col.align === "right" ? "text-right" : ""}`}
+                  onClick={sortable ? () => onToggleSort(tableType, col.field) : undefined}
                 >
                   {col.label}{" "}
-                  <SortIcon field={col.field} currentSort={sortBy} currentOrder={sortOrder} />
+                  {sortable ? (
+                    <SortIcon field={col.field} currentSort={sortBy} currentOrder={sortOrder} />
+                  ) : null}
                 </th>
               ))}
               {valueColumns.map((col) => (
                 <th
                   key={col.field}
-                  className="px-4 py-3 text-right cursor-pointer whitespace-nowrap hover:bg-bg-subtle/50"
-                  onClick={() => onToggleSort(tableType, col.field)}
+                  className={`px-4 py-3 text-right whitespace-nowrap ${sortable ? "cursor-pointer hover:bg-bg-subtle/50" : ""}`}
+                  onClick={sortable ? () => onToggleSort(tableType, col.field) : undefined}
                 >
                   {col.label}{" "}
-                  <SortIcon field={col.field} currentSort={sortBy} currentOrder={sortOrder} />
+                  {sortable ? (
+                    <SortIcon field={col.field} currentSort={sortBy} currentOrder={sortOrder} />
+                  ) : null}
                 </th>
               ))}
             </tr>

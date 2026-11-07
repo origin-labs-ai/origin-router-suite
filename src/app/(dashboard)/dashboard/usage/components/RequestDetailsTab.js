@@ -8,6 +8,7 @@ import Pagination from "@/shared/components/Pagination";
 import { cn } from "@/shared/utils/cn";
 import { AI_PROVIDERS, getProviderByAlias } from "@/shared/constants/providers";
 import { isHiddenModelName, prettyModelName } from "@/shared/utils/modelDisplayName";
+import RequestReplayButton from "@/shared/components/RequestReplayButton";
 
 function displayModelName(raw) {
   if (!raw || isHiddenModelName(raw)) return "—";
@@ -321,13 +322,16 @@ export default function RequestDetailsTab() {
                       </div>
                     </td>
                     <td className="p-4 text-center">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleViewDetail(detail)}
-                      >
-                        Detail
-                      </Button>
+                      <div className="flex items-center justify-center gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleViewDetail(detail)}
+                        >
+                          Detail
+                        </Button>
+                        <RequestReplayButton id={detail.id} />
+                      </div>
                     </td>
                   </tr>
                 ))
@@ -417,6 +421,13 @@ export default function RequestDetailsTab() {
                   {selectedDetail.tokens?.completion_tokens?.toLocaleString() || 0}
                 </span>
               </div>
+            </div>
+
+            <div className="flex items-center gap-3">
+              <RequestReplayButton id={selectedDetail.id} variant="secondary" size="sm" />
+              <span className="text-xs text-text-muted">
+                Send this request to the router again
+              </span>
             </div>
 
             {selectedDetail.pxpipe && (

@@ -45,12 +45,29 @@ irm https://raw.githubusercontent.com/origin-labs-ai/origin-router-suite/main/in
 ```
 
 - Lands in `%LOCALAPPDATA%\Programs\OriginRouter` — **no admin rights needed** (the installer runs with the lowest privileges it can).
-- Adds a **startup entry** (`%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup\originrouter.vbs`), so the gateway is up before your first tool call.
+- Adds a **startup entry** (`HKCU\Software\Microsoft\Windows\CurrentVersion\Run`), so the gateway is up before your first tool call. It starts through a hidden PowerShell, so no console window appears.
 - Adds the **system tray** icon: open the dashboard, open the gateway console, open the brain console, restart the brain, check for updates, hide.
+- **Verifies the SHA256** of the download before it runs anything.
 - If the npm package is not reachable, the script falls back to the release installer from GitHub.
 - Remove it later through *Apps → Installed apps → OriginRouter*.
 
 Prefer a manual download? Grab **`OriginRouter-Setup-<version>.exe`** from the [releases page](https://github.com/origin-labs-ai/origin-router-suite/releases/latest).
+
+### macOS / Linux — one line
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/origin-labs-ai/origin-router-suite/main/install.sh | bash
+```
+
+The script uses the npm package when it is reachable and falls back to the **portable build** from the release when it is not — same checksum check, no npm needed, no admin rights. It lands in `~/Applications/OriginRouter` (macOS) or `~/.local/opt/origin-router` (Linux).
+
+Both scripts take flags when you run them from a file instead of the one-liner:
+
+| Flag | What it does |
+|---|---|
+| `-Version v0.5.117` | Installs a specific release. |
+| `-Portable` | Skips npm and the installer, unpacks the portable build. |
+| `-SkipRun` | Downloads and verifies only, installs nothing. |
 
 ### Windows / macOS / Linux — portable zip (beta)
 
@@ -335,6 +352,11 @@ The dashboard is available in **37 languages** and follows the light/dark theme 
 | **Release engineering** | The pipeline builds every artifact, publishes them with curated release notes and checksums, and the launcher verifies the `.sha256` before it installs anything. |
 | **Local-first storage** | State and usage live in `~/.or/db/data.sqlite`. Old installs migrate themselves on first start instead of starting empty. |
 | **Safety** | The LAN gate derives the peer address from the socket, not from a spoofable header; local-only routes need the CLI token; the container gateway counts as "this computer" so a published Docker port still works. |
+| **Per-key budgets** | Every API key can carry its own requests per minute, tokens per minute, tokens per day and a cap on how many of its requests run at the same time. A key that spent its allowance gets a `429` with `Retry-After` — before a single token is spent upstream. Zero means "no limit", so a key without a budget is never slowed down. |
+| **Provider health** | Every provider is graded live: healthy, degraded, down or idle — with the request count, the error rate, the average and p95 latency and the last error it produced. The health of a provider is a number you can look at, not a feeling. |
+| **Request replay** | Any logged request can be sent again from the request log, with the original body and endpoint, so a failure can be reproduced and a good answer regenerated. |
+| **Cost forecast** | The usage page says what today, the last 7 days and the last 30 days cost, what the month will cost if the current pace holds, and how much of the traffic was free. |
+| **First run** | The Get Started wizard asks for a theme, offers the keys of any other router on the machine, walks through the first provider and the first combo, and wires Claude Code in one click. Every step can be skipped. |
 | **Honest docs** | Every claim in this README is checked against the code, and the architecture doc describes the storage model and the env contract that actually exist. |
 
 ---
@@ -349,7 +371,7 @@ The dashboard is available in **37 languages** and follows the light/dark theme 
 | **Desktop app** | A native window around the gateway (`OriginRouter-Desktop-Setup-<version>.exe`), built with electron-builder and packaged with Inno Setup. |
 | **Windows installer** | `OriginRouter-Setup-<version>.exe` — the gateway, the dashboard, the tray and the uninstaller. |
 | **Docker image** | `ghcr.io/origin-labs-ai/origin-router` for `linux/amd64` and `linux/arm64`. |
-| **Portable zips** | `OriginRouter-mac.zip`, `OriginRouter-linux.zip` — no installer, no admin rights. |
+| **Portable zips** | `OriginRouter-win-portable.zip`, `OriginRouter-mac-portable.zip`, `OriginRouter-linux-portable.zip` — no installer, no admin rights. |
 
 ---
 

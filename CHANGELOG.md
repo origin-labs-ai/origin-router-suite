@@ -1,3 +1,21 @@
+# v0.6.000 (unreleased)
+
+The 0.6 line: the router now shows you what it is doing, and it can hold a key back.
+
+## Added
+- **Per-key budgets.** Every API key can carry its own requests per minute, tokens per minute, tokens per day and a cap on how many of its requests run at the same time. The check happens in the gateway before a single token is spent upstream, and a key that spent its allowance gets a `429` with `Retry-After` and `X-RateLimit-*` headers. A limit of 0 means "no limit", so a key without a budget is never slowed down. The budgets live on *Endpoint & Key → API Keys → Limits*.
+- **A provider health dashboard.** Every provider is graded live — healthy, degraded, down or idle — with the request count, the error rate, the average and the p95 latency and the last error it produced. It is on the usage page next to the cost forecast.
+- **Request replay.** Any logged request can be sent again from the request log, with the original endpoint and body, so a failure can be reproduced and a good answer regenerated.
+- **A cost forecast.** What today, the last 7 days and the last 30 days cost, what the month will cost if the current pace holds, how much of the traffic was free and which providers spent it.
+- **A first-run wizard.** The Get Started wizard asks for a theme, offers the keys of any other router on this machine, walks through the first provider and the first combo, and wires Claude Code in one click. Every step can be skipped on its own or skipped as a whole.
+- **A native Claude Code setup.** One button writes the whole `~/.claude/settings.json`: the endpoint, the user's own API key, the models, the model picker, the effort level and the timeouts. The file it replaces is kept as a backup. The CLI tools page and the wizard now share one implementation.
+- **A data folder and a start mode for the portable build.** The portable build asks two questions of its own, first because they matter most: where the data is stored (default `~/.or`) and whether the app starts in the tray.
+
+## Fixed
+- **The installer added the install folder to the user PATH again on every update**, so a machine that was updated a few times carried a dozen copies of the same entry. The PATH is now rewritten with exactly one copy, and the existing copies are cleaned up on the next install.
+- **The install scripts could not install anything when npm was unreachable.** `install.ps1` fell back to a release lookup against the retired repository name, so the fallback was a 404. Both scripts now use the current repository, verify the SHA256 before they run anything, and `install.sh` falls back to the portable build when npm is not there at all.
+- **The README described a startup entry that does not exist.** The installer writes a registry Run key, not a `.vbs` file in the startup folder. The README now says what actually happens.
+
 # v0.5.117 (2026-11-06)
 
 The product's name, links and documentation now match the product. Full working log: [docs/RELEASE-LOG.md](docs/RELEASE-LOG.md).

@@ -2,7 +2,7 @@
 
 import { Suspense, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
-import { RequestLogger, CardSkeleton, SegmentedControl, CostForecastCard } from "@/shared/components";
+import { RequestLogger, CardSkeleton, SegmentedControl, CostForecastCard, ProviderHealthCard } from "@/shared/components";
 import UsageStats from "@/shared/components/UsageStats";
 import RequestDetailsTab from "./components/RequestDetailsTab";
 
@@ -71,9 +71,16 @@ function UsageContent() {
           <Suspense fallback={<CardSkeleton />}>
             <UsageStats period={period} setPeriod={setPeriod} hidePeriodSelector />
           </Suspense>
-          <Suspense fallback={<CardSkeleton />}>
-            <CostForecastCard />
-          </Suspense>
+          {/* Side by side on very wide screens, stacked everywhere else - both
+              cards keep their own width so nothing overflows. */}
+          <div className="grid min-w-0 grid-cols-1 items-stretch gap-6 2xl:grid-cols-2">
+            <Suspense fallback={<CardSkeleton />}>
+              <CostForecastCard />
+            </Suspense>
+            <Suspense fallback={<CardSkeleton />}>
+              <ProviderHealthCard />
+            </Suspense>
+          </div>
         </>
       )}
       {activeTab === "logs" && <RequestLogger />}

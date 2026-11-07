@@ -22,6 +22,8 @@ import { PROVIDERS, PROVIDER_MODELS } from "open-sse/providers/index.js";
 import { listStrategies, normalizeStrategy } from "@/lib/routing/strategies.js";
 import { getFoldStats } from "open-sse/fold/index.js";
 import { listAdapters } from "open-sse/harness/index.js";
+import { listExternalTools, callExternalTool, hubStatus } from "@/lib/mcp/hub.js";
+import { getSettings } from "@/lib/localDb";
 
 export const dynamic = "force-dynamic";
 
@@ -115,6 +117,11 @@ const TOOLS = [
     description: "Registered provider adapter harness entries.",
     inputSchema: { type: "object", properties: {} },
   },
+  {
+    name: "mcp_hub_status",
+    description: "MCP hub state: federated servers, their catalog entries, enable flags.",
+    inputSchema: { type: "object", properties: {} },
+  },
 ];
 
 const DISPATCH = {
@@ -124,6 +131,7 @@ const DISPATCH = {
   strategy_list: async () => ({ strategies: listStrategies() }),
   fold_stats: async () => getFoldStats(),
   harness_list: async () => ({ adapters: listAdapters() }),
+  mcp_hub_status: async () => hubStatus(await getSettings()),
 };
 
 // ─── JSON-RPC 2.0 dispatch ───────────────────────────────────────────────────
@@ -157,10 +165,27 @@ export async function POST(request) {
       return NextResponse.json(rpcResult(id, {}));
     }
     if (method === "tools/list") {
-      return NextResponse.json(rpcResult(id, { tools: TOOLS }));
+      // Merge: the router's own tools + every external MCP server's tools
+      // (namespaced serverId:toolName). A dead external server contributes
+      // an `externalErrors` note, never a failure of this surface.
+      let external = { tools: [], errors: [] };
+      try {
+        external = await listExternalTools(await getSettings());
+      } catch { /* hub misconfiguration — the local tools still answer */ }
+      return NextResponse.json(rpcResult(id, {
+        tools: [...TOOLS, ...external.tools],
+        ...(external.errors.length ? { externalErrors: external.errors } : {}),
+      }));
     }
     if (method === "tools/call") {
       const name = String(params?.name || "");
+      // Namespaced names (`serverId:toolName`) belong to the hub.
+      if (name.includes(":")) {
+        const settings = await getSettings();
+        const out = await callExternalTool(settings, name, params?.arguments || {});
+        if (!out.ok) return NextResponse.json(rpcError(id, -32602, out.error || "external tool failed"));
+        return NextResponse.json(rpcResult(id, { content: [{ type: "text", text: JSON.stringify(out.result) }] }));
+      }
       const fn = DISPATCH[name];
       if (!fn) return NextResponse.json(rpcError(id, -32602, `unknown tool: ${name}`));
       const result = await fn(params?.arguments || {});

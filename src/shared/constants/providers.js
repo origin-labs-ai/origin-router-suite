@@ -40,8 +40,12 @@ function buildProviderEntry(r) {
   };
 }
 
+// Registry entries may be a single object or an array of them (the Revolt
+// Fusion port table ships 41 entries in one module) — flat() accepts both.
+// Without it, nested entries' category reads undefined and they vanish from
+// every provider list built here.
 const byCategory = (cat) => Object.fromEntries(
-  REGISTRY.filter(r => r.category === cat).map(r => [r.id, buildProviderEntry(r)])
+  REGISTRY.flat().filter(r => r.category === cat).map(r => [r.id, buildProviderEntry(r)])
 );
 
 export const FREE_PROVIDERS = byCategory("free");
@@ -158,11 +162,13 @@ export function getProvidersByKind(kind) {
     .sort((a, b) => (a.priority ?? a.mediaPriority ?? 999) - (b.priority ?? b.mediaPriority ?? 999));
 }
 
-// Derive từ registry features flags
+// Derive from registry feature flags (flat(): see byCategory above)
 export const USAGE_SUPPORTED_PROVIDERS = REGISTRY
+  .flat()
   .filter(r => r.features?.usage)
   .map(r => r.id);
 
 export const USAGE_APIKEY_PROVIDERS = REGISTRY
+  .flat()
   .filter(r => r.features?.usageApikey)
   .map(r => r.id);

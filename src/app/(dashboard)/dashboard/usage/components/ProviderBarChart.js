@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import PropTypes from "prop-types";
 import {
   BarChart,
   Bar,
+  XAxis,
   YAxis,
   CartesianGrid,
   Tooltip,
@@ -13,16 +14,13 @@ import {
 } from "recharts";
 import Card from "@/shared/components/Card";
 import { buildProviderNameMap, resolveProviderLabel } from "@/shared/utils/providerLabel";
-import { CHART_GEOMETRY, LABEL_FONT_SIZE, layoutValueLabels } from "@/lib/chartLabels";
 
 const COLORS = ["#6366f1", "#14b8a6", "#f59e0b", "#ef4444", "#8b5cf6", "#06b6d4", "#10b981", "#2B7FFF"];
-
-const { height: CHART_HEIGHT, margin: MARGIN, yAxisWidth: Y_AXIS_WIDTH, barCategoryGap: BAR_CATEGORY_GAP } = CHART_GEOMETRY;
 
 const compact = (n) => {
   const value = Number(n) || 0;
   if (value >= 1000000000) return `${(value / 1000000000).toFixed(1)}B`;
-  if (value >= 1000000) return `${(value / 1000000).toFixed(1)}M`;
+  if (value >= 1000000) return `${(value / 1000000000).toFixed(1)}M`;
   if (value >= 1000) return `${(value / 1000).toFixed(1)}K`;
   return String(value);
 };
@@ -64,10 +62,6 @@ export default function ProviderBarChart({ byProvider }) {
   const [nodeNames, setNodeNames] = useState({});
   const [connectionByProvider, setConnectionByProvider] = useState({});
 
-  const wrapRef = useRef(null);
-  const [width, setWidth] = useState(0);
-  const [fontFamily, setFontFamily] = useState("");
-
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -94,21 +88,6 @@ export default function ProviderBarChart({ byProvider }) {
     return () => { cancelled = true; };
   }, []);
 
-  useLayoutEffect(() => {
-    const element = wrapRef.current;
-    if (!element) return undefined;
-    const update = () => {
-      const next = element.clientWidth;
-      setWidth((current) => (current === next ? current : next));
-      const family = window.getComputedStyle(element).fontFamily;
-      setFontFamily((current) => (current === family ? current : family));
-    };
-    update();
-    const observer = new ResizeObserver(update);
-    observer.observe(element);
-    return () => observer.disconnect();
-  }, []);
-
   const chartData = useMemo(() => {
     if (!byProvider) return [];
     const rows = Object.entries(byProvider).map(([id, data]) => {
@@ -125,26 +104,17 @@ export default function ProviderBarChart({ byProvider }) {
         value: viewMode === "tokens" ? tokens : requests,
       };
     });
-    return rows.sort((a, b) => b.value - a.value);
+    return rows.sort((a, b) => b.value - a.value).slice(0, 8);
   }, [byProvider, viewMode, nodeNames, connectionByProvider]);
 
-  const maxValue = useMemo(
-    () => chartData.reduce((max, row) => Math.max(max, row.value || 0), 0),
-    [chartData]
-  );
-
-  const labels = useMemo(
-    () =>
-      layoutValueLabels(
-        chartData.map((row, index) => ({ index, value: row.value, label: compact(row.value) })),
-        { width, fontFamily, maxValue }
-      ),
-    [chartData, width, fontFamily, maxValue]
-  );
+  const fmt = viewMode === "tokens" ? compact : String;
+  const label = viewMode === "tokens" ? "Tokens" : "Requests";
 
   return (
     <Card className="flex min-w-0 flex-col gap-3 p-3 sm:p-4">
-      <div className="flex items-center justify-end gap-2">
+      {/* The title its sibling chart always had — the two cards read as a pair. */}
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-sm font-semibold text-text-muted uppercase tracking-wide">By Providers</span>
         <div className="grid grid-cols-2 items-center gap-1 rounded-lg border border-border bg-bg-subtle p-1">
           <button
             onClick={() => setViewMode("tokens")}
@@ -164,67 +134,66 @@ export default function ProviderBarChart({ byProvider }) {
       {!chartData.length ? (
         <div className="h-44 flex items-center justify-center text-text-muted text-sm">No provider usage yet</div>
       ) : (
-        <div ref={wrapRef} data-testid="provider-bar-chart" className="relative w-full" style={{ height: CHART_HEIGHT }}>
-          <ResponsiveContainer width="100%" height={CHART_HEIGHT}>
-            <BarChart
-              data={chartData}
-              margin={MARGIN}
-              barCategoryGap={`${BAR_CATEGORY_GAP * 100}%`}
-            >
-              <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.1} vertical={false} />
-              <YAxis
-                domain={[0, (maxValue || 1) * 1.15]}
-                tick={{ fontSize: 10, fill: "currentColor", fillOpacity: 0.5 }}
-                tickLine={false}
-                axisLine={false}
-                tickFormatter={compact}
-                width={Y_AXIS_WIDTH}
-              />
-              <Tooltip
-                content={<ProviderTooltip />}
-                cursor={{ fill: "var(--color-bg-hover)", fillOpacity: 0.25 }}
-              />
-              <Bar
-                dataKey="value"
-                radius={[4, 4, 0, 0]}
-                isAnimationActive={false}
-                // A provider with no usage still gets a sliver on the baseline,
-                // so it reads as "connected but idle" rather than "missing".
-                minPointSize={3}
-              >
-                {chartData.map((row, i) => (
-                  <Cell
-                    key={row.id || i}
-                    fill={COLORS[i % COLORS.length]}
-                    fillOpacity={0.85}
-                  />
-                ))}
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
-
-          {/* The values sit above their own bar; the layout pass above keeps
-              them from covering each other. */}
-          <div className="pointer-events-none absolute inset-0 select-none" aria-hidden="true">
-            {labels.map((label, index) => (
-              <span
-                key={chartData[index]?.id || index}
-                className="absolute whitespace-nowrap tabular-nums"
-                style={{
-                  left: `${label.x}px`,
-                  top: `${label.y}px`,
-                  transform: "translate(-50%, -100%)",
-                  fontSize: `${LABEL_FONT_SIZE}px`,
-                  lineHeight: `${LABEL_FONT_SIZE}px`,
-                  color: "currentColor",
-                  opacity: 0.7,
-                }}
-              >
-                {label.text}
-              </span>
-            ))}
-          </div>
-        </div>
+        <ResponsiveContainer width="100%" height={220}>
+          {/* Horizontal bars with the provider's own name on the left — the
+              same shape as Top Models, so the pair reads as one system.
+              Vertical anonymous columns made the chart unreadable. */}
+          <BarChart
+            data={chartData}
+            layout="vertical"
+            margin={{ top: 4, right: 28, left: 4, bottom: 4 }}
+          >
+            <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.1} horizontal={false} />
+            <XAxis
+              type="number"
+              tick={{ fontSize: 10, fill: "currentColor", fillOpacity: 0.5 }}
+              tickLine={false}
+              axisLine={false}
+              tickFormatter={fmt}
+            />
+            <YAxis
+              type="category"
+              dataKey="name"
+              tickLine={false}
+              axisLine={false}
+              interval={0}
+              width={150}
+              tick={(props) => {
+                // Recharts won't ellipsize, so cut to the axis width ourselves.
+                const { x, y, payload } = props;
+                const text0 = String(payload?.value || "");
+                const max = 20;
+                const text = text0.length > max ? `${text0.slice(0, max - 1)}…` : text0;
+                return (
+                  <text
+                    x={x - 6}
+                    y={y}
+                    dy={3}
+                    textAnchor="end"
+                    fontSize={10}
+                    fill="currentColor"
+                    fillOpacity={0.75}
+                  >
+                    {text}
+                  </text>
+                );
+              }}
+            />
+            <Tooltip
+              content={<ProviderTooltip />}
+              cursor={{ fill: "var(--color-bg-hover)", fillOpacity: 0.25 }}
+            />
+            <Bar dataKey={viewMode} radius={[0, 4, 4, 0]} minPointSize={3}>
+              {chartData.map((row, i) => (
+                <Cell
+                  key={row.id || i}
+                  fill={COLORS[i % COLORS.length]}
+                  fillOpacity={0.85}
+                />
+              ))}
+            </Bar>
+          </BarChart>
+        </ResponsiveContainer>
       )}
     </Card>
   );

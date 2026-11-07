@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import PropTypes from "prop-types";
 import {
   BarChart,
@@ -13,6 +13,8 @@ import {
   Cell,
 } from "recharts";
 import Card from "@/shared/components/Card";
+import { modelCategoryName } from "@/shared/utils/modelDisplayName";
+import { resolveProviderLabel, buildProviderNameMap } from "@/shared/utils/providerLabel";
 
 const COLORS = ["#6366f1", "#14b8a6", "#f59e0b", "#ef4444", "#8b5cf6"];
 
@@ -26,21 +28,43 @@ const truncate = (s, max = 22) => (s && s.length > max ? s.slice(0, max) + "…"
 
 export default function TopModelsChart({ byModel }) {
   const [viewMode, setViewMode] = useState("tokens");
+  // "Provided by" needs the same node-name map the provider chart uses: a
+  // compatible provider's real name lives on its node, not the id.
+  const [nodeNames, setNodeNames] = useState({});
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/provider-nodes", { cache: "no-store" })
+      .then((res) => (res.ok ? res.json().catch(() => ({})) : {}))
+      .then((data) => {
+        if (!cancelled) setNodeNames(buildProviderNameMap(data.nodes));
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
 
   const chartData = useMemo(() => {
     if (!byModel) return [];
     return Object.values(byModel)
-      .map((data) => ({
-        // Keep the full id: the axis width adapts below, and the tooltip shows
-        // it untruncated. Only unreadably long ids are shortened.
-        name: truncate(data.rawModel || "Unknown", 44),
-        tokens: (data.promptTokens || 0) + (data.completionTokens || 0),
-        requests: data.requests || 0,
-      }))
+      .map((data) => {
+        const raw = data.rawModel || data.model || "Unknown";
+        const meta = data.meta || {};
+        const provider = meta.provider || data.provider || "";
+        return {
+          // The axis shows the model's category NAME (deployment noise off),
+          // never the raw id.
+          name: modelCategoryName(raw) || truncate(raw, 44),
+          raw,
+          provider,
+          providerLabel: provider ? resolveProviderLabel(provider, { nodeNames }) : "",
+          tokens: (data.promptTokens || 0) + (data.completionTokens || 0),
+          requests: data.requests || 0,
+        };
+      })
       .filter((d) => d[viewMode] > 0)
       .sort((a, b) => b[viewMode] - a[viewMode])
       .slice(0, 5);
-  }, [byModel, viewMode]);
+  }, [byModel, viewMode, nodeNames]);
 
   const fmt = viewMode === "tokens" ? fmtTokens : String;
   const label = viewMode === "tokens" ? "Tokens" : "Requests";
@@ -117,7 +141,15 @@ export default function TopModelsChart({ byModel }) {
                 borderRadius: "8px",
                 fontSize: "12px",
               }}
-              formatter={(value) => [fmt(value), label]}
+              formatter={(value, _name, item) => {
+                const row = item?.payload || {};
+                const lines = [[fmt(value), label]];
+                // Provided by: the provider that actually served this model,
+                // under its own name — the same label the provider chart uses.
+                if (row.providerLabel) lines.push([row.providerLabel, "Provided by"]);
+                else if (row.provider) lines.push([row.provider, "Provided by"]);
+                return lines;
+              }}
             />
             <Bar dataKey={viewMode} radius={[0, 4, 4, 0]}>
               {chartData.map((_, i) => (

@@ -5,6 +5,15 @@
 //
 // The card owns its data: it reads /api/provider-health and lets the reader
 // pick the window (24h / 7d) or refresh it by hand.
+//
+// Naming rule (the owner's): every row carries the name the user actually
+// set — a Hand Picked compatible node shows "OrcaRouter", never
+// "openai-compatible-chat-…". The icon is the same letter glyph + accent
+// color the Providers page uses, so a provider looks like itself everywhere.
+//
+// Balance rule: the card shows a FIXED number of rows (the worst-offending
+// seats first), so Provider Health and Cost Forecast stand side by side at
+// the same visual weight. The count is a product default, not a knob.
 
 import { useEffect, useState } from "react";
 import Button from "@/shared/components/Button";
@@ -12,6 +21,13 @@ import Card from "@/shared/components/Card";
 import SegmentedControl from "@/shared/components/SegmentedControl";
 import ProviderIcon from "@/shared/components/ProviderIcon";
 import { PROVIDER_DISPLAY } from "@/shared/constants/providersDisplay";
+import { providerGlyph, providerAccentColor } from "@/shared/utils/providerGlyph";
+import { buildProviderNameMap, resolveProviderLabel } from "@/shared/utils/providerLabel";
+
+// Fixed row budget — deliberately not configurable: the card's job is a
+// balanced glance next to Cost Forecast, not an exhaustive audit (the
+// Providers page and the request log carry the full detail).
+const VISIBLE_ROWS = 8;
 
 const WINDOWS = [
   { value: "24h", label: "24h" },
@@ -33,6 +49,8 @@ const STATUS_LABEL = {
   idle: "Idle",
   unknown: "Unknown",
 };
+
+const STATUS_RANK = { down: 0, degraded: 1, healthy: 2, idle: 3, unknown: 4 };
 
 const SUMMARY_ORDER = ["healthy", "degraded", "down", "idle", "unknown"];
 
@@ -62,16 +80,25 @@ function formatLastUsed(timestamp) {
   return `${Math.floor(hours / 24)}d ago`;
 }
 
-function providerName(entry) {
-  return PROVIDER_DISPLAY?.[entry.provider]?.name || entry.name || entry.provider;
-}
-
 export default function ProviderHealthCard() {
   const [window, setWindow] = useState("24h");
   const [reloadKey, setReloadKey] = useState(0);
   const [data, setData] = useState(null);
   const [error, setError] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  // Node names: a compatible node's user-set name lives here, not in the id.
+  const [nodeNames, setNodeNames] = useState({});
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/provider-nodes", { cache: "no-store" })
+      .then((res) => (res.ok ? res.json().catch(() => ({})) : {}))
+      .then((json) => {
+        if (!cancelled) setNodeNames(buildProviderNameMap(json.nodes));
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -102,6 +129,12 @@ export default function ProviderHealthCard() {
     setRefreshing(true);
   };
 
+  const nameFor = (entry) =>
+    resolveProviderLabel(entry.provider, {
+      nodeNames,
+      fallback: entry.name || entry.provider,
+    });
+
   if (!data) {
     if (error) {
       return (
@@ -119,7 +152,16 @@ export default function ProviderHealthCard() {
     );
   }
 
-  const providers = data.providers || [];
+  const allProviders = data.providers || [];
+  // Worst first: down, then degraded, then by request volume. Idle seats sink.
+  const providers = [...allProviders]
+    .sort((a, b) => {
+      const rankDiff = (STATUS_RANK[a.status] ?? 9) - (STATUS_RANK[b.status] ?? 9);
+      if (rankDiff !== 0) return rankDiff;
+      return (b.requests || 0) - (a.requests || 0);
+    })
+    .slice(0, VISIBLE_ROWS);
+  const hiddenCount = Math.max(0, allProviders.length - VISIBLE_ROWS);
   const summary = data.summary || {};
 
   return (
@@ -164,7 +206,7 @@ export default function ProviderHealthCard() {
       ) : (
         <div className="flex min-w-0 flex-col gap-1.5">
           {providers.map((entry) => {
-            const name = providerName(entry);
+            const name = nameFor(entry);
             return (
               <div
                 key={entry.provider}
@@ -174,15 +216,20 @@ export default function ProviderHealthCard() {
                   className={`h-2 w-2 shrink-0 rounded-full ${DOT_CLASS[entry.status] || DOT_CLASS.unknown}`}
                   title={STATUS_LABEL[entry.status] || entry.status}
                 />
+                {/* The glyph + accent the Providers page uses — an icon-less
+                    provider renders as its own letter, never a foreign logo
+                    or a two-letter id chip. */}
                 <ProviderIcon
-                  providerId={entry.provider}
                   alt={name}
                   size={18}
                   className="h-[18px] w-[18px] shrink-0 rounded object-contain"
-                  fallbackText={name.slice(0, 2).toUpperCase()}
+                  fallbackText={providerGlyph(name)}
+                  fallbackColor={providerAccentColor(entry.provider)}
                 />
                 <span className="flex min-w-0 flex-1 items-center gap-2">
-                  <span className="truncate text-sm font-medium text-text-main">{name}</span>
+                  <span className="truncate text-sm font-medium text-text-main" title={name}>
+                    {name}
+                  </span>
                   <span className="shrink-0 text-[10px] uppercase tracking-wide text-text-muted">
                     {STATUS_LABEL[entry.status] || entry.status}
                   </span>
@@ -206,6 +253,11 @@ export default function ProviderHealthCard() {
               </div>
             );
           })}
+          {hiddenCount > 0 ? (
+            <p className="text-[11px] text-text-muted">
+              +{hiddenCount} more provider{hiddenCount === 1 ? "" : "s"} in this window — the full list lives on the Providers page.
+            </p>
+          ) : null}
         </div>
       )}
 

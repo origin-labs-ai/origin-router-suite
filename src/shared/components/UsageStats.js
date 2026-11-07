@@ -1,8 +1,17 @@
 "use client";
 
-import { useState, useEffect, useMemo, useCallback, useRef } from "react";
+import { Fragment, useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { FREE_PROVIDERS, AI_PROVIDERS } from "@/shared/constants/providers";
+import { isHiddenModelName, prettyModelName } from "@/shared/utils/modelDisplayName";
+import { buildProviderNameMap, resolveProviderLabel } from "@/shared/utils/providerLabel";
+
+// Model ids become names ("deepseek/deepseek-v4.1-flash" → "Deepseek V4.1 Flash");
+// hidden-internal ids collapse to an em dash.
+function displayModelName(raw) {
+  if (!raw || isHiddenModelName(raw)) return "—";
+  return prettyModelName(raw);
+}
 
 // Keep providers without serviceKinds (default LLM) or with "llm" in serviceKinds
 function isLLMProvider(id) {
@@ -41,7 +50,46 @@ function TimeAgo({ timestamp }) {
   return <>{timeAgo(timestamp)}</>;
 }
 
-function RecentRequests({ requests = [] }) {
+function RecentRequests({ requests = [], nodeNames = {} }) {
+  // Grouped by model NAME (deployment noise off): the model row is the
+  // headline, and expanding it lists every provider that served this model
+  // with its own in/out and when — the drill the owner asked for.
+  const [expanded, setExpanded] = useState(() => new Set());
+
+  const groups = useMemo(() => {
+    const byModel = new Map();
+    for (const r of requests) {
+      const key = prettyModelName(r.model) || r.model || "Unknown";
+      if (!byModel.has(key)) {
+        byModel.set(key, { name: key, requests: [], inSum: 0, outSum: 0, last: r.timestamp, providers: new Map() });
+      }
+      const g = byModel.get(key);
+      g.requests.push(r);
+      g.inSum += r.promptTokens || 0;
+      g.outSum += r.completionTokens || 0;
+      if (r.timestamp && (!g.last || new Date(r.timestamp) > new Date(g.last))) g.last = r.timestamp;
+      const pKey = r.provider || "—";
+      const p = g.providers.get(pKey) || { provider: pKey, inSum: 0, outSum: 0, last: r.timestamp, count: 0 };
+      p.inSum += r.promptTokens || 0;
+      p.outSum += r.completionTokens || 0;
+      p.count += 1;
+      if (r.timestamp && (!p.last || new Date(r.timestamp) > new Date(p.last))) p.last = r.timestamp;
+      g.providers.set(pKey, p);
+    }
+    return [...byModel.values()].sort((a, b) => new Date(b.last) - new Date(a.last)).slice(0, 12);
+  }, [requests]);
+
+  const toggle = (name) =>
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      if (next.has(name)) next.delete(name);
+      else next.add(name);
+      return next;
+    });
+
+  const providerLabel = (provider) =>
+    resolveProviderLabel(provider, { nodeNames });
+
   return (
     <Card className="flex min-w-0 flex-col overflow-hidden" padding="sm" style={{ height: 480 }}>
       {/* Header */}
@@ -55,7 +103,7 @@ function RecentRequests({ requests = [] }) {
         <div className="flex-1 overflow-y-auto">
           <table className="w-full table-fixed border-collapse text-xs">
             <colgroup>
-              <col className="w-3" />
+              <col className="w-5" />
               <col />
               <col className="w-[104px]" />
               <col className="w-[68px]" />
@@ -69,23 +117,59 @@ function RecentRequests({ requests = [] }) {
               </tr>
             </thead>
             <tbody className="divide-y divide-border/50">
-              {requests.map((r, i) => {
-                const ok = !r.status || r.status === "ok" || r.status === "success";
+              {groups.map((g) => {
+                const isOpen = expanded.has(g.name);
                 return (
-                  <tr key={i} className="hover:bg-bg-subtle transition-colors">
-                    <td className="py-3">
-                      <span className={`block w-1.5 h-1.5 rounded-full ${ok ? "bg-success" : "bg-error"}`} />
-                    </td>
-                    <td className="overflow-hidden py-3 pr-2 font-mono">
-                      <span className="block truncate" title={r.model}>{r.model}</span>
-                    </td>
-                    <td className="whitespace-nowrap px-1 py-3 text-right text-[11px] tabular-nums">
-                      <span className="text-primary">{fmt(r.promptTokens)}↑</span>
-                      {" "}
-                      <span className="text-success">{fmt(r.completionTokens)}↓</span>
-                    </td>
-                    <td className="whitespace-nowrap py-3 pr-2 text-right text-[11px] text-text-muted"><TimeAgo timestamp={r.timestamp} /></td>
-                  </tr>
+                  <Fragment key={g.name}>
+                    <tr
+                      key={g.name}
+                      className="hover:bg-bg-subtle transition-colors cursor-pointer"
+                      onClick={() => toggle(g.name)}
+                    >
+                      <td className="py-3">
+                        <span
+                          className={`material-symbols-outlined text-[16px] text-text-muted transition-transform duration-200 ${isOpen ? "rotate-90" : ""}`}
+                        >
+                          chevron_right
+                        </span>
+                      </td>
+                      <td className="overflow-hidden py-3 pr-2">
+                        <span className="block truncate font-medium" title={g.name}>
+                          {g.name}
+                        </span>
+                      </td>
+                      <td className="whitespace-nowrap px-1 py-3 text-right text-[11px] tabular-nums">
+                        <span className="text-primary">{fmt(g.inSum)}↑</span>{" "}
+                        <span className="text-success">{fmt(g.outSum)}↓</span>
+                      </td>
+                      <td className="whitespace-nowrap py-3 pr-2 text-right text-[11px] text-text-muted">
+                        <TimeAgo timestamp={g.last} />
+                      </td>
+                    </tr>
+                    {isOpen
+                      ? [...g.providers.values()]
+                          .sort((a, b) => b.count - a.count)
+                          .map((p) => (
+                            <tr key={`${g.name}:${p.provider}`} className="bg-bg-subtle/40">
+                              <td className="py-2" />
+                              <td className="overflow-hidden py-2 pr-2 pl-4">
+                                <span className="block truncate text-text-muted" title={providerLabel(p.provider)}>
+                                  <span className="text-[10px] uppercase tracking-wide text-text-muted/70">by </span>
+                                  {providerLabel(p.provider)}
+                                  <span className="ml-1 text-[10px] text-text-muted/70">({p.count})</span>
+                                </span>
+                              </td>
+                              <td className="whitespace-nowrap px-1 py-2 text-right text-[11px] tabular-nums text-text-muted">
+                                <span className="text-primary/80">{fmt(p.inSum)}↑</span>{" "}
+                                <span className="text-success/80">{fmt(p.outSum)}↓</span>
+                              </td>
+                              <td className="whitespace-nowrap py-2 pr-2 text-right text-[11px] text-text-muted">
+                                <TimeAgo timestamp={p.last} />
+                              </td>
+                            </tr>
+                          ))
+                      : null}
+                  </Fragment>
                 );
               })}
             </tbody>
@@ -226,6 +310,25 @@ export default function UsageStats({ period: periodProp, setPeriod: setPeriodPro
   const [providers, setProviders] = useState([]);
   const [periodLocal, setPeriodLocal] = useState("today");
   const isInitialLoad = useRef(true);
+  // Provider display names: a compatible node's user-set name lives on its
+  // node, and every table cell that shows a provider must use it.
+  const [nodeNames, setNodeNames] = useState({});
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/provider-nodes", { cache: "no-store" })
+      .then((res) => (res.ok ? res.json().catch(() => ({})) : {}))
+      .then((json) => {
+        if (!cancelled) setNodeNames(buildProviderNameMap(json.nodes));
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
+
+  const providerLabel = useCallback(
+    (provider) => resolveProviderLabel(provider, { nodeNames }),
+    [nodeNames],
+  );
   const hasLoadedStats = useRef(false);
   const period = periodProp ?? periodLocal;
   const setPeriod = setPeriodProp ?? setPeriodLocal;
@@ -348,8 +451,8 @@ export default function UsageStats({ period: periodProp, setPeriod: setPeriodPro
           ),
           renderDetailCells: (item) => (
             <>
-              <td className={`px-6 py-3 font-medium transition-colors ${item.pending > 0 ? "text-primary" : ""}`}>{item.rawModel}</td>
-              <td className="px-6 py-3"><Badge variant={item.pending > 0 ? "primary" : "neutral"} size="sm">{item.provider}</Badge></td>
+              <td className={`px-6 py-3 font-medium transition-colors ${item.pending > 0 ? "text-primary" : ""}`}>{displayModelName(item.rawModel)}</td>
+              <td className="px-6 py-3"><Badge variant={item.pending > 0 ? "primary" : "neutral"} size="sm">{providerLabel(item.provider)}</Badge></td>
               <td className="px-6 py-3 text-right">{fmt(item.requests)}</td>
               <td className="px-6 py-3 text-right text-text-muted whitespace-nowrap">{fmtTime(item.lastUsed)}</td>
             </>
@@ -383,8 +486,8 @@ export default function UsageStats({ period: periodProp, setPeriod: setPeriodPro
           renderDetailCells: (item) => (
             <>
               <td className={`px-6 py-3 font-medium transition-colors ${item.pending > 0 ? "text-primary" : ""}`}>{item.accountName || `Account ${item.connectionId?.slice(0, 8)}...`}</td>
-              <td className={`px-6 py-3 font-medium transition-colors ${item.pending > 0 ? "text-primary" : ""}`}>{item.rawModel}</td>
-              <td className="px-6 py-3"><Badge variant={item.pending > 0 ? "primary" : "neutral"} size="sm">{item.provider}</Badge></td>
+              <td className={`px-6 py-3 font-medium transition-colors ${item.pending > 0 ? "text-primary" : ""}`}>{displayModelName(item.rawModel)}</td>
+              <td className="px-6 py-3"><Badge variant={item.pending > 0 ? "primary" : "neutral"} size="sm">{providerLabel(item.provider)}</Badge></td>
               <td className="px-6 py-3 text-right">{fmt(item.requests)}</td>
               <td className="px-6 py-3 text-right text-text-muted whitespace-nowrap">{fmtTime(item.lastUsed)}</td>
             </>
@@ -408,8 +511,8 @@ export default function UsageStats({ period: periodProp, setPeriod: setPeriodPro
           renderDetailCells: (item) => (
             <>
               <td className="px-6 py-3 font-medium font-mono text-xs">{item.apiKeyMasked || item.keyName}</td>
-              <td className="px-6 py-3">{item.rawModel}</td>
-              <td className="px-6 py-3"><Badge variant="neutral" size="sm">{item.provider}</Badge></td>
+              <td className="px-6 py-3">{displayModelName(item.rawModel)}</td>
+              <td className="px-6 py-3"><Badge variant="neutral" size="sm">{providerLabel(item.provider)}</Badge></td>
               <td className="px-6 py-3 text-right">{fmt(item.requests)}</td>
               <td className="px-6 py-3 text-right text-text-muted whitespace-nowrap">{fmtTime(item.lastUsed)}</td>
             </>
@@ -434,8 +537,8 @@ export default function UsageStats({ period: periodProp, setPeriod: setPeriodPro
           renderDetailCells: (item) => (
             <>
               <td className="px-6 py-3 font-medium font-mono text-sm">{item.endpoint}</td>
-              <td className="px-6 py-3">{item.rawModel}</td>
-              <td className="px-6 py-3"><Badge variant="neutral" size="sm">{item.provider}</Badge></td>
+              <td className="px-6 py-3">{displayModelName(item.rawModel)}</td>
+              <td className="px-6 py-3"><Badge variant="neutral" size="sm">{providerLabel(item.provider)}</Badge></td>
               <td className="px-6 py-3 text-right">{fmt(item.requests)}</td>
               <td className="px-6 py-3 text-right text-text-muted whitespace-nowrap">{fmtTime(item.lastUsed)}</td>
             </>
@@ -488,7 +591,7 @@ export default function UsageStats({ period: periodProp, setPeriod: setPeriodPro
             lastProvider={stats.recentRequests?.[0]?.provider || ""}
             errorProvider={stats.errorProvider || ""}
           />
-          <RecentRequests requests={stats.recentRequests || []} />
+          <RecentRequests requests={stats.recentRequests || []} nodeNames={nodeNames} />
         </div>
       )}
 
@@ -540,6 +643,9 @@ export default function UsageStats({ period: periodProp, setPeriod: setPeriodPro
             sortBy={sortBy}
             sortOrder={sortOrder}
             onToggleSort={toggleSort}
+            // Account/api-key rows already carry their grouping meaning — a
+            // second sort axis there was noise. Model/endpoint keep sorting.
+            sortable={tableView === "model" || tableView === "endpoint"}
             viewMode={viewMode}
             storageKey={activeTableConfig.storageKey}
             renderSummaryCells={activeTableConfig.renderSummaryCells}

@@ -194,6 +194,11 @@ describe("connect run()", () => {
   beforeEach(() => {
     home = fs.mkdtempSync(path.join(os.tmpdir(), "9r-connect-run-"));
     vi.spyOn(os, "homedir").mockReturnValue(home);
+    // Crush resolves its config as `XDG_CONFIG_HOME || homedir()/.config`. CI
+    // runners set XDG_CONFIG_HOME, which would defeat the temp-home mock above
+    // and write the file outside the sandbox. Blank it so the mock is the only
+    // input - same stub the block above already uses.
+    vi.stubEnv("XDG_CONFIG_HOME", "");
     vi.spyOn(console, "log").mockImplementation(() => {});
   });
   afterEach(() => {

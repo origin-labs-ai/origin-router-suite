@@ -489,8 +489,8 @@ export default function ProvidersPage() {
         )}
       </div>
 
-      {/* OAuth Providers */}
-      {oauthEntries.length > 0 && (
+      {/* OAuth Providers — always visible; the owner never wants a whole
+          category disappearing just because search or a filter matched none */}
       <div className="flex flex-col gap-4">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <h2 className="text-lg sm:text-xl font-semibold flex items-center gap-2 leading-tight">
@@ -534,7 +534,6 @@ export default function ProvidersPage() {
           })}
         </div>
       </div>
-      )}
 
       {/* Free Tier Providers */}
       {(freeEntries.length > 0 || freeTierEntries.length > 0) && (

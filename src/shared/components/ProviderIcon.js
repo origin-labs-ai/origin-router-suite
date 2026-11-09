@@ -1,17 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import PropTypes from "prop-types";
-import { getProviderIconSrc } from "@/shared/utils/providerIcon";
+import {
+  getProviderIconCandidates,
+  resolveProviderIconId,
+} from "@/shared/utils/providerIcon";
 import { providerGlyph, providerAccentColor } from "@/shared/utils/providerGlyph";
-
-function resolveSrc(src, providerId) {
-  if (providerId) return getProviderIconSrc(providerId);
-  if (!src) return null;
-  const m = String(src).match(/^\/providers\/([^/]+)\.png$/i);
-  if (m) return getProviderIconSrc(m[1]);
-  return src;
-}
 
 export default function ProviderIcon({
   src,
@@ -22,36 +17,35 @@ export default function ProviderIcon({
   fallbackText,
   fallbackColor,
 }) {
-  const baseSrc = resolveSrc(src, providerId);
-  const [errored, setErrored] = useState(false);
-  // One retry with a cache-buster before a miss is treated as real. While the
-  // gateway restarts under an open tab, icons 404 once — the old behaviour let
-  // that single miss stick for the whole browser session and painted healthy
-  // providers as letter glyphs. The retry lets a transient miss recover on its
-  // own; the cache-buster then stays so a browser-cached 404 cannot bounce the
-  // component into an error/retry loop.
-  const [retry, setRetry] = useState(0);
+  // Providers are addressed by id; the legacy `src` prop (/providers/x.png)
+  // still resolves through the same manifest so a caller cannot pin an
+  // extension that no longer exists.
+  const iconId = providerId
+    ? resolveProviderIconId(providerId)
+    : String(src || "").match(/^\/providers\/([^/.]+)\./i)?.[1] || "";
+  const candidates = iconId ? getProviderIconCandidates(iconId) : src ? [src] : [];
 
-  // Reused instances (a list re-rendering a card for a different provider)
-  // must forget the previous image's failure.
-  useEffect(() => {
-    setErrored(false);
-    setRetry(0);
-  }, [baseSrc]);
+  // Failure is keyed by the icon the component is currently asked to show, so
+  // a list reusing this instance for a different provider starts clean without
+  // an effect (setState inside an effect is a cascading render).
+  const [failure, setFailure] = useState({ key: "", step: 0, dead: false });
+  const key = candidates[0] || "";
+  const forThisIcon = failure.key === key;
+  const step = forThisIcon ? failure.step : 0;
+  const dead = forThisIcon && failure.dead;
 
-  const effectiveSrc =
-    retry > 0 && baseSrc && !baseSrc.startsWith("data:") && baseSrc.includes("/")
-      ? `${baseSrc}${baseSrc.includes("?") ? "&" : "?"}r=${retry}`
-      : baseSrc;
+  const baseSrc = candidates[step] || null;
 
-  // Universal icon-less rule: any provider without an icon asset — Hand Picked
-  // OpenAI Compatible endpoints, imports from other routers, anything new —
-  // renders the letter glyph + deterministic accent color from its name/id
-  // (NexAPI → "N", OrcaRouter → "OR"). Callers may still override both.
-  const glyphText = fallbackText != null && fallbackText !== "" ? fallbackText : providerGlyph(alt || providerId || "");
+  // Universal icon-less rule: a provider with no asset on disk renders the
+  // letter glyph + deterministic accent color (NexAPI → "N",
+  // OrcaRouter → "OR"). Callers may override both.
+  const glyphText =
+    fallbackText != null && fallbackText !== ""
+      ? fallbackText
+      : providerGlyph(alt || providerId || "");
   const glyphColor = fallbackColor || providerAccentColor(providerId || alt || "");
 
-  if (!effectiveSrc || errored) {
+  if (!baseSrc || dead) {
     return (
       <span
         className={`inline-flex items-center justify-center font-bold rounded-lg ${className}`.trim()}
@@ -69,7 +63,8 @@ export default function ProviderIcon({
 
   return (
     <img
-      src={effectiveSrc}
+      key={baseSrc}
+      src={baseSrc}
       alt={alt}
       width={size}
       height={size}
@@ -77,11 +72,13 @@ export default function ProviderIcon({
       loading="lazy"
       decoding="async"
       onError={() => {
-        if (retry < 1) {
-          setRetry(retry + 1);
+        // Walk the ladder only as far as it goes: a stale manifest costs one
+        // extra request, a truly absent asset lands on the glyph.
+        if (step + 1 < candidates.length) {
+          setFailure({ key, step: step + 1, dead: false });
           return;
         }
-        setErrored(true);
+        setFailure({ key, step, dead: true });
       }}
     />
   );

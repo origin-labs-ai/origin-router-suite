@@ -24,6 +24,8 @@ import {
   WEB_COOKIE_PROVIDERS,
   OPENAI_COMPATIBLE_PREFIX,
   ANTHROPIC_COMPATIBLE_PREFIX,
+  MEDIA_PROVIDER_KINDS,
+  getProvidersByKind,
 } from "@/shared/constants/providers";
 import Link from "next/link";
 import { getErrorCode, getRelativeTime } from "@/shared/utils";
@@ -102,6 +104,12 @@ function getConnectionErrorTag(connection) {
 }
 
 const APIKEY_INITIAL_VISIBLE = 20;
+
+// A media provider's connection can be stored under any auth type (apikey for a
+// pasted key, oauth for the ones that sign in, cookie for the web ones, none for
+// the no-auth ones). The media grid counts them all, the way the old
+// /dashboard/media-providers pages did.
+const MEDIA_AUTH_TYPES = ["apikey", "api_key", "oauth", "cookie", "noauth", "none", "compatible"];
 
 export default function ProvidersPage() {
   const [connections, setConnections] = useState([]);
@@ -444,6 +452,21 @@ export default function ProvidersPage() {
       return (a.name || "").localeCompare(b.name || "");
     });
 
+  // Media providers as categories.
+  //
+  // These used to live on their own /dashboard/media-providers/<kind> pages with
+  // a second sidebar tree. They are providers like any other, so they belong in
+  // the same grid, split by what they actually serve: embedding, image, TTS,
+  // STT, search, fetch, video, music, System One. A kind with no provider is
+  // simply not rendered - no empty category headers.
+  const mediaSections = MEDIA_PROVIDER_KINDS.map((kind) => {
+    const providers = getProvidersByKind(kind.id).filter(
+      (provider) =>
+        providerVisible(provider.id, provider) && matchSearch(provider.name),
+    );
+    return { kind, providers };
+  }).filter((section) => section.providers.length > 0);
+
   if (loading) {
     return (
       <div className="flex flex-col gap-8">
@@ -708,6 +731,45 @@ export default function ProvidersPage() {
         )}
       </div>
       )}
+
+      {/* Media providers as categories.
+
+          These used to be a second navigation tree: a Media Providers accordion
+          in the sidebar, a listing page per kind, and a detail page under
+          /dashboard/media-providers. They are providers, so they are listed
+          here with their endpoint, and a card opens the same provider page as
+          everything else. */}
+      {mediaSections.map(({ kind, providers }) => (
+        <div key={kind.id} className="flex flex-col gap-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <h2 className="text-lg sm:text-xl font-semibold flex items-center gap-2 leading-tight">
+              <span className="material-symbols-outlined text-[20px] text-text-muted">
+                {kind.icon}
+              </span>
+              {kind.label}
+              <span className="text-xs font-normal text-text-muted">
+                {providers.length}
+              </span>
+            </h2>
+            <code className="w-fit rounded-md border border-border bg-bg-subtle px-2 py-1 font-mono text-[11px] text-text-muted">
+              {kind.endpoint.method} {kind.endpoint.path}
+            </code>
+          </div>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-3 xl:grid-cols-4">
+            {providers.map((provider) => (
+              <MediaProviderCard
+                key={provider.id}
+                providerId={provider.id}
+                provider={provider}
+                stats={getProviderStats(provider.id, MEDIA_AUTH_TYPES)}
+                onToggle={(next) =>
+                  handleToggleProvider(provider.id, MEDIA_AUTH_TYPES, next)
+                }
+              />
+            ))}
+          </div>
+        </div>
+      ))}
 
       {/* Local executor providers — opt-in by design. The card above appears only
           when its switch is on, and /v1 refuses the route until then. */}
@@ -1053,6 +1115,115 @@ ApiKeyProviderCard.propTypes = {
     errorTime: PropTypes.string,
   }).isRequired,
   authType: PropTypes.string,
+  onToggle: PropTypes.func,
+};
+
+// Card for a provider that serves a media kind (embedding, image, tts, ...).
+// Same grid, same click target as every other provider — it used to be its own
+// page under /dashboard/media-providers.
+function MediaProviderCard({ providerId, provider, stats, onToggle }) {
+  const { connected = 0, error = 0, total = 0, allDisabled = false } = stats || {};
+  const isNoAuth = !!provider.noAuth;
+
+  return (
+    <Link href={`/dashboard/providers/${providerId}`} className="group min-w-0">
+      <Card
+        padding="xs"
+        className={`h-full cursor-pointer transition-colors hover:bg-black/[0.01] dark:hover:bg-white/[0.01] ${allDisabled ? "opacity-50" : ""}`}
+      >
+        <div className="flex min-w-0 items-center justify-between gap-3">
+          <div className="flex min-w-0 items-center gap-3">
+            <div
+              className="flex size-8 shrink-0 items-center justify-center rounded-lg"
+              style={{
+                backgroundColor: `${
+                  provider.color?.length > 7 ? provider.color : `${provider.color ?? "#888"}15`
+                }`,
+              }}
+            >
+              <ProviderIcon
+                providerId={providerId}
+                alt={provider.name}
+                size={30}
+                className="max-h-[30px] max-w-[30px] rounded-lg object-contain"
+                fallbackText={
+                  provider.textIcon || providerId.slice(0, 2).toUpperCase()
+                }
+                fallbackColor={provider.color}
+              />
+            </div>
+            <div className="min-w-0">
+              <h3 className="truncate font-semibold">{provider.name}</h3>
+              <div className="flex min-w-0 flex-wrap items-center gap-1.5 text-xs">
+                {isNoAuth ? (
+                  <Badge variant="success" size="sm">
+                    Ready
+                  </Badge>
+                ) : allDisabled ? (
+                  <Badge variant="default" size="sm">
+                    Disabled
+                  </Badge>
+                ) : total === 0 ? (
+                  <span className="text-text-muted">Not connected</span>
+                ) : (
+                  <>
+                    {connected > 0 && (
+                      <Badge variant="success" size="sm" dot>
+                        {connected} Connected
+                      </Badge>
+                    )}
+                    {error > 0 && (
+                      <Badge variant="error" size="sm" dot>
+                        {error} Error
+                      </Badge>
+                    )}
+                    {connected === 0 && error === 0 && (
+                      <Badge variant="default" size="sm">
+                        {total} Added
+                      </Badge>
+                    )}
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
+          {total > 0 && onToggle ? (
+            <div
+              className="shrink-0 opacity-100 transition-opacity sm:opacity-0 sm:group-hover:opacity-100"
+              onClick={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                onToggle(allDisabled);
+              }}
+            >
+              <Toggle
+                size="sm"
+                checked={!allDisabled}
+                onChange={() => {}}
+                title={allDisabled ? "Enable provider" : "Disable provider"}
+              />
+            </div>
+          ) : null}
+        </div>
+      </Card>
+    </Link>
+  );
+}
+
+MediaProviderCard.propTypes = {
+  providerId: PropTypes.string.isRequired,
+  provider: PropTypes.shape({
+    name: PropTypes.string,
+    color: PropTypes.string,
+    textIcon: PropTypes.string,
+    noAuth: PropTypes.bool,
+  }).isRequired,
+  stats: PropTypes.shape({
+    connected: PropTypes.number,
+    error: PropTypes.number,
+    total: PropTypes.number,
+    allDisabled: PropTypes.bool,
+  }),
   onToggle: PropTypes.func,
 };
 

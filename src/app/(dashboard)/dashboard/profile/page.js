@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import { useRouter } from "next/navigation";
 import { Card, Button, Toggle, Input } from "@/shared/components";
 import Modal, { ConfirmModal } from "@/shared/components/Modal";
 import LanguageSwitcher from "@/shared/components/LanguageSwitcher";
@@ -23,6 +24,7 @@ function getLocaleFromCookie() {
 }
 
 export default function ProfilePage() {
+  const router = useRouter();
   const { theme, setTheme, isDark } = useTheme();
   const [locale, setLocale] = useState(() => getLocaleFromCookie());
   const [langOpen, setLangOpen] = useState(false);
@@ -1695,6 +1697,33 @@ export default function ProfilePage() {
 
         {/* DB manager — table stats, retention presets, vacuum */}
         <DataManagerSection />
+
+        {/* Setup wizard — re-run the guided first-run flow on demand. The
+            wizard only appears automatically once; this is how a user gets it
+            back without wiping settings. */}
+        <Card>
+          <div className="flex items-center gap-3 mb-4">
+            <div className="size-10 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0">
+              <span className="material-symbols-outlined text-[20px]">rocket_launch</span>
+            </div>
+            <h3 className="text-base sm:text-lg font-semibold">Setup wizard</h3>
+          </div>
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <p className="text-sm text-text-muted min-w-0">
+              Re-run the guided setup to change the theme, providers, combos, cloud backup,
+              tuning, local models, skills and Claude Code. Every step can be skipped, and
+              nothing is changed until you press Finish.
+            </p>
+            <Button
+              variant="secondary"
+              icon="open_in_new"
+              onClick={() => router.push("/dashboard/welcome")}
+              className="w-full sm:w-auto shrink-0"
+            >
+              Run the wizard
+            </Button>
+          </div>
+        </Card>
 
         {/* Danger zone — destructive actions, with confirmations, last */}
         <Card>

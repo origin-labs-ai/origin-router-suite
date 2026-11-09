@@ -24,9 +24,13 @@ export async function POST(request) {
   try {
     const body = await request.json().catch(() => ({}));
     const sourceId = body?.sourceId;
+    // `complete: true` only stamps the onboarding flag. The wizard uses it on
+    // Finish after a migration already ran, where re-running the import would
+    // duplicate connections.
+    const complete = body?.complete === true;
 
     let result = { ok: true, imported: [], skipped: [], source: null };
-    if (sourceId && sourceId !== "scratch") {
+    if (!complete && sourceId && sourceId !== "scratch") {
       result = await runMigration(sourceId);
       if (!result.ok) {
         return NextResponse.json(result, { status: 400 });

@@ -5,6 +5,7 @@ export { default as Select } from "./Select";
 export { default as Card } from "./Card";
 export { default as Modal, ConfirmModal } from "./Modal";
 export { default as Portal } from "./Portal";
+export { default as TrafficLights } from "./TrafficLights";
 export { default as Loading, Spinner, PageLoading, Skeleton, CardSkeleton } from "./Loading";
 export { default as Avatar } from "./Avatar";
 export { default as Badge } from "./Badge";

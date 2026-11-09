@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { cn } from "@/shared/utils/cn";
 import Button from "./Button";
-import Tooltip from "./Tooltip";
+import TrafficLights from "./TrafficLights";
 
 export default function Modal({
   isOpen,
@@ -77,21 +77,11 @@ export default function Modal({
         {(title || showTrafficLights) && (
           <div className="flex items-center justify-between p-2 border-b border-border-subtle">
             <div className="flex items-center">
-              {/* Traffic lights — desktop only */}
+              {/* Traffic lights — desktop only. Shared with the setup wizard so
+                  every dialog closes the same macOS way. */}
               {showTrafficLights && (
-                <div className="hidden md:flex items-center gap-2 mr-4 ml-2">
-                  <Tooltip text="Close" position="top" color="#FF5F56">
-                    <button
-                      onClick={onClose}
-                      aria-label="Close"
-                      title="Close"
-                      className="w-4 h-4 rounded-full bg-[#FF5F56] hover:brightness-90 transition-all cursor-pointer flex items-center justify-center group/dot"
-                    >
-                      <span className="text-[9px] font-bold text-white opacity-0 group-hover/dot:opacity-100 transition-opacity leading-none">✕</span>
-                    </button>
-                  </Tooltip>
-                  <div className="w-4 h-4 rounded-full bg-[#3a3a3a]/20 dark:bg-white/15 cursor-not-allowed" />
-                  <div className="w-4 h-4 rounded-full bg-[#3a3a3a]/20 dark:bg-white/15 cursor-not-allowed" />
+                <div className="mr-4 ml-2 hidden md:block">
+                  <TrafficLights onClose={onClose} />
                 </div>
               )}
               {title && (

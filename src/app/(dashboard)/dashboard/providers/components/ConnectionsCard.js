@@ -137,7 +137,7 @@ function ConnectionRow({ connection, proxyPools, isOAuth, isFirst, isLast, onMov
       <div className="flex w-full flex-wrap items-center justify-between gap-2 sm:w-auto sm:justify-end">
         <div className="flex flex-wrap gap-1">
           {(proxyPools || []).length > 0 && (
-            <div className="relative" ref={proxyDropdownRef}>
+            <div className="relative" ref={proxyDropdownRef} data-popover-open={showProxyDropdown ? "" : undefined}>
               <button
                 onClick={() => setShowProxyDropdown((v) => !v)}
                 className={`flex flex-col items-center px-2 py-1 rounded hover:bg-black/5 dark:hover:bg-white/5 transition-colors ${hasAnyProxy ? "text-primary" : "text-text-muted hover:text-primary"}`}

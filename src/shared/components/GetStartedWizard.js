@@ -15,6 +15,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import ProviderIcon from "@/shared/components/ProviderIcon";
 import Portal from "@/shared/components/Portal";
+import TrafficLights from "@/shared/components/TrafficLights";
 import { useTheme } from "@/shared/hooks/useTheme";
 import {
   APIKEY_PROVIDERS,
@@ -203,10 +204,19 @@ export default function GetStartedWizard({
   const router = useRouter();
   const { theme, setTheme } = useTheme();
 
+  // The close affordance is always rendered, so it needs a handler even when a
+  // caller forgets to pass one (the traffic lights declare onClose as required).
+  const closeWizard = onClose || (() => router.push("/dashboard"));
+
   const [stepIndex, setStepIndex] = useState(0);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState(null);
   const [error, setError] = useState(null);
+
+  // The theme the user actually picked in this wizard. `theme` alone starts at
+  // whatever the app already had, so it cannot tell "chosen" from "inherited"
+  // — and the Next button has to know the difference. Null until a click.
+  const [themeChoice, setThemeChoice] = useState(null);
 
   // Portable extras.
   const [portable, setPortable] = useState(false);
@@ -223,6 +233,9 @@ export default function GetStartedWizard({
   const [pickedProvider, setPickedProvider] = useState(null);
   const [providerKey, setProviderKey] = useState("");
   const [connected, setConnected] = useState([]);
+  // "Continue with the free providers" is a real choice, not the absence of
+  // one — without this flag the Next button could not tell them apart.
+  const [providerFree, setProviderFree] = useState(false);
 
   // Combo.
   const [comboName, setComboName] = useState("Main");
@@ -381,6 +394,20 @@ export default function GetStartedWizard({
       }
     })();
   }, [isOpen, loadState, loadCloudStatus]);
+
+  // Lock the page behind the wizard, exactly like Modal does. Without this the
+  // dashboard keeps scrolling under an open dialog: the backdrop-blur band
+  // slides with the content and the whole popup reads as "glitching" while the
+  // cursor moves. The previous value is restored on unmount so two stacked
+  // dialogs cannot leave the page permanently locked.
+  useEffect(() => {
+    if (!isOpen || typeof document === "undefined") return undefined;
+    const previous = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = previous;
+    };
+  }, [isOpen]);
 
   const goNext = useCallback(() => {
     setNotice(null);
@@ -701,14 +728,19 @@ export default function GetStartedWizard({
   const finish = useCallback(async () => {
     // The wizard is shown once. Marking it done stops the dashboard from
     // asking for it again - even if every step was skipped.
+    //
+    // This used to be skipped when a migration had run, on the assumption that
+    // the migration endpoint had already marked onboarding complete. It had
+    // not: an import only writes connections. Skipping it here re-armed the
+    // dashboard's redirect, so pressing Finish bounced the user straight back
+    // into the wizard - the popup that "never closes". `complete: true` sets
+    // the flag without re-running a migration and keeps the original source.
     try {
-      if (!imported) {
-        await fetch("/api/migrations", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ sourceId: "scratch" }),
-        });
-      }
+      await fetch("/api/migrations", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ complete: true, sourceId: imported?.source || "scratch" }),
+      });
     } catch {
       // The dashboard still opens.
     }
@@ -838,14 +870,23 @@ export default function GetStartedWizard({
               {THEME_OPTIONS.map((option) => (
                 <ChoiceCard
                   key={option.id}
-                  active={theme === option.id}
+                  // The applied theme is already whatever the app had, so the
+                  // highlight follows the user's pick, not the store value:
+                  // nothing looks chosen until it is chosen.
+                  active={themeChoice === option.id}
                   icon={option.icon}
                   title={option.label}
                   subtitle={option.hint}
-                  onClick={() => setTheme(option.id)}
+                  onClick={() => {
+                    setThemeChoice(option.id);
+                    setTheme(option.id);
+                  }}
                 />
               ))}
             </div>
+            {themeChoice === null ? (
+              <p className="text-xs text-text-muted">Pick one to continue.</p>
+            ) : null}
             <div className="rounded-xl border border-border bg-bg-subtle p-4">
               <div className="mb-3 text-xs font-semibold text-text-muted">Preview</div>
               <div className="flex gap-3">
@@ -931,6 +972,7 @@ export default function GetStartedWizard({
                   onClick={() => {
                     setProviderTab(tab.id);
                     setPickedProvider(null);
+                    setProviderFree(false);
                   }}
                   className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
                     providerTab === tab.id
@@ -943,7 +985,10 @@ export default function GetStartedWizard({
               ))}
               <button
                 type="button"
-                onClick={() => setPickedProvider(null)}
+                onClick={() => {
+                  setPickedProvider(null);
+                  setProviderFree(true);
+                }}
                 className="ml-auto text-xs text-text-muted underline-offset-2 hover:underline"
               >
                 Continue with the free providers
@@ -957,7 +1002,10 @@ export default function GetStartedWizard({
                   <button
                     key={provider.id}
                     type="button"
-                    onClick={() => setPickedProvider(provider)}
+                    onClick={() => {
+                      setPickedProvider(provider);
+                      setProviderFree(false);
+                    }}
                     className={`flex items-center gap-2.5 rounded-xl border px-3 py-2.5 text-left transition-colors ${
                       pickedProvider?.id === provider.id
                         ? "border-primary bg-primary/5"
@@ -1529,6 +1577,30 @@ export default function GetStartedWizard({
 
   const isLast = stepIndex === steps.length - 1;
 
+  // Which steps carry a choice that must be made before "Next" advances. A
+  // step with no explicit choice is always ready, and "Skip this step" works
+  // on every step either way — the gate only stops a silent no-op click.
+  const stepReady = (() => {
+    switch (step?.id) {
+      case "setup":
+        return Boolean(setupApplied);
+      case "theme":
+        return themeChoice !== null;
+      case "migrate":
+        return Boolean(imported);
+      case "provider":
+        return Boolean(pickedProvider) || connected.length > 0 || providerFree;
+      case "combo":
+        return Boolean(comboCreated);
+      case "local-models":
+        return wantLocalModels !== null;
+      case "skills":
+        return skillsInstalled !== null;
+      default:
+        return true;
+    }
+  })();
+
   return (
     <Portal>
     <div className="fixed inset-0 z-50 flex items-center justify-center">
@@ -1537,20 +1609,26 @@ export default function GetStartedWizard({
           affordance works on every exit path, and the owner of `onClose`
           (the welcome page) marks onboarding complete so the wizard is
           never shown twice. */}
-      <div className="absolute inset-0 bg-black/60 backdrop-blur-[3px]" onClick={onClose} />
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-[3px]" onClick={closeWizard} />
 
       <div
         className="relative flex h-[75vh] w-[75vw] max-h-[980px] max-w-[1500px] flex-col overflow-hidden rounded-2xl border border-border bg-surface shadow-[var(--shadow-elev)]"
         style={{ backgroundColor: "var(--color-surface, var(--color-bg))" }}
       >
-        {/* Header */}
+        {/* Header. The close control is the same macOS traffic light the
+            Modal renders, on the left of the title: red close dot that shows
+            its cross on hover, then two empty rings. It stays available on
+            the first run too — a close affordance that disappears is the
+            thing that traps users in a loop. */}
         <div className="flex items-center justify-between gap-4 border-b border-border-subtle px-6 py-4">
-          <div className="flex items-center gap-3">
+          <div className="flex min-w-0 items-center gap-3">
+            <TrafficLights onClose={closeWizard} className="mr-1" />
             <span className="material-symbols-outlined text-xl text-primary">rocket_launch</span>
-            <div>
-              <h2 className="text-base font-semibold text-text-main">Get Started with OriginRouter</h2>
-              <p className="text-xs text-text-muted">
+            <div className="min-w-0">
+              <h2 className="truncate text-base font-semibold text-text-main">Get Started with OriginRouter</h2>
+              <p className="truncate text-xs text-text-muted">
                 Step {stepIndex + 1} of {steps.length} - {step?.hint}
+                {firstRun ? " - first run" : ""}
               </p>
             </div>
           </div>
@@ -1561,16 +1639,6 @@ export default function GetStartedWizard({
                 style={{ width: `${((stepIndex + 1) / steps.length) * 100}%` }}
               />
             </div>
-            {!firstRun ? (
-              <button
-                type="button"
-                onClick={onClose}
-                aria-label="Close"
-                className="material-symbols-outlined text-lg text-text-muted transition-colors hover:text-text"
-              >
-                close
-              </button>
-            ) : null}
           </div>
         </div>
 
@@ -1645,6 +1713,10 @@ export default function GetStartedWizard({
             Skip setup
           </button>
 
+          {!stepReady && !isLast ? (
+            <span className="text-xs text-text-muted">Select an option to continue.</span>
+          ) : null}
+
           <div className="ml-auto flex items-center gap-2">
             <button
               type="button"
@@ -1659,7 +1731,13 @@ export default function GetStartedWizard({
                 Finish
               </button>
             ) : (
-              <button type="button" className="or-action" onClick={goNext}>
+              <button
+                type="button"
+                className="or-action disabled:opacity-40"
+                onClick={goNext}
+                disabled={!stepReady}
+                title={stepReady ? undefined : "Select an option on this step, or use Skip this step"}
+              >
                 Next
               </button>
             )}

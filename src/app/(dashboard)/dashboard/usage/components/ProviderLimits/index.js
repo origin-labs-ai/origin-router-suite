@@ -918,7 +918,7 @@ export default function ProviderLimits() {
       {/* Header Controls */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-end">
         <div className="flex flex-wrap items-center gap-1.5">
-          <div className="relative">
+          <div className="relative" data-popover-open={providerMenuOpen ? "" : undefined}>
             <button
               type="button"
               onClick={() => setProviderMenuOpen((prev) => !prev)}

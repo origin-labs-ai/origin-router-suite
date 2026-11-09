@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { Card, Button, Badge, Input } from "@/shared/components";
+import { Card, Button, Badge, Input, Portal } from "@/shared/components";
 
 const DEFAULT_MITM_ROUTER_BASE = "http://localhost:20128";
 
@@ -264,8 +264,10 @@ export default function MitmServerCard({ apiKeys, cloudEnabled, onStatusChange }
         </div>
       </Card>
 
-      {/* Password Modal */}
+      {/* Password Modal — portalled so the overlay positions against the
+          viewport, not against a transformed ancestor in the card chain */}
       {showPasswordModal && (
+        <Portal>
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
           <div className="mx-4 flex w-full max-w-sm flex-col gap-4 rounded-xl border border-border bg-surface p-5 shadow-xl sm:p-6">
             <h3 className="font-semibold text-text-main">Sudo Password Required</h3>
@@ -296,10 +298,12 @@ export default function MitmServerCard({ apiKeys, cloudEnabled, onStatusChange }
             </div>
           </div>
         </div>
+        </Portal>
       )}
 
       {/* Port 443 Conflict Modal */}
       {port443Conflict && (
+        <Portal>
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
           <div className="mx-4 flex w-full max-w-md flex-col gap-4 rounded-xl border border-border bg-surface p-5 shadow-xl sm:p-6">
             <h3 className="font-semibold text-text-main">Port 443 Already In Use</h3>
@@ -323,6 +327,7 @@ export default function MitmServerCard({ apiKeys, cloudEnabled, onStatusChange }
             </div>
           </div>
         </div>
+        </Portal>
       )}
     </>
   );

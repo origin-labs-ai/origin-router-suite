@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Card } from "@/shared/components";
+import { Card, Portal } from "@/shared/components";
 import { AI_PROVIDERS, getProviderAlias } from "@/shared/constants/providers";
 import { getModelsByProviderId, getModelKind } from "@/shared/constants/models";
 import { useCopyToClipboard } from "@/shared/hooks/useCopyToClipboard";
@@ -641,8 +641,10 @@ export function TtsExampleCard({ providerId }) {
         </div>
       </Card>
 
-      {/* Country Picker Modal */}
+      {/* Country Picker Modal — portalled: an inline fixed overlay inherits the
+          nearest transformed/blurred ancestor and drifts with card hover */}
       {modalOpen && (
+        <Portal>
         <div
           className="fixed inset-0 z-50 flex items-end justify-center sm:items-center"
           style={{ backgroundColor: "rgba(0,0,0,0.6)", backdropFilter: "blur(2px)" }}
@@ -704,6 +706,7 @@ export function TtsExampleCard({ providerId }) {
             </div>
           </div>
         </div>
+        </Portal>
       )}
     </>
   );

@@ -10,9 +10,11 @@ describe("skills prompt block builder", () => {
     const skills = Array.from({ length: 45 }, (_, i) => ({ name: `skill-${i}`, description: `desc ${i}` }));
     const block = buildSkillsPromptBlock({ skills, models: [{ name: "qwen-0.5b", path: "C:/m/qwen.gguf" }] });
     expect(block).toContain("OriginRouter skills available");
-    expect(block).toContain("- skill-0 — desc 0");
-    expect(block).toContain("- skill-39 — desc 39");
-    expect(block).not.toContain("- skill-40");
+    // Each line leads with the invocable command — that is what a model has to
+    // emit to reach the skill, so it must be in the menu.
+    expect(block).toContain("- /skill-0 — desc 0");
+    expect(block).toContain("- /skill-39 — desc 39");
+    expect(block).not.toContain("- /skill-40");
     expect(block).toContain("… and 5 more skills installed.");
     expect(block).toContain("Local models registered on this machine");
     expect(block).toContain("- qwen-0.5b (GGUF)");
@@ -27,7 +29,23 @@ describe("skills prompt block builder", () => {
 
   it("a skill without a description still names the skill", () => {
     const block = buildSkillsPromptBlock({ skills: [{ name: "solo" }] });
-    expect(block).toContain("- solo");
+    expect(block).toContain("- /solo");
+  });
+
+  it("a description that is only a YAML block marker is treated as empty", () => {
+    // parseSkillMd used to hand back the literal ">-" for folded descriptions;
+    // that marker must never reach the model as if it were prose.
+    const block = buildSkillsPromptBlock({ skills: [{ name: "canvas", description: ">-" }] });
+    expect(block).toContain("- /canvas");
+    expect(block).not.toContain(">-");
+  });
+
+  it("caps a long description so forty skills cannot eat the prompt", () => {
+    const block = buildSkillsPromptBlock({ skills: [{ name: "long", description: "x".repeat(400) }] });
+    const line = block.split("\n").find((row) => row.startsWith("- /long"));
+    expect(line).toBeTruthy();
+    expect(line.length).toBeLessThan(200);
+    expect(line.endsWith("…")).toBe(true);
   });
 });
 

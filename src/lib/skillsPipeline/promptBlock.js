@@ -15,13 +15,29 @@ import { getSettings } from "@/lib/db/repos/settingsRepo.js";
 // encyclopedia — the full index stays on the skills API.
 const MAX_SKILLS = 40;
 
-// One skill's line in the block: name + description from the skill's own
-// metadata (never authored here).
+// Per-skill description cap. The rule is "what is it for, in one line": a few
+// catalogs ship 1500-character descriptions, and forty of those would spend the
+// whole prompt budget on menus instead of the actual request.
+const MAX_DESCRIPTION_CHARS = 160;
+
+function clip(text) {
+  if (text.length <= MAX_DESCRIPTION_CHARS) return text;
+  return `${text.slice(0, MAX_DESCRIPTION_CHARS - 1).trimEnd()}…`;
+}
+
+// One skill's line in the block: its invocable command, the name, and what it
+// is for. The command is what the model actually has to emit to reach the
+// skill, so it leads the line — `/<name>` is the form every catalog here uses.
+// Descriptions come from the skill's own frontmatter (never authored here); a
+// leftover YAML block marker (`>-`) means the parse found no text and must not
+// reach the model as content.
 function skillLine(skill) {
   const name = String(skill?.name || skill?.dirName || "").trim();
   if (!name) return null;
-  const description = String(skill?.description || "").replace(/\s+/g, " ").trim();
-  return description ? `- ${name} — ${description}` : `- ${name}`;
+  const raw = String(skill?.description || "").replace(/\s+/g, " ").trim();
+  const description = /^[|>][-+]?$/.test(raw) ? "" : clip(raw);
+  const command = name.startsWith("/") ? name : `/${name}`;
+  return description ? `- ${command} — ${description}` : `- ${command}`;
 }
 
 // One local model's line: registry name + the file kind, so a model knows
@@ -57,7 +73,7 @@ export function buildSkillsPromptBlock({ skills = [], limit = MAX_SKILLS, models
   if (skillLines.length) {
     const total = Number(skills?.length) || skillLines.length;
     parts.push(
-      "OriginRouter skills available (ask the router's skills API for the full index):",
+      "OriginRouter skills available. Each line is the skill's invocable command and what it is for; ask the router's skills API for the full index:",
       skillLines.join("\n"),
     );
     if (total > skillLines.length) {

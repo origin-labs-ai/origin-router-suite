@@ -95,12 +95,17 @@ function unquote(value) {
  *   - The frontmatter is the first `---` line through the next lone `---` line.
  *     No leading `---` at all → no frontmatter (fail-open: body is the whole
  *     text, name/description come back empty and callers fall back).
- *   - Only UNINDENTED `key: value` lines count — nested blocks (e.g. the
+ *   - Only UNINDENTED `key: value` lines start a key — nested blocks (e.g. the
  *     `metadata:` maps several catalogs carry) are ignored, and an indented
  *     `name:` can never hijack the top-level one.
- *   - Values are unquoted (see unquote) and NOT otherwise interpreted: no
- *     folding, no multi-line scalars. A description continued on a second line
- *     keeps its first line only — enough for display, harmless for merge keys.
+ *   - A value may be a YAML block scalar (`|`, `>`, `>-`, `|-`, `|+`, `>+`) or
+ *     plain text continued on indented lines. Real catalogs write long
+ *     descriptions that way: `canvas` and `graphify` both fold with `>-`.
+ *     Reading only the marker line turned an entire description into the
+ *     literal `">-"`, which is what the skills prompt then showed the model —
+ *     and what the skills cards rendered. Folded (`>`) joins with spaces,
+ *     literal (`|`) keeps the line breaks.
+ *   - Values are unquoted (see unquote) and NOT otherwise interpreted.
  *   - Everything after the closing `---` is the body, verbatim.
  *
  * @param {string} text raw SKILL.md contents
@@ -125,14 +130,45 @@ export function parseSkillMd(text) {
     // value for a key is seen, later repeats do not overwrite (first wins,
     // matching how the catalogs use them).
     const match = /^(name|description):\s*(.*)$/i.exec(line);
-    if (match) {
-      const value = unquote(match[2]);
-      if (match[1].toLowerCase() === "name") {
-        if (!name) name = value;
-      } else if (!description) {
-        description = value;
+    if (!match) continue;
+
+    const key = match[1].toLowerCase();
+    const inline = match[2].trim();
+    const blockMarker = /^[|>][-+]?$/.test(inline) ? inline : null;
+
+    // Continuation lines: indented, non-empty lines up to the next top-level
+    // key or the closing `---`. Only consumed when they actually exist.
+    const continued = [];
+    let j = i + 1;
+    for (; j < lines.length; j++) {
+      const next = lines[j];
+      if (next.trim() === "---") break;
+      if (!next.trim()) {
+        continued.push("");
+        continue;
       }
+      if (!/^\s/.test(next)) break;
+      continued.push(next.trim());
     }
+    const hasContinuation = continued.some((chunk) => chunk !== "");
+
+    let value;
+    if (blockMarker) {
+      value = blockMarker.startsWith(">")
+        ? continued.filter(Boolean).join(" ")   // folded scalars read as prose
+        : continued.join("\n").trim();          // literal keeps its breaks
+    } else {
+      value = [unquote(inline), ...continued].filter(Boolean).join(" ").trim();
+    }
+
+    if (key === "name") {
+      if (!name) name = value;
+    } else if (!description) {
+      description = value;
+    }
+
+    // Skip past the lines just consumed so they are not re-read as keys.
+    if (blockMarker || hasContinuation) i = j - 1;
   }
   if (close === -1) {
     // Unterminated frontmatter block — treat as no frontmatter (fail-open).

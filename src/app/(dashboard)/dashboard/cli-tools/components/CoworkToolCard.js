@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Card, Button, ManualConfigModal, ComboFormModal, McpMarketplaceModal, ModelSelectModal } from "@/shared/components";
+import { Card, Button, ManualConfigModal, ComboFormModal, McpMarketplaceModal, ModelSelectModal, Portal } from "@/shared/components";
 import Image from "next/image";
 import BaseUrlSelect from "./BaseUrlSelect";
 import { rememberEndpoint } from "./cliEndpointPresets";
@@ -553,8 +553,11 @@ export default function CoworkToolCard({
         addedNames={plugins.map((p) => p.name)}
       />
 
-      {/* Add Custom MCP modal */}
+      {/* Add Custom MCP modal — portalled: rendered inline, this overlay would
+          position itself against the nearest transformed/blurred ancestor and
+          drift as the card's hover styles toggled */}
       {addMcpOpen && (
+        <Portal>
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setAddMcpOpen(false)}>
           <div className="bg-surface border border-border rounded-xl shadow-xl w-full max-w-sm mx-4 p-5 flex flex-col gap-4" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between">
@@ -601,6 +604,7 @@ export default function CoworkToolCard({
             </div>
           </div>
         </div>
+        </Portal>
       )}
     </Card>
   );

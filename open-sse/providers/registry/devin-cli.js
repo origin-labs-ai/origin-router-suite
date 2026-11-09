@@ -3,6 +3,11 @@ export default {
   alias: "dv",
   aliases: ["devin"],
   uiAlias: "dv",
+  // SECURITY: this is the one entry that stays hidden by design. It is noAuth
+  // and spawns a local agent with shell and filesystem access, so exposing the
+  // card would let anyone who reaches the dashboard drive the host. Uncomment
+  // it in registry/index.js only behind a real auth gate.
+  hidden: true,
   display: {
     name: "Devin CLI",
     icon: "smart_toy",

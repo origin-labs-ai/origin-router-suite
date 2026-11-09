@@ -119,11 +119,12 @@ import p110 from "./llm7.js";
 import p111 from "./sambanova.js";
 import p112 from "./tencent.js";
 import p113 from "./morph.js";
-// devin-cli is enabled by the owner's rule that nothing in the registry stays
-// hidden. SECURITY: it is noAuth and spawns a local agent with shell and
-// filesystem access, so anyone who can reach the dashboard can drive the host.
-// Keep that in mind before exposing the dashboard beyond localhost.
-import p114 from "./devin-cli.js";
+// devin-cli stays commented out. It is the one entry that must not come back
+// with the rest: noAuth plus a local agent that spawns with shell and
+// filesystem access means anyone who can reach the dashboard can drive the
+// host. The registry file is intact, so enabling it is one uncomment in two
+// places - after adding a real auth gate in front of it.
+// import p114 from "./devin-cli.js";
 import p104 from "./windsurf.js";
 import p115 from "./poolside.js";
 import p116 from "./tokenrouter.js";
@@ -270,7 +271,7 @@ export default [
   p111,
   p112,
   p113,
-  p114, // devin-cli — enabled: noAuth local agent (shell/fs access — see import note)
+  // p114, // devin-cli — hidden on purpose: noAuth local agent with shell/fs access
   p104, // windsurf — enabled: chat works, gRPC stream carries no tool-call chunks
   p115,
   p116,

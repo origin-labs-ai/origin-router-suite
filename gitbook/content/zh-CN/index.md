@@ -105,7 +105,7 @@ OriginRouter 是一款智能代理,位于你的编码工具(Cursor、Cline、Cla
 
 ```bash
 # 全局安装
-npm install -g @origin-labs-ai/origin-router
+curl -fsSL https://raw.githubusercontent.com/origin-labs-ai/origin-router-suite/main/install.sh | bash
 
 # 启动(仪表盘自动打开)
 originrouter

@@ -34,7 +34,7 @@ npm --version
 Install OriginRouter globally to use from anywhere:
 
 ```bash
-npm install -g @origin-labs-ai/origin-router
+curl -fsSL https://raw.githubusercontent.com/origin-labs-ai/origin-router-suite/main/install.sh | bash
 ```
 
 **Start OriginRouter:**
@@ -46,22 +46,23 @@ originrouter
 **Benefits:**
 - ✅ Run from any directory
 - ✅ Simple command: `originrouter`
-- ✅ Auto-updates with `npm update -g originrouter`
+- ✅ Auto-updates with the launcher's own update check (it reads the GitHub release feed)
 
 ### Method 2: Local Installation
 
 Install in a specific project:
 
 ```bash
-mkdir my-originrouter
-cd my-originrouter
-npm install originrouter
+docker run -d --name origin-router \
+  -p 20128:20128 \
+  -v "$HOME/.or:/app/data" -e DATA_DIR=/app/data \
+  ghcr.io/origin-labs-ai/origin-router:latest
 ```
 
-**Start OriginRouter:**
+**Open the dashboard:**
 
-```bash
-npx @origin-labs-ai/origin-router
+```
+http://localhost:20128/dashboard
 ```
 
 **Benefits:**
@@ -282,7 +283,7 @@ echo 'export PATH=~/.npm-global/bin:$PATH' >> ~/.bashrc
 source ~/.bashrc
 
 # Then install again
-npm install -g @origin-labs-ai/origin-router
+curl -fsSL https://raw.githubusercontent.com/origin-labs-ai/origin-router-suite/main/install.sh | bash
 ```
 
 ### Node.js Version Too Old
@@ -371,7 +372,7 @@ pm2 save
 ### Local Development
 
 ```bash
-npm install -g @origin-labs-ai/origin-router
+curl -fsSL https://raw.githubusercontent.com/origin-labs-ai/origin-router-suite/main/install.sh | bash
 originrouter
 ```
 
@@ -381,7 +382,7 @@ originrouter
 
 ```bash
 # Install
-npm install -g @origin-labs-ai/origin-router
+curl -fsSL https://raw.githubusercontent.com/origin-labs-ai/origin-router-suite/main/install.sh | bash
 
 # Configure
 export JWT_SECRET="your-secure-secret"

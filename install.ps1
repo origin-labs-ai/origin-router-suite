@@ -1,13 +1,13 @@
 # OriginRouter installer (Windows)
 # Usage: irm https://raw.githubusercontent.com/origin-labs-ai/origin-router-suite/main/install.ps1 | iex
 #
-# The npm package is the nicest way in - it gives you the `originrouter`
-# launcher. When npm cannot reach the package, the release installer from
-# GitHub takes over, and it needs neither npm nor admin rights.
+# Installs the Windows release: OriginRouter-Setup-<version>.exe, verified
+# against the .sha256 published next to it. No package registry, no admin
+# rights, no Node.js required - the installer bundles what it needs.
 #
 # Options when you run it from a file (not through the one-liner):
 #   -Version <tag>   install a specific release, e.g. v0.5.117
-#   -Portable        unzip the portable build instead of using npm or the installer
+#   -Portable        unzip the portable build instead of running the installer
 #   -SkipRun         download and verify only, install nothing
 
 [CmdletBinding()]
@@ -68,7 +68,7 @@ function Get-VerifiedFile {
   return $file
 }
 
-# ── portable: no npm, no installer, just the folder ─────────────────────────
+# ── portable: no installer, just the folder ─────────────────────────────────
 if ($Portable) {
   Write-Step "Looking for the latest release"
   $release = Get-LatestRelease
@@ -93,34 +93,7 @@ if ($Portable) {
   return
 }
 
-# ── npm: the nicest path, when it is available ──────────────────────────────
-$node = Get-Command node -ErrorAction SilentlyContinue
-$npmUsable = $false
-if ($node) {
-  $major = [int](& node -p "process.versions.node.split('.')[0]")
-  if ($major -lt 18) {
-    Write-Host "Node.js 18+ is required (found $(& node -v))." -ForegroundColor Red
-    exit 1
-  }
-  $npmUsable = $true
-}
-
-if ($npmUsable -and -not $SkipRun) {
-  Write-Step "Installing OriginRouter from npm"
-  & npm install -g @origin-labs-ai/origin-router@latest --prefer-online
-  if ($LASTEXITCODE -eq 0) {
-    Write-Host ""
-    Write-Host "Done. Start it with:" -ForegroundColor Green
-    Write-Host "  originrouter"
-    Write-Host "Dashboard: http://localhost:20128/dashboard"
-    exit 0
-  }
-  Write-Host "The npm package is not reachable - falling back to the release installer." -ForegroundColor Yellow
-} elseif (-not $npmUsable) {
-  Write-Host "Node.js 18+ was not found - using the release installer instead." -ForegroundColor Yellow
-}
-
-# ── the release installer: always there, needs no npm and no admin rights ───
+# ── the release installer: always there, needs no registry and no admin rights ─
 Write-Step "Looking for the latest release"
 $release = Get-LatestRelease
 $version = $release.tag_name -replace "^v", ""

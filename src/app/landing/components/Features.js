@@ -16,7 +16,7 @@ const FEATURES = [
   { 
     icon: "bolt", 
     title: "Easy Setup", 
-    desc: "Get up and running in minutes with npx command.", 
+    desc: "Get up and running in minutes with the one-line installer.", 
     colors: {
       border: "hover:border-[#2B7FFF]/50",
       bg: "hover:bg-[#2B7FFF]/5",

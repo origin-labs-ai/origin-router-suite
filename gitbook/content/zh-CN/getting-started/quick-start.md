@@ -9,7 +9,7 @@
 ### 1. 安装
 
 ```bash
-npm install -g @origin-labs-ai/origin-router
+curl -fsSL https://raw.githubusercontent.com/origin-labs-ai/origin-router-suite/main/install.sh | bash
 ```
 
 **要求:** Node.js 20+([安装详情](getting-started/installation.md))

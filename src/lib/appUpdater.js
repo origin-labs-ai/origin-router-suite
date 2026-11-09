@@ -156,16 +156,29 @@ export async function killAppProcesses() {
   }
 }
 
-// Resolve npx/originrouter binary to relaunch after update (cross-platform)
+// Relaunch command after an update (cross-platform).
+//
+// The update installs a new build; what must come back up is the installed
+// launcher, not a package-registry copy. There is no npm package in the
+// install path any more, so `npx` would 404. Order:
+//   1. ORIGINROUTER_BIN - an explicit path set by the installer/portable build.
+//   2. cli.js in the checkout, when this is a source run.
+//   3. the installed launcher on PATH (originrouter / originrouter.cmd).
 function resolveRelaunchCommand() {
   const isWin = process.platform === "win32";
-  // Prefer `npx @origin-labs-ai/origin-router` — works regardless of global bin path changes after npm i -g
-  const npx = isWin ? "npx.cmd" : "npx";
-  return { cmd: npx, args: [UPDATER_CONFIG.npmPackageName] };
+  const explicit = process.env.ORIGINROUTER_BIN?.trim();
+  if (explicit) return { cmd: explicit, args: [] };
+
+  const localCli = path.join(process.cwd(), "cli", "cli.js");
+  try {
+    if (fs.existsSync(localCli)) return { cmd: process.execPath, args: [localCli] };
+  } catch { /* fall through to PATH */ }
+
+  return { cmd: isWin ? "originrouter.cmd" : "originrouter", args: [] };
 }
 
 // Spawn detached headless updater (Node process) then exit current server
-export function spawnUpdaterAndExit(packageName = UPDATER_CONFIG.npmPackageName) {
+export function spawnUpdaterAndExit() {
   const updaterPath = ensureRuntimeUpdater(resolveBundledUpdaterPath());
   const isTray = process.env.TRAY_MODE === "1";
   const relaunch = resolveRelaunchCommand();
@@ -180,7 +193,6 @@ export function spawnUpdaterAndExit(packageName = UPDATER_CONFIG.npmPackageName)
     windowsHide: true,
     env: {
       ...process.env,
-      UPDATER_PKG_NAME: packageName,
       UPDATER_PORT: String(UPDATER_CONFIG.statusPort),
       UPDATER_TAIL_LINES: String(UPDATER_CONFIG.statusLogTailLines),
       UPDATER_RETRIES: String(UPDATER_CONFIG.installRetries),

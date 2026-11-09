@@ -34,7 +34,7 @@ npm --version
 全局安装,任何位置都能使用:
 
 ```bash
-npm install -g @origin-labs-ai/origin-router
+curl -fsSL https://raw.githubusercontent.com/origin-labs-ai/origin-router-suite/main/install.sh | bash
 ```
 
 **启动 OriginRouter:**
@@ -46,22 +46,23 @@ originrouter
 **优势:**
 - ✅ 任意目录均可运行
 - ✅ 命令简单:`originrouter`
-- ✅ 通过 `npm update -g originrouter` 自动更新
+- ✅ 通过 the launcher's own update check (it reads the GitHub release feed) 自动更新
 
 ### 方式 2:本地安装
 
 在特定项目中安装:
 
 ```bash
-mkdir my-originrouter
-cd my-originrouter
-npm install originrouter
+docker run -d --name origin-router \
+  -p 20128:20128 \
+  -v "$HOME/.or:/app/data" -e DATA_DIR=/app/data \
+  ghcr.io/origin-labs-ai/origin-router:latest
 ```
 
-**启动 OriginRouter:**
+**Open the dashboard:**
 
-```bash
-npx @origin-labs-ai/origin-router
+```
+http://localhost:20128/dashboard
 ```
 
 **优势:**
@@ -282,7 +283,7 @@ echo 'export PATH=~/.npm-global/bin:$PATH' >> ~/.bashrc
 source ~/.bashrc
 
 # 然后重新安装
-npm install -g @origin-labs-ai/origin-router
+curl -fsSL https://raw.githubusercontent.com/origin-labs-ai/origin-router-suite/main/install.sh | bash
 ```
 
 ### Node.js 版本过低
@@ -371,7 +372,7 @@ pm2 save
 ### 本地开发
 
 ```bash
-npm install -g @origin-labs-ai/origin-router
+curl -fsSL https://raw.githubusercontent.com/origin-labs-ai/origin-router-suite/main/install.sh | bash
 originrouter
 ```
 
@@ -381,7 +382,7 @@ originrouter
 
 ```bash
 # 安装
-npm install -g @origin-labs-ai/origin-router
+curl -fsSL https://raw.githubusercontent.com/origin-labs-ai/origin-router-suite/main/install.sh | bash
 
 # 配置
 export JWT_SECRET="your-secure-secret"

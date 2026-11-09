@@ -197,7 +197,7 @@ See [Cursor integration guide](integration/cursor.md) for details.
 
 ### Localhost (Default)
 ```bash
-npm install -g @origin-labs-ai/origin-router
+curl -fsSL https://raw.githubusercontent.com/origin-labs-ai/origin-router-suite/main/install.sh | bash
 originrouter
 → Dashboard: http://localhost:3000
 → API: http://localhost:20128/v1
@@ -285,7 +285,7 @@ See [deployment guide](getting-started/installation.md#deployment) for details.
 
 ### Global NPM Install
 ```bash
-npm update -g originrouter
+curl -fsSL https://raw.githubusercontent.com/origin-labs-ai/origin-router-suite/main/install.sh | bash
 ```
 
 ### Local Install

@@ -9,7 +9,7 @@
 npm経由でOriginRouterをグローバルインストール:
 
 ```bash
-npm install -g @origin-labs-ai/origin-router
+curl -fsSL https://raw.githubusercontent.com/origin-labs-ai/origin-router-suite/main/install.sh | bash
 ```
 
 **要件:**
@@ -81,7 +81,7 @@ originrouter
 最新バージョンに更新:
 
 ```bash
-npm update -g originrouter
+curl -fsSL https://raw.githubusercontent.com/origin-labs-ai/origin-router-suite/main/install.sh | bash
 ```
 
 現在のバージョンを確認:
@@ -113,7 +113,7 @@ kill -9 <PID>
 
 ```bash
 # sudoを使用 (非推奨)
-sudo npm install -g @origin-labs-ai/origin-router
+curl -fsSL https://raw.githubusercontent.com/origin-labs-ai/origin-router-suite/main/install.sh | bash
 
 # またはnpm権限を修正 (推奨)
 mkdir ~/.npm-global

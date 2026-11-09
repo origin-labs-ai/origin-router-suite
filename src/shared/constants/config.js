@@ -22,18 +22,22 @@ export const GITHUB_CONFIG = {
 };
 
 // Updater configuration
+//
+// There is no package registry in the install path any more. The product is
+// installed from the GitHub release (Windows installer / portable zip) or the
+// one-line install script, and updated the same way: the launcher reads the
+// release feed, downloads OriginRouter-Setup-<version>.exe, verifies the
+// .sha256 next to it and runs the silent Inno update.
 export const UPDATER_CONFIG = {
-  // The launcher's npm identity is `@origin-labs-ai/origin-router` - the package
-  // name is exactly "origin-router"; the scope only exists because the unscoped
-  // name on the registry belongs to an unrelated package. The gateway's own
-  // updates have never come from npm: the installer build downloads and
-  // checksum-verifies OriginRouter-Setup-<version>.exe from the release below,
-  // which is why the version check asks the same feed. npmPackageName stays for
-  // a global `npm install -g` copy, where the updater instead runs
-  // `npx @origin-labs-ai/origin-router` after the install.
-  npmPackageName: "@origin-labs-ai/origin-router",
   installCmd: GITHUB_CONFIG.releasesUrl,
   installCmdLatest: GITHUB_CONFIG.releasesUrl,
+  // The two one-line installers, shown on the landing page and in the docs. Both
+  // are exported because this module is bundled for the browser too, where there
+  // is no process.platform to branch on - the caller picks.
+  installScriptCmdPosix:
+    "curl -fsSL https://raw.githubusercontent.com/origin-labs-ai/origin-router-suite/main/install.sh | bash",
+  installScriptCmdWin:
+    "irm https://raw.githubusercontent.com/origin-labs-ai/origin-router-suite/main/install.ps1 | iex",
   releasesApiUrl: GITHUB_CONFIG.releasesApiUrl,
   shutdownCountdownSec: 3,
   exitDelayMs: 500,

@@ -105,7 +105,7 @@ Comienza en 2 minutos:
 
 ```bash
 # Instala globalmente
-npm install -g @origin-labs-ai/origin-router
+curl -fsSL https://raw.githubusercontent.com/origin-labs-ai/origin-router-suite/main/install.sh | bash
 
 # Inicia (el dashboard se abre automáticamente)
 originrouter

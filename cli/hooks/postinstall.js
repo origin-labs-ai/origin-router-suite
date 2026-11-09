@@ -3,7 +3,7 @@
 // Postinstall: warm-up SQLite deps into ~/.originrouter/runtime so the first
 // `originrouter` start doesn't need network. Failure here is non-fatal —
 // cli.js will retry at runtime if anything is missing.
-// `npx @origin-labs-ai/origin-router …` (npm_command=exec) is typically a one-shot `connect` — skip
+// A one-shot launcher invocation (npm_command=exec) is typically just `connect` — skip
 // the runtime warm-up; cli.js self-heals it if the server is started later.
 if (process.env.npm_command === "exec") process.exit(0);
 

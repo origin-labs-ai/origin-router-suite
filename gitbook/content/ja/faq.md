@@ -197,7 +197,7 @@ npm start
 
 ### Localhost(デフォルト)
 ```bash
-npm install -g @origin-labs-ai/origin-router
+curl -fsSL https://raw.githubusercontent.com/origin-labs-ai/origin-router-suite/main/install.sh | bash
 originrouter
 → Dashboard: http://localhost:3000
 → API: http://localhost:20128/v1
@@ -285,7 +285,7 @@ npm run deploy:cloudflare
 
 ### グローバルNPMインストール
 ```bash
-npm update -g originrouter
+curl -fsSL https://raw.githubusercontent.com/origin-labs-ai/origin-router-suite/main/install.sh | bash
 ```
 
 ### ローカルインストール

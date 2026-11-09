@@ -9,7 +9,7 @@ Chạy OriginRouter trên máy cá nhân để phát triển và dùng cá nhân
 Cài đặt OriginRouter toàn cục qua npm:
 
 ```bash
-npm install -g @origin-labs-ai/origin-router
+curl -fsSL https://raw.githubusercontent.com/origin-labs-ai/origin-router-suite/main/install.sh | bash
 ```
 
 **Yêu cầu:**
@@ -81,7 +81,7 @@ Mọi cấu hình, API keys và combos được giữ lại trong thư mục dat
 Cập nhật phiên bản mới nhất:
 
 ```bash
-npm update -g originrouter
+curl -fsSL https://raw.githubusercontent.com/origin-labs-ai/origin-router-suite/main/install.sh | bash
 ```
 
 Kiểm tra version hiện tại:
@@ -113,7 +113,7 @@ Nếu gặp lỗi permission khi cài đặt:
 
 ```bash
 # Use sudo (not recommended)
-sudo npm install -g @origin-labs-ai/origin-router
+curl -fsSL https://raw.githubusercontent.com/origin-labs-ai/origin-router-suite/main/install.sh | bash
 
 # Or fix npm permissions (recommended)
 mkdir ~/.npm-global

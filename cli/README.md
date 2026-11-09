@@ -4,8 +4,7 @@
 
 **Connect every AI code tool (Claude Code, Cursor, Antigravity, Copilot, Codex, Gemini, OpenCode, Cline, OpenClaw...) to 90+ AI providers & 100+ models.**
 
-[![npm](https://img.shields.io/npm/v/@origin-labs-ai/origin-router.svg)](https://www.npmjs.com/package/@origin-labs-ai/origin-router)
-[![Downloads](https://img.shields.io/npm/dm/@origin-labs-ai/origin-router.svg)](https://www.npmjs.com/package/@origin-labs-ai/origin-router)
+[![Release](https://img.shields.io/github/v/release/origin-labs-ai/origin-router-suite?style=flat-square)](https://github.com/origin-labs-ai/origin-router-suite/releases/latest)
 [![Docker](https://img.shields.io/badge/docker-ghcr.io%2Forigin--labs--ai%2Forigin--router-2B7FFF?style=flat-square&logo=docker&logoColor=white)](https://github.com/origin-labs-ai/origin-router-suite/pkgs/container/origin-router)
 [![GHCR](https://img.shields.io/badge/GHCR-origin--labs--ai%2Forigin--router-blue?logo=github)](https://github.com/origin-labs-ai/origin-router-suite/pkgs/container/origin-router)
 [![License](https://img.shields.io/github/license/origin-labs-ai/origin-router-suite)](https://github.com/origin-labs-ai/origin-router-suite/blob/main/LICENSE)
@@ -36,15 +35,19 @@
 
 ## ⚡ Quick Start
 
-**Option 1 — npm (recommended for desktop):**
+**Option 1 — installer (recommended for desktop):**
+
+```powershell
+# Windows
+irm https://raw.githubusercontent.com/origin-labs-ai/origin-router-suite/main/install.ps1 | iex
+```
 
 ```bash
-npm install -g @origin-labs-ai/origin-router
-originrouter
-
-# Or run directly with npx
-npx @origin-labs-ai/origin-router
+# macOS / Linux
+curl -fsSL https://raw.githubusercontent.com/origin-labs-ai/origin-router-suite/main/install.sh | bash
 ```
+
+Either one installs the launcher as `originrouter` (or `or`) and starts the gateway.
 
 **Option 2 — Docker (server/VPS):**
 
@@ -94,9 +97,9 @@ originrouter --help             # Show all options
 Already running OriginRouter on another machine (e.g. a team server on your LAN)? Point this machine's CLI tools at it — no local server is started:
 
 ```bash
-npx @origin-labs-ai/origin-router connect http://<server-host>:20128                       # pick tools interactively
-npx @origin-labs-ai/origin-router connect http://<server-host>:20128 --tools claude,codex  # or choose up front
-npx @origin-labs-ai/origin-router connect --reset --tools claude,codex                     # undo
+originrouter connect http://<server-host>:20128                       # pick tools interactively
+originrouter connect http://<server-host>:20128 --tools claude,codex  # or choose up front
+originrouter connect --reset --tools claude,codex                     # undo
 ```
 
 It logs in with the dashboard password (hidden prompt), reuses or creates an API key named `cli-<hostname>`, and writes each tool's config (backing up the original once as `*.bak-originrouter`).
@@ -118,22 +121,22 @@ Models come from the **server's own CLI-tools configuration**, so a client gets 
 
 ```bash
 # One Claude tier; the other tiers still come from the server
-npx @origin-labs-ai/origin-router connect http://<server-host>:20128 --tools claude --sonnet cc/claude-sonnet-5-5
+originrouter connect http://<server-host>:20128 --tools claude --sonnet cc/claude-sonnet-5-5
 
 # Every Claude tier
-npx @origin-labs-ai/origin-router connect http://<server-host>:20128 --tools claude \
+originrouter connect http://<server-host>:20128 --tools claude \
   --fable cc/claude-fable-5-1 --opus cc/claude-opus-5-5 \
   --sonnet cc/claude-sonnet-5-5 --haiku cc/claude-haiku-4-5-20251001
 
 # All non-Claude tools at once
-npx @origin-labs-ai/origin-router connect http://<server-host>:20128 --tools codex,opencode,kilo --model ocg/deepseek-flash
+originrouter connect http://<server-host>:20128 --tools codex,opencode,kilo --model ocg/deepseek-flash
 
 # Claude and other tools in one run
-npx @origin-labs-ai/origin-router connect http://<server-host>:20128 --tools claude,codex --opus cc/claude-opus-5-5 --model gpt-6
+originrouter connect http://<server-host>:20128 --tools claude,codex --opus cc/claude-opus-5-5 --model gpt-6
 
 # A different model per tool: --model covers every non-Claude tool in a run, so run once per tool
-npx @origin-labs-ai/origin-router connect http://<server-host>:20128 --tools codex --model gpt-6
-npx @origin-labs-ai/origin-router connect http://<server-host>:20128 --tools opencode --model ocg/glm-5.3
+originrouter connect http://<server-host>:20128 --tools codex --model gpt-6
+originrouter connect http://<server-host>:20128 --tools opencode --model ocg/glm-5.3
 ```
 
 A model the server doesn't list is still written, with a `not listed by server` warning. To see the ids it serves: `curl http://<server-host>:20128/v1/models -H "Authorization: Bearer <your key>"`.
@@ -143,10 +146,10 @@ A model the server doesn't list is still written, with a `not listed by server` 
 `originrouter show` prints what each CLI tool on this machine is currently set to — base URL, masked API key and models. It only reads local files and never contacts a server.
 
 ```bash
-npx @origin-labs-ai/origin-router show                 # every supported tool
-npx @origin-labs-ai/origin-router show claude          # one tool
-npx @origin-labs-ai/origin-router show claude codex    # several
-npx @origin-labs-ai/origin-router show claude --json   # machine-readable (key still masked)
+originrouter show                 # every supported tool
+originrouter show claude          # one tool
+originrouter show claude codex    # several
+originrouter show claude --json   # machine-readable (key still masked)
 ```
 
 ```

@@ -2,9 +2,8 @@
 # OriginRouter installer (macOS / Linux)
 # Usage: curl -fsSL https://raw.githubusercontent.com/origin-labs-ai/origin-router-suite/main/install.sh | bash
 #
-# The npm package is the nicest way in - it gives you the `originrouter`
-# launcher. When npm cannot reach the package, the portable build from the
-# release takes over: it needs neither npm nor admin rights.
+# Installs the portable build from the release, verified against the .sha256
+# published next to it. No package registry and no admin rights.
 
 set -euo pipefail
 
@@ -13,27 +12,7 @@ API="https://api.github.com/repos/${REPO}/releases/latest"
 
 echo "==> Installing OriginRouter"
 
-# ── the npm package, when it is available ──────────────────────────────────
-if command -v npm >/dev/null 2>&1 && command -v node >/dev/null 2>&1; then
-  MAJOR="$(node -p 'process.versions.node.split(".")[0]')"
-  if [ "$MAJOR" -lt 18 ]; then
-    echo "Node.js 18+ is required (found $(node -v))." >&2
-    exit 1
-  fi
-
-  if npm install -g @origin-labs-ai/origin-router@latest --prefer-online; then
-    echo
-    echo "Done. Start it with:"
-    echo "  originrouter"
-    echo "Dashboard: http://localhost:20128/dashboard"
-    exit 0
-  fi
-  echo "The npm package is not reachable - falling back to the portable build." >&2
-else
-  echo "Node.js 18+ was not found - using the portable build instead." >&2
-fi
-
-# ── the portable build: no npm, no admin rights ────────────────────────────
+# ── the portable build: no registry, no admin rights ──────────────────────────
 case "$(uname -s)" in
   Darwin) ASSET="OriginRouter-mac-portable.zip"; TARGET="$HOME/Applications/OriginRouter" ;;
   Linux)  ASSET="OriginRouter-linux-portable.zip"; TARGET="$HOME/.local/opt/origin-router" ;;

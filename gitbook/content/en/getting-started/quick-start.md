@@ -9,7 +9,7 @@ Get OriginRouter running in 5 minutes and start routing AI requests intelligentl
 ### 1. Install
 
 ```bash
-npm install -g @origin-labs-ai/origin-router
+curl -fsSL https://raw.githubusercontent.com/origin-labs-ai/origin-router-suite/main/install.sh | bash
 ```
 
 **Requirements:** Node.js 20+ ([Installation details](getting-started/installation.md))

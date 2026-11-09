@@ -128,48 +128,108 @@ function sleep(ms) {
   return new Promise((r) => setTimeout(r, ms));
 }
 
-function runInstall() {
+const RELEASES_API = "https://api.github.com/repos/origin-labs-ai/origin-router-suite/releases/latest";
+const RELEASES_PAGE = "https://github.com/origin-labs-ai/origin-router-suite/releases/latest";
+// The per-user Inno build is the thing the updater installs. The desktop build
+// bundles the gateway and has its own updater, so it is not this one.
+const INSTALLER_ASSET = /^OriginRouter-Setup-.*.exe$/i;
+
+async function fetchRelease() {
+  const res = await fetch(RELEASES_API, {
+    headers: { Accept: "application/vnd.github+json", "User-Agent": "originrouter-updater" },
+  });
+  if (!res.ok) throw new Error(`release feed responded ${res.status}`);
+  return res.json();
+}
+
+async function download(url, destination) {
+  const res = await fetch(url, { headers: { "User-Agent": "originrouter-updater" } });
+  if (!res.ok) throw new Error(`download responded ${res.status}`);
+  const buffer = Buffer.from(await res.arrayBuffer());
+  fs.writeFileSync(destination, buffer);
+  return buffer;
+}
+
+function sha256(buffer) {
+  return require("crypto").createHash("sha256").update(buffer).digest("hex");
+}
+
+// Expected digest for an asset: the .sha256 published next to it.
+async function expectedDigest(release, assetName) {
+  const sidecar = (release.assets || []).find((a) => a.name === `${assetName}.sha256`);
+  if (!sidecar) return null;
+  const res = await fetch(sidecar.browser_download_url, { headers: { "User-Agent": "originrouter-updater" } });
+  if (!res.ok) return null;
+  const text = (await res.text()).trim();
+  const match = text.match(/[a-f0-9]{64}/i);
+  return match ? match[0].toLowerCase() : null;
+}
+
+async function runInstall() {
   state.attempt += 1;
   setPhase("installing");
-  pushLog(`[updater] attempt ${state.attempt}/${maxRetries} — npm i -g ${packageName} --prefer-online`);
 
-  const isWin = process.platform === "win32";
-  const cmd = isWin ? "npm.cmd" : "npm";
-  const args = ["i", "-g", packageName, "--prefer-online"];
+  // Only Windows ships a silent installer. Everywhere else the update is a
+  // download, so hand the user the release page instead of silently replacing
+  // a running tree.
+  if (process.platform !== "win32") {
+    pushLog("[updater] no silent installer on this platform - opening the release page");
+    openBrowser(RELEASES_PAGE);
+    finalize(false, null, "Download the portable build for this platform from the release page.");
+    return;
+  }
 
-  const child = spawn(cmd, args, {
-    stdio: ["ignore", "pipe", "pipe"],
-    windowsHide: true,
-    shell: isWin,
-  });
+  try {
+    pushLog("[updater] reading the release feed");
+    const release = await fetchRelease();
+    const installer = (release.assets || []).find((a) => INSTALLER_ASSET.test(a.name));
+    if (!installer) throw new Error("no OriginRouter-Setup-*.exe asset in the latest release");
 
-  child.stdout.on("data", (buf) => {
-    buf.toString().split(/\r?\n/).forEach(pushLog);
-    persistStatus();
-  });
-  child.stderr.on("data", (buf) => {
-    buf.toString().split(/\r?\n/).forEach(pushLog);
-    persistStatus();
-  });
+    const destination = path.join(updateDir, installer.name);
+    pushLog(`[updater] downloading ${installer.name} (${Math.round((installer.size || 0) / 1048576)} MB)`);
+    const bytes = await download(installer.browser_download_url, destination);
 
-  child.on("error", (e) => {
-    pushLog(`[updater] spawn error: ${e.message}`);
-    finalize(false, null, e.message);
-  });
-
-  child.on("close", (code) => {
-    pushLog(`[updater] npm exited with code ${code}`);
-    if (code === 0) {
-      finalize(true, code, null);
-      return;
+    const expected = await expectedDigest(release, installer.name);
+    const actual = sha256(bytes);
+    if (expected && expected !== actual) {
+      throw new Error(`checksum mismatch: expected ${expected}, got ${actual}`);
     }
+    pushLog(`[updater] checksum ${expected ? "verified" : "not published"} (${actual})`);
+
+    pushLog("[updater] running the installer silently");
+    const child = spawn(destination, [
+      "/VERYSILENT",
+      "/SUPPRESSMSGBOXES",
+      "/NORESTART",
+      "/CLOSEAPPLICATIONS",
+      "/SP-",
+    ], { stdio: ["ignore", "pipe", "pipe"], windowsHide: true });
+
+    child.stdout.on("data", (buf) => { buf.toString().split(/\r?\n/).forEach(pushLog); persistStatus(); });
+    child.stderr.on("data", (buf) => { buf.toString().split(/\r?\n/).forEach(pushLog); persistStatus(); });
+    child.on("error", (e) => finalize(false, null, e.message));
+    child.on("close", (code) => {
+      pushLog(`[updater] installer exited with code ${code}`);
+      if (code === 0) {
+        try { fs.unlinkSync(destination); } catch { /* keep it if locked */ }
+        finalize(true, code, null);
+        return;
+      }
+      if (state.attempt < maxRetries) {
+        pushLog(`[updater] retrying in ${Math.round(retryDelayMs / 1000)}s...`);
+        setTimeout(runInstall, retryDelayMs);
+        return;
+      }
+      finalize(false, code, `Install failed after ${maxRetries} attempts`);
+    });
+  } catch (e) {
+    pushLog(`[updater] ${e.message}`);
     if (state.attempt < maxRetries) {
-      pushLog(`[updater] retrying in ${Math.round(retryDelayMs / 1000)}s...`);
       setTimeout(runInstall, retryDelayMs);
       return;
     }
-    finalize(false, code, `Install failed after ${maxRetries} attempts`);
-  });
+    finalize(false, null, e.message);
+  }
 }
 
 function openBrowser(url) {

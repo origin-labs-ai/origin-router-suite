@@ -26,7 +26,21 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: npm
+
+      # No `cache: npm` here, deliberately. That option keys the npm cache on
+      # package-lock.json and FAILS the whole job when the file is missing - and
+      # this repo ships no lockfile on purpose (see .gitignore: the only ones
+      # that ever existed came from the upstream snapshot, pinned to its own
+      # dependency set, so committing them would pin the wrong graph).
+      # Cache the npm tarball store explicitly instead, keyed on the manifests
+      # that do exist. A miss only costs a re-download, never a failed job.
+      - name: Cache the npm tarball store
+        uses: actions/cache@v4
+        with:
+          path: ~/.npm
+          key: npm-${{ runner.os }}-${{ hashFiles('package.json', 'tests/package.json') }}
+          restore-keys: |
+            npm-${{ runner.os }}-
 
       # Root deps first (the suite imports open-sse/ and src/ from the repo root),
       # then the tests/ package. `npm install` not `npm ci`: there is no committed

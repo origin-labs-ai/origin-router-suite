@@ -1132,6 +1132,10 @@
     "validateUrl": "https://api.morphllm.com/v1/models",
     "format": "openai"
   },
+  "devin-cli": {
+    "baseUrl": "devin://acp/stdio",
+    "format": "openai"
+  },
   "windsurf": {
     "baseUrl": "https://server.codeium.com/exa.language_server_pb.LanguageServerService/GetChatMessage",
     "format": "openai",

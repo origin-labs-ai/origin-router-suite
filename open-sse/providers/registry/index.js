@@ -119,12 +119,12 @@ import p110 from "./llm7.js";
 import p111 from "./sambanova.js";
 import p112 from "./tencent.js";
 import p113 from "./morph.js";
-// devin-cli stays commented out. It is the one entry that must not come back
-// with the rest: noAuth plus a local agent that spawns with shell and
-// filesystem access means anyone who can reach the dashboard can drive the
-// host. The registry file is intact, so enabling it is one uncomment in two
-// places - after adding a real auth gate in front of it.
-// import p114 from "./devin-cli.js";
+// devin-cli is loaded so the provider exists and can route, but its registry
+// entry keeps `hidden: true`: the card appears only when the owner flips
+// settings.localExecutors.devinCli, and /v1 refuses the model until then
+// (src/sse/services/localExecutorGate.js). It is noAuth and spawns a local
+// agent with shell and filesystem access, so it must never be on by default.
+import p114 from "./devin-cli.js";
 import p104 from "./windsurf.js";
 import p115 from "./poolside.js";
 import p116 from "./tokenrouter.js";
@@ -271,7 +271,7 @@ export default [
   p111,
   p112,
   p113,
-  // p114, // devin-cli — hidden on purpose: noAuth local agent with shell/fs access
+  p114, // devin-cli — gated: hidden card + /v1 403 until settings.localExecutors.devinCli
   p104, // windsurf — enabled: chat works, gRPC stream carries no tool-call chunks
   p115,
   p116,

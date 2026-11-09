@@ -92,6 +92,10 @@ const DEFAULT_SETTINGS = {
   // local models at all, and where downloaded model files are saved. Empty dir
   // means the default <data>/models.
   localModels: { wantDownload: false, dir: "", defaultCtxSize: 4096, defaultPort: 8080, defaultGpuLayers: -1, binaryPath: "" },
+  // Providers whose executor runs a program on this machine (see
+  // open-sse/config/localExecutors.js). OFF by default: while off the card is
+  // hidden AND /v1 refuses the route. Turning one on is an explicit choice.
+  localExecutors: { devinCli: false },
   // Skills page catalog source (src/lib/skillsPipeline/). `kind` is the source
   // the page loads first (the UI toggle also remembers the user's last pick in
   // localStorage on top of this); `github` names the repo the cloud catalog is
@@ -177,6 +181,13 @@ export function mergeWithDefaults(raw) {
   merged.localModels = {
     ...DEFAULT_SETTINGS.localModels,
     ...(merged.localModels || {}),
+  };
+  // Local-executor switches are read as `=== true`, so a partial write of one
+  // flag must never drop the others - and an install that predates this block
+  // must resolve to "all off".
+  merged.localExecutors = {
+    ...DEFAULT_SETTINGS.localExecutors,
+    ...(merged.localExecutors || {}),
   };
   // And for skillsSource: the github repo block is nested one level deeper, so
   // a partial PATCH of just `kind` must not lose owner/repo/branch/path (and

@@ -230,7 +230,7 @@ export default function CombosPage() {
       const providersData = await providersRes.json();
       const settingsData = settingsRes.ok ? await settingsRes.json() : {};
 
-      // Only LLM combos here - webSearch/webFetch combos belong to media-providers/web
+      // Only LLM combos here - media combos are not exposed on this page.
       if (combosRes.ok) setCombos((combosData.combos || []).filter(c => !c.kind || c.kind === "llm"));
       if (providersRes.ok) {
         setActiveProviders((providersData.connections || []).filter((c) => c.isActive !== false));
@@ -867,9 +867,9 @@ function ComboCard({ combo, getCaps, comboByName = {}, activeProviders = [], cop
                     <span className="inline-flex items-center gap-1">
                       <Badge variant="error" size="sm" dot>{routerStatus.label}</Badge>
                       <Link
-                        href={`/dashboard/media-providers/systemone/${routerStatus.providerId}`}
+                        href={`/dashboard/providers/${routerStatus.providerId}`}
                         className="text-[10px] text-primary hover:underline font-medium"
-                        title="Configure in Media Providers"
+                        title="Configure in Providers"
                       >
                         Configure
                       </Link>

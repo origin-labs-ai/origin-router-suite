@@ -29,6 +29,11 @@ import BulkImportGrokCliModal from "./BulkImportGrokCliModal";
 import CustomConfigCard from "./CustomConfigCard";
 import AutoPingScheduleModal from "./AutoPingScheduleModal";
 import WebLoginButton, { WEB_LOGIN_PROVIDERS } from "../components/WebLoginButton.js";
+import { KIND_EXAMPLE_CONFIG } from "./components/exampleShared";
+import { EmbeddingExampleCard } from "./components/EmbeddingExampleCard";
+import { TtsExampleCard } from "./components/TtsExampleCard";
+import { GenericExampleCard } from "./components/GenericExampleCard";
+import { SttExampleCard } from "./components/SttExampleCard";
 import MinimaxLeaseButton from "../components/MinimaxLeaseButton.js";
 import { getScheduleSlotLabels } from "@/shared/services/quotaPingSchedule";
 
@@ -177,6 +182,10 @@ export default function ProviderDetailPage() {
   const supportsApiKeyAuth = !!APIKEY_PROVIDERS[providerId] || authModes.includes("apikey");
   const isFreeNoAuth = !!FREE_PROVIDERS[providerId]?.noAuth;
   const staticModels = getModelsByProviderId(providerId);
+  // Media kinds this provider serves (everything except plain chat). They used
+  // to live on their own /dashboard/media-providers pages; the example/test
+  // panels now render here so one detail page covers every provider.
+  const mediaKinds = (providerInfo?.serviceKinds ?? []).filter((k) => k !== "llm");
   const models = (providerId === "cursor" || providerId === "zed") && liveModels.length > 0
     ? liveModels
     : staticModels;
@@ -1207,7 +1216,8 @@ export default function ProviderDetailPage() {
       );
     }
     // Combine hardcoded models with Kilo free models (deduplicated)
-    // Exclude non-llm models (embedding, tts, etc.) — they have dedicated pages under media-providers
+    // Exclude non-llm models (embedding, tts, ...): they are not chat models, and
+    // their test panels render below this card.
     const allModels = [
       ...models,
       ...kiloFreeModels.filter((fm) => !models.some((m) => m.id === fm.id)),
@@ -1874,6 +1884,18 @@ export default function ProviderDetailPage() {
         )}
         {renderModelsSection()}
       </Card>
+
+      {/* Media capabilities — the panels that used to live on the removed
+          /dashboard/media-providers/<kind>/<id> page. */}
+      {!providerNode && mediaKinds.map((kind) => {
+        if (kind === "embedding") return <EmbeddingExampleCard key={kind} providerId={providerId} />;
+        if (kind === "tts") return <TtsExampleCard key={kind} providerId={providerId} />;
+        if (kind === "stt") return <SttExampleCard key={kind} providerId={providerId} />;
+        if (KIND_EXAMPLE_CONFIG[kind]) {
+          return <GenericExampleCard key={kind} providerId={providerId} kind={kind} />;
+        }
+        return null;
+      })}
 
       {bulkActionModal}
 

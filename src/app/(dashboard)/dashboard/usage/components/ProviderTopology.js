@@ -12,7 +12,7 @@ import {
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { AI_PROVIDERS } from "@/shared/constants/providers";
-import { getProviderIconSrc, markProviderIconMissing } from "@/shared/utils/providerIcon";
+import { getProviderIconSrc } from "@/shared/utils/providerIcon";
 import { providerGlyph } from "@/shared/utils/providerGlyph";
 
 // Force-stop FE animation if a provider stays active longer than this
@@ -62,8 +62,6 @@ function ProviderNode({ data }) {
             loading="lazy"
             decoding="async"
             onError={() => {
-              const m = imageUrl?.match(/^\/providers\/([^/]+)\.png$/i);
-              if (m) markProviderIconMissing(m[1]);
               setImgError(true);
             }}
           />

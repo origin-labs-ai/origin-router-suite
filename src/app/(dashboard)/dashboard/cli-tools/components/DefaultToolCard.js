@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Card, ModelSelectModal } from "@/shared/components";
-import { getProviderIconSrc, markProviderIconMissing } from "@/shared/utils/providerIcon";
+import { getProviderIconSrc } from "@/shared/utils/providerIcon";
 import { useCopyToClipboard } from "@/shared/hooks/useCopyToClipboard";
 import Image from "next/image";
 import ApiKeySelect from "./ApiKeySelect";
@@ -239,7 +239,6 @@ export default function DefaultToolCard({ toolId, tool, isExpanded, onToggle, ba
         className="size-8 object-contain rounded-lg"
         sizes="32px"
         onError={(e) => {
-          markProviderIconMissing(toolId);
           e.target.style.display = "none";
         }}
       loading="lazy"

@@ -44,20 +44,30 @@ jobs:
 
       # Root deps first (the suite imports open-sse/ and src/ from the repo root),
       # then the tests/ package. `npm install` not `npm ci`: there is no committed
-      # lockfile (see .gitignore). `--no-package-lock` keeps the run honest about
-      # that too - without it npm WRITES a package-lock.json here, and that fresh
-      # root lockfile is what made the nested `--prefix tests` install below
-      # crash inside arborist ("Cannot read properties of null (reading
-      # 'edgesOut')"), which is how this job died after setup-node was fixed.
+      # lockfile (see .gitignore), and `--no-package-lock` keeps the installed
+      # tree lockfile-free too, so nothing here pins a dependency graph the repo
+      # has explicitly decided not to pin.
       - name: Install dependencies
         run: npm install --no-audit --no-fund --no-package-lock
 
       # `working-directory` instead of `npm --prefix tests`: the cwd form is the
-      # documented way (CLAUDE.md: `cd tests && npm install`) and does not go
-      # through the prefix path that npm handles poorly for a nested package.
+      # documented way (CLAUDE.md: `cd tests && npm install`).
+      #
+      # `--legacy-peer-deps` is load-bearing here, not a preference. npm 10 (what
+      # node 22 ships) crashes while resolving vitest 4's peer graph:
+      #
+      #   TypeError: Cannot read properties of null (reading 'edgesOut')
+      #     at @npmcli/arborist lib/arborist/build-ideal-tree.js #loadPeerSet
+      #
+      # Newer npm (11/12) walks that graph fine, which is why a local install on
+      # node 24 never showed it. The flag skips the peer-set walk - the exact
+      # code path that throws - and this package is test-only (vitest + lowdb,
+      # unit tests only, no browser mode), so there is no peer it needs to
+      # satisfy. Verified on npm 10.9.10: install succeeds and `npm test` passes
+      # 4751/4751.
       - name: Install test dependencies
         working-directory: tests
-        run: npm install --no-audit --no-fund --no-package-lock
+        run: npm install --no-audit --no-fund --no-package-lock --legacy-peer-deps
 
       - name: Run test suite
         run: npm test

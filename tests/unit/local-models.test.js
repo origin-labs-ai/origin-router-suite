@@ -389,7 +389,12 @@ describe("download jobs", () => {
     // spawn got the command as an ARGV ARRAY — never a shell string.
     expect(spawnMock).toHaveBeenCalledTimes(1);
     const [cmd, args] = spawnMock.mock.calls[0];
-    expect(cmd).toBe("ollama.exe"); // win32 test host prefers the .exe
+    // The command name is platform-dependent by design: on win32 the npm/shim
+    // installers expose ollama.cmd, and a shell-free spawn needs the .exe; on
+    // POSIX it is the plain binary. Assert what the platform should produce
+    // instead of pinning the Windows spelling (this broke the ubuntu CI job).
+    const expectedCmd = process.platform === "win32" ? "ollama.exe" : "ollama";
+    expect(cmd).toBe(expectedCmd);
     expect(args).toEqual(["pull", "qwen2.5-coder:7b"]);
 
     const running = downloads.listDownloads().find((j) => j.id === job.id);

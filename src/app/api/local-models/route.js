@@ -26,7 +26,7 @@ import {
 import {
   startLlamaServer, stopLlamaServer, listLlamaServers, chatWithLlamaServer,
 } from "@/lib/localModels/llamaServer.js";
-import { getSettings } from "@/lib/db/repos/settingsRepo.js";
+import { getSettings, updateSettings } from "@/lib/db/repos/settingsRepo.js";
 
 export const dynamic = "force-dynamic";
 
@@ -75,6 +75,10 @@ export async function GET() {
       downloads,
       llamaServers,
       modelsDir: settings?.localModels?.dir || "",
+      // The settings card on the page edits exactly these; the HF token is
+      // reported as a boolean because the value itself never leaves the server.
+      localModels: settings?.localModels || {},
+      hasHuggingfaceToken: Boolean(settings?.huggingfaceToken),
     });
   } catch (error) {
     console.log("Error reading local models state:", error);
@@ -135,6 +139,64 @@ export async function POST(request) {
         return NextResponse.json({ ok: true });
       }
 
+      // Settings card on the page. Only the keys the card owns are written, and
+      // every value is validated before it reaches the settings store: a bad
+      // port or context size must fail here, not at llama-server launch time.
+      // SECURITY: binaryPath is an admin-controlled executable location. It is
+      // never shell-expanded (spawn is argv + shell:false) and is accepted only
+      // as an existing absolute file, but it does decide which program the
+      // server runs — treat write access to this setting as code execution.
+      case "save-settings": {
+        const patch = {};
+        const lm = {};
+
+        if (body.dir !== undefined) {
+          if (typeof body.dir !== "string") return NextResponse.json({ error: "dir must be a string" }, { status: 400 });
+          lm.dir = body.dir.trim();
+        }
+        if (body.defaultPort !== undefined && body.defaultPort !== "") {
+          const port = Number(body.defaultPort);
+          if (!Number.isInteger(port) || port < 1 || port > 65535) {
+            return NextResponse.json({ error: "defaultPort must be an integer between 1 and 65535" }, { status: 400 });
+          }
+          lm.defaultPort = port;
+        }
+        if (body.defaultCtxSize !== undefined && body.defaultCtxSize !== "") {
+          const ctx = Number(body.defaultCtxSize);
+          if (!Number.isInteger(ctx) || ctx < 512 || ctx > 1048576) {
+            return NextResponse.json({ error: "defaultCtxSize must be an integer between 512 and 1048576" }, { status: 400 });
+          }
+          lm.defaultCtxSize = ctx;
+        }
+        if (body.defaultGpuLayers !== undefined && body.defaultGpuLayers !== "") {
+          const layers = Number(body.defaultGpuLayers);
+          // -1 = let llama.cpp decide (its own default), 0 = CPU-only, N = offload N.
+          if (!Number.isInteger(layers) || layers < -1 || layers > 999) {
+            return NextResponse.json({ error: "defaultGpuLayers must be -1 (auto) or an integer between 0 and 999" }, { status: 400 });
+          }
+          lm.defaultGpuLayers = layers;
+        }
+        if (body.binaryPath !== undefined) {
+          if (typeof body.binaryPath !== "string") return NextResponse.json({ error: "binaryPath must be a string" }, { status: 400 });
+          const raw = body.binaryPath.trim();
+          if (raw) {
+            const { isAbsolute } = await import("node:path");
+            const { existsSync } = await import("node:fs");
+            if (!isAbsolute(raw)) return NextResponse.json({ error: "binaryPath must be an absolute path" }, { status: 400 });
+            if (!existsSync(raw)) return NextResponse.json({ error: "binaryPath does not exist on this machine" }, { status: 400 });
+          }
+          lm.binaryPath = raw;
+        }
+        patch.localModels = lm;
+        if (body.huggingfaceToken !== undefined) {
+          if (typeof body.huggingfaceToken !== "string") return NextResponse.json({ error: "huggingfaceToken must be a string" }, { status: 400 });
+          patch.huggingfaceToken = body.huggingfaceToken.trim();
+        }
+
+        const next = await updateSettings(patch);
+        return NextResponse.json({ ok: true, localModels: next?.localModels || {} });
+      }
+
       // Search endpoint piggybacks on POST because it carries a query body;
       // GET stays a single atomic snapshot of page state.
       case "search": {
@@ -149,10 +211,19 @@ export async function POST(request) {
       // has loaded. Every failure is a { ok:false, error } result — surfaced
       // as 400 with the human message (missing binary, bad path, busy port).
       case "serve": {
+        // Port, context size and the binary location all default to the values
+        // saved on this page, so "Serve" works without re-typing settings.
+        const settings = await getSettings().catch(() => ({}));
+        const saved = settings?.localModels || {};
+        // -1 is the "let llama.cpp decide" sentinel: it must reach the launcher
+        // as undefined, not as a layer count.
+        const savedGpuLayers = Number(saved.defaultGpuLayers);
         startLlamaServer({
           modelPath: body.modelPath,
-          port: body.port,
-          ctxSize: body.ctxSize,
+          port: body.port ?? saved.defaultPort,
+          ctxSize: body.ctxSize ?? saved.defaultCtxSize,
+          gpuLayers: body.gpuLayers ?? (Number.isInteger(savedGpuLayers) && savedGpuLayers >= 0 ? savedGpuLayers : undefined),
+          binaryPath: saved.binaryPath || undefined,
           name: body.name,
           // host is intentionally NOT forwarded: the launcher is hard-bound to
           // 127.0.0.1 and request input must never be able to change that.

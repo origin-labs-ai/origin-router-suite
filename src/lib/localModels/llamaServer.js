@@ -106,6 +106,20 @@ function sanitizeCtx(ctxSize) {
   return n;
 }
 
+// GPU offload depth. 0 means "run on CPU" and is a valid, deliberate choice, so
+// it must not be confused with "unset" (unset falls back to the saved default).
+const MIN_GPU_LAYERS = 0;
+const MAX_GPU_LAYERS = 999;
+
+function sanitizeGpuLayers(gpuLayers) {
+  if (gpuLayers === undefined || gpuLayers === null || gpuLayers === "") return null;
+  const n = Number(gpuLayers);
+  if (!Number.isInteger(n) || n < MIN_GPU_LAYERS || n > MAX_GPU_LAYERS) {
+    throw new Error(`GPU layers must be an integer between ${MIN_GPU_LAYERS} and ${MAX_GPU_LAYERS}`);
+  }
+  return n;
+}
+
 // Refuse anything but loopback. The parameter exists so a caller cannot silently
 // widen the exposure — the only valid value is the constant.
 function assertLoopbackHost(host) {
@@ -196,6 +210,20 @@ export function resolveLlamaServerBinary() {
   return findLlamaServerBinary();
 }
 
+// The owner can pin a specific llama-server in the Local Models settings card.
+// Accepted only when it is an absolute path to a file that exists; spawn is
+// still argv + shell:false, so nothing here is ever shell-expanded.
+function resolveConfiguredBinary(binaryPath) {
+  if (typeof binaryPath !== "string" || !binaryPath.trim()) return null;
+  try {
+    const candidate = path.resolve(binaryPath.trim());
+    if (!path.isAbsolute(candidate)) return null;
+    return fs.statSync(candidate).isFile() ? candidate : null;
+  } catch {
+    return null;
+  }
+}
+
 // Log destination: <DATA_DIR>/logs/llama-server-<port>.log. Appended per launch
 // with a banner, so repeated runs on the same port keep their history.
 function openLogFile(port, argv) {
@@ -245,12 +273,14 @@ async function waitForHealth(server) {
 }
 
 // Start a llama-server for one GGUF. Never throws — see the module header.
-//   { modelPath, port = 8080, ctxSize = 4096, host }  (host must be 127.0.0.1)
-export async function startLlamaServer({ modelPath, port, ctxSize, host, name } = {}) {
+//   { modelPath, port = 8080, ctxSize = 4096, host, binaryPath, gpuLayers }
+// port/ctxSize/gpuLayers default to the values saved on the Local Models page;
+// binaryPath (optional) overrides PATH discovery with a pinned executable.
+export async function startLlamaServer({ modelPath, port, ctxSize, host, name, binaryPath, gpuLayers } = {}) {
   try {
     // 1. Binary. Without it nothing else matters — the message doubles as the
     //    download hint the UI shows.
-    const binary = resolveLlamaServerBinary();
+    const binary = resolveConfiguredBinary(binaryPath) || resolveLlamaServerBinary();
     if (!binary) {
       return {
         ok: false,
@@ -263,6 +293,7 @@ export async function startLlamaServer({ modelPath, port, ctxSize, host, name } 
     assertLoopbackHost(host);
     const safePort = sanitizePort(port);
     const safeCtx = sanitizeCtx(ctxSize);
+    const safeGpuLayers = sanitizeGpuLayers(gpuLayers);
     const safeModelPath = assertServeModelPath(modelPath);
 
     if ([...servers.values()].some((s) => !isTerminal(s) && s.port === safePort)) {
@@ -278,6 +309,9 @@ export async function startLlamaServer({ modelPath, port, ctxSize, host, name } 
       "--port", String(safePort),
       "-c", String(safeCtx),
     ];
+    // Only pass the flag when the owner set it: llama.cpp's own default (all
+    // layers on GPU when it can) is the right answer when nothing is configured.
+    if (safeGpuLayers !== null) argv.push("--n-gpu-layers", String(safeGpuLayers));
 
     const { logFile, stream } = openLogFile(safePort, argv);
 
@@ -306,6 +340,7 @@ export async function startLlamaServer({ modelPath, port, ctxSize, host, name } 
       port: safePort,
       host: LLAMA_BIND_HOST,
       ctxSize: safeCtx,
+      gpuLayers: safeGpuLayers,
       status: "starting",
       error: null,
       child,

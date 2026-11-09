@@ -195,10 +195,14 @@ describe("WindsurfExecutor class", () => {
     expect(ex.buildUrl()).toBe(WS_CHAT_URL);
   });
 
-  // 8e04fe17 hid windsurf from the registry index (no tool calling), so PROVIDERS has no
-  // entry; the registry file and the executor fallback must still agree.
+  // windsurf is enabled in the registry again (chat works; the gRPC stream just
+  // carries no tool-call chunks), so the invariant this test guards is now the
+  // stronger one: the registry entry EXISTS and agrees with the executor's own
+  // fallback on the chat endpoint.
   it("registry entry and executor fallback use the same chat endpoint (registry in sync)", () => {
-    expect(PROVIDERS.windsurf).toBeUndefined();
+    expect(PROVIDERS.windsurf).toBeTruthy();
+    // PROVIDERS is the flattened runtime shape: transport fields sit on the entry.
+    expect(PROVIDERS.windsurf.baseUrl).toBe(WS_CHAT_URL);
     expect(windsurfRegistry.transport.baseUrl).toBe(WS_CHAT_URL);
   });
 });

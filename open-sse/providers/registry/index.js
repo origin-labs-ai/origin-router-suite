@@ -104,9 +104,11 @@ import p97 from "./xiaomi-tokenplan.js";
 import p98 from "./youcom.js";
 import p99 from "./alims-intl.js";
 import p100 from "./codebuddy-intl.js";
-// Temporarily hidden — no tool calling support (trae SOLO agent / windsurf gRPC skip ToolCallChunk).
-// Re-enable by uncommenting both the import and the array entry below.
-// import p102 from "./trae.js";
+// trae and windsurf are enabled even though neither stream carries tool-call
+// chunks (Trae SOLO agent and the Windsurf gRPC stream both skip ToolCallChunk).
+// Chat through them works; agents that need tool calls will not. devin-cli stays
+// hidden below: it spawns a local agent with shell and filesystem access.
+import p102 from "./trae.js";
 import p103 from "./zed.js";
 import p105 from "./api-airforce.js";
 import p106 from "./baidu.js";
@@ -118,7 +120,7 @@ import p111 from "./sambanova.js";
 import p112 from "./tencent.js";
 import p113 from "./morph.js";
 // import p114 from "./devin-cli.js";
-// import p104 from "./windsurf.js";
+import p104 from "./windsurf.js";
 import p115 from "./poolside.js";
 import p116 from "./tokenrouter.js";
 import p117 from "./selfhosted-stt.js";
@@ -253,7 +255,7 @@ export default [
   p98,
   p99,
   p100,
-  // p102, // trae — hidden, no tool calling
+  p102, // trae — enabled: chat works, tool-call chunks are not emitted by the SOLO stream
   p103,
   p105,
   p106,
@@ -265,7 +267,7 @@ export default [
   p112,
   p113,
   // p114, // devin-cli — hidden, spawns local agent with shell/fs access
-  // p104, // windsurf — hidden, no tool calling
+  p104, // windsurf — enabled: chat works, gRPC stream carries no tool-call chunks
   p115,
   p116,
   p117,

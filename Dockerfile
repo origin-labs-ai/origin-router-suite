@@ -20,7 +20,12 @@ ARG NPM_REGISTRY
 RUN apk add --no-cache python3 make g++ linux-headers
 
 COPY package.json ./
-RUN --mount=type=cache,target=/root/.npm \
+# sharing=locked serialises this mount across concurrent builds. The release
+# builds amd64 and arm64 at the same time, and with the default (shared) mount
+# both builders write npm cacache temp files into the same directory - the
+# loser dies with "EEXIST: file already exists, open /root/.npm/_cacache/tmp/..."
+# on a perfectly healthy dependency tree.
+RUN --mount=type=cache,target=/root/.npm,sharing=locked \
     npm install \
       --registry="${NPM_REGISTRY}" \
       --fetch-retries=5 \
@@ -39,7 +44,7 @@ RUN npm run build
 # them, so OpenCode Free fails with HTTP 502 ("resolve is undefined").
 # Install them (with their native bindings/transitive deps) in an isolated dir
 # so the runner stage can copy them into /app/node_modules.
-RUN --mount=type=cache,target=/root/.npm \
+RUN --mount=type=cache,target=/root/.npm,sharing=locked \
     mkdir -p /opt/lazy-runtime && cd /opt/lazy-runtime && \
     npm init -y >/dev/null && \
     npm install --no-save \

@@ -1,4 +1,4 @@
-# v0.6.000 (unreleased)
+# v0.6.000 (2026-11-09)
 
 The 0.6 line: 24 routing strategies, a conversation fold layer, 140+ providers, and the router can hold a key back.
 
@@ -38,6 +38,17 @@ The 0.6 line: 24 routing strategies, a conversation fold layer, 140+ providers, 
 - **The installer added the install folder to the user PATH again on every update**, so a machine that was updated a few times carried a dozen copies of the same entry. The PATH is now rewritten with exactly one copy, and the existing copies are cleaned up on the next install.
 - **The install scripts could not install anything when npm was unreachable.** `install.ps1` fell back to a release lookup against the retired repository name, so the fallback was a 404. Both scripts now use the current repository, verify the SHA256 before they run anything, and `install.sh` falls back to the portable build when npm is not there at all.
 - **The README described a startup entry that does not exist.** The installer writes a registry Run key, not a `.vbs` file in the startup folder. The README now says what actually happens.
+- **Provider icons 404'd for every SVG/ICO provider.** Icon resolution guessed `.png` for all of them, so a provider whose logo shipped as `.svg` or `.ico` (aimlapi, zenmux, lambda, …) fell back to a letter glyph even though its logo was on disk. A generated manifest (`npm run gen:icons`, wired into `predev`/`prebuild`) now maps 277 ids to the format that actually exists, and the component only walks the extension ladder for ids the manifest has never seen.
+- **The setup wizard never closed.** `Finish` skipped stamping `onboardingComplete` whenever a migration had run, so the dashboard immediately redirected back into the wizard — the popup that would not close. `/api/migrations` takes `complete: true` to stamp the flag without re-running an import, and the dashboard reads the flag per request (`force-dynamic`) instead of pinning a build-time decision.
+- **`Next` was a silent no-op on steps that carry a choice.** It now stays disabled with "Select an option to continue." until the step is actually answered; `Skip this step` and `Skip setup` still work everywhere.
+- **Every popup sat inside a hover transform.** A transform makes the card the containing block for its fixed descendants, so menus and popovers slid with the card's 2px hover lift and jumped back when the cursor left. Cards now opt out of the lift while they hold an open popup, and tooltips re-measure after layout settles instead of freezing coordinates captured mid-transition.
+- **The test workflow was red for every run.** `cache: npm` needs a lockfile this repo deliberately does not commit; with that fixed the job then hit npm 10's arborist crash on vitest 4's peer graph, and finally five tests that assumed a Windows host (plus a missing `ffmpeg`). All four layers are fixed and the ubuntu job is green.
+- **Hidden providers.** `hidden: true` never removed a provider from the routing table — it only hid the card — and `trae`/`windsurf`/`devin-cli` were removed from the registry index entirely. Ten were un-hidden (bluesminds, sambanova, mmf, iflow, gitlab, mimo-free, cartesia, coqui, playht, tortoise, plus the TTS shelf on the media lists); `trae` and `windsurf` are enabled; `devin-cli` stays behind an explicit opt-in switch because its executor spawns a local agent with shell access, and `/v1` refuses it with `403 local_executor_disabled` while the switch is off.
+- **Skills showed the literal string `>-`.** Folded YAML frontmatter (`description: >-`) was parsed as the marker itself, so the Skills cards and the injected system prompt carried `>-` instead of the description. Folded and literal block scalars parse now, and the prompt block leads each line with the skill's invocable command.
+
+## Changed
+- **Media Providers is gone as a section.** It was a second navigation tree — sidebar accordion, a listing page per kind, a per-provider detail route — for providers that are, in the end, just providers. The Providers page now renders one section per media kind (embedding, text to image, image to text, TTS, STT, web search, web fetch, video, system one) with its count and `/v1` endpoint, cards open the same provider page as everything else, and the per-kind example/test panels moved onto that page so nothing was lost. The `/api/media-providers/*` endpoints stay — `/v1/audio/voices` proxies them.
+- **The wizard's close control is the macOS traffic light** shared with every modal: a red dot that shows its cross on hover, then two ring-only dots. The Settings page gained a **Setup wizard** card so the flow can be re-run on demand.
 
 # v0.5.117 (2026-11-06)
 

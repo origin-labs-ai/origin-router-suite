@@ -37,6 +37,7 @@ import { updateProviderCredentials, checkAndRefreshToken } from "../services/tok
 import { getProjectIdForConnection } from "open-sse/services/projectId.js";
 import { stripModelContextMarker } from "open-sse/utils/modelMarkers.js";
 import { getKeyAccessContext, enforceKeyAccess, filterAdapterModels } from "../services/keyAccess.js";
+import { localExecutorDeniedResponse, isLocalExecutorBlocked } from "../services/localExecutorGate.js";
 
 // Sent by the dashboard's model test (/api/models/test). It means "answer
 // honestly: did THIS provider serve THIS model id?". The promise that a client
@@ -152,6 +153,13 @@ export async function handleChat(request, clientRawRequest = null, options = {})
   const keyAccessDenied = await enforceKeyAccess(keyAccess, modelStr);
   if (keyAccessDenied) return keyAccessDenied;
 
+  // Local-executor providers run a program on THIS machine (devin-cli). They are
+  // opt-in: while the switch is off the route is refused here, before bypass,
+  // combo expansion or any credential lookup — so an old combo, an alias or a
+  // direct API call cannot reach it just because the card is hidden.
+  const localExecutorDenied = localExecutorDeniedResponse(settings, modelStr);
+  if (localExecutorDenied) return localExecutorDenied;
+
   // Bypass naming/warmup requests before combo rotation to avoid wasting rotation slots
   const userAgent = request?.headers?.get("user-agent") || "";
   const bypassResponse = handleBypassRequest(body, modelStr, userAgent, !!settings.ccFilterNaming);
@@ -159,8 +167,14 @@ export async function handleChat(request, clientRawRequest = null, options = {})
 
   const requiredCapabilities = detectRequiredCapabilities(body);
 
-  // Check if model is a combo (has multiple models with fallback)
-  const comboModels = await getComboModels(modelStr);
+  // Check if model is a combo (has multiple models with fallback). Members whose
+  // local executor is switched off are dropped here, so a combo that still lists
+  // devin-cli keeps working on its other seats instead of failing the turn.
+  const comboModels = await getComboModels(modelStr).then((members) =>
+    Array.isArray(members)
+      ? members.filter((m) => !isLocalExecutorBlocked(settings, m))
+      : members,
+  );
   if (comboModels) {
     // Check for combo-specific strategy first, fallback to global. Legacy and
     // alternate names normalize through the strategy registry (24 strategies

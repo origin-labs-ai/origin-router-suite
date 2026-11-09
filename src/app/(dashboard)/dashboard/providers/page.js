@@ -12,6 +12,11 @@ import {
 import ProviderIcon from "@/shared/components/ProviderIcon";
 import Portal from "@/shared/components/Portal";
 import { getProviderIconSrc } from "@/shared/utils/providerIcon";
+import {
+  LOCAL_EXECUTOR_FLAGS,
+  isLocalExecutor,
+  isLocalExecutorEnabled,
+} from "open-sse/config/localExecutors.js";
 import { OAUTH_PROVIDERS, APIKEY_PROVIDERS } from "@/shared/constants/config";
 import {
   FREE_PROVIDERS,
@@ -109,6 +114,11 @@ export default function ProvidersPage() {
   const [testingMode, setTestingMode] = useState(null);
   const [testResults, setTestResults] = useState(null);
   const [statusFilter, setStatusFilter] = useState("all");
+  // Opt-in switches for providers whose executor runs a program on this machine.
+  // The card is hidden and /v1 refuses the route until the matching flag is true
+  // (open-sse/config/localExecutors.js owns the list).
+  const [localExecutors, setLocalExecutors] = useState({ devinCli: false });
+  const [savingLocalExecutor, setSavingLocalExecutor] = useState(false);
   const notify = useNotificationStore();
   const searchQuery = useHeaderSearchStore((s) => s.query);
   const registerSearch = useHeaderSearchStore((s) => s.register);
@@ -123,6 +133,38 @@ export default function ProvidersPage() {
     if (!searchQuery.trim()) return true;
     if (!name) return false;
     return name.toLowerCase().includes(searchQuery.trim().toLowerCase());
+  };
+
+  // A provider shows up when the registry does not hide it - or when it is a
+  // local executor the owner explicitly switched on. Everything else in the app
+  // (model pickers, wizard, combos) still reads the registry's `hidden` flag, so
+  // this override is deliberately scoped to this grid.
+  const localExecutorEnabled = (providerId) =>
+    isLocalExecutorEnabled({ localExecutors }, providerId);
+  const providerVisible = (providerId, info) =>
+    !info.hidden || (isLocalExecutor(providerId) && localExecutorEnabled(providerId));
+
+  const saveLocalExecutor = async (flag, next) => {
+    setSavingLocalExecutor(true);
+    // Optimistic: the switch flips now; a failure puts it back.
+    const previous = localExecutors;
+    setLocalExecutors((current) => ({ ...current, [flag]: next }));
+    try {
+      const res = await fetch("/api/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ localExecutors: { [flag]: next } }),
+      });
+      if (!res.ok) {
+        setLocalExecutors(previous);
+        notify.error("Could not save that switch — try again.");
+      }
+    } catch {
+      setLocalExecutors(previous);
+      notify.error("Could not save that switch — try again.");
+    } finally {
+      setSavingLocalExecutor(false);
+    }
   };
 
   const sortByPriority = (entries, authType) =>
@@ -154,15 +196,26 @@ export default function ProvidersPage() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [connectionsRes, nodesRes] = await Promise.all([
+        const [connectionsRes, nodesRes, settingsRes] = await Promise.all([
           fetch("/api/providers"),
           fetch("/api/provider-nodes"),
+          fetch("/api/settings", { cache: "no-store" }),
         ]);
         const connectionsData = await connectionsRes.json();
         const nodesData = await nodesRes.json();
         if (connectionsRes.ok)
           setConnections(connectionsData.connections || []);
         if (nodesRes.ok) setProviderNodes(nodesData.nodes || []);
+        if (settingsRes.ok) {
+          const settingsData = await settingsRes.json();
+          const stored = settingsData?.localExecutors || {};
+          // Only the flags this page knows about, and only strict booleans.
+          setLocalExecutors(
+            Object.fromEntries(
+              Object.values(LOCAL_EXECUTOR_FLAGS).map((flag) => [flag, stored[flag] === true]),
+            ),
+          );
+        }
       } catch (error) {
         console.log("Error fetching data:", error);
       } finally {
@@ -316,7 +369,7 @@ export default function ProvidersPage() {
   const oauthEntries = sortByPriority(
     Object.entries(OAUTH_PROVIDERS).filter(
       ([key, info]) =>
-        !info.hidden &&
+        providerVisible(key, info) &&
         matchSearch(info.name) &&
         matchStatus(getProviderStats(key, dualAuthTypes(info, key)), info.noAuth),
     ),
@@ -325,7 +378,7 @@ export default function ProvidersPage() {
   const freeEntries = Object.entries(FREE_PROVIDERS)
     .filter(
       ([key, info]) =>
-        !info.hidden &&
+        providerVisible(key, info) &&
         matchSearch(info.name) &&
         matchStatus(getProviderStats(key, dualAuthTypes(info, key)), info.noAuth),
     )
@@ -336,7 +389,7 @@ export default function ProvidersPage() {
   const freeTierEntries = Object.entries(FREE_TIER_PROVIDERS)
     .filter(
       ([key, info]) =>
-        !info.hidden &&
+        providerVisible(key, info) &&
         matchSearch(info.name) &&
         (info.serviceKinds ?? ["llm"]).includes("llm") &&
         matchStatus(getProviderStats(key, dualAuthTypes(info, key)), info.noAuth),
@@ -356,7 +409,7 @@ export default function ProvidersPage() {
   const apikeyEntries = Object.entries(APIKEY_PROVIDERS)
     .filter(
       ([key, info]) =>
-        !info.hidden &&
+        providerVisible(key, info) &&
         (info.serviceKinds ?? ["llm"]).includes("llm") &&
         matchSearch(info.name) &&
         matchStatus(getProviderStats(key, "apikey"), info.noAuth),
@@ -379,7 +432,7 @@ export default function ProvidersPage() {
   const webCookieEntries = Object.entries(WEB_COOKIE_PROVIDERS)
     .filter(
       ([key, info]) =>
-        !info.hidden &&
+        providerVisible(key, info) &&
         (info.serviceKinds ?? ["llm"]).includes("llm") &&
         matchSearch(info.name) &&
         matchStatus(getProviderStats(key, "cookie"), info.noAuth),
@@ -655,6 +708,47 @@ export default function ProvidersPage() {
         )}
       </div>
       )}
+
+      {/* Local executor providers — opt-in by design. The card above appears only
+          when its switch is on, and /v1 refuses the route until then. */}
+      <div className="flex flex-col gap-4">
+        <h2 className="text-lg sm:text-xl font-semibold flex items-center gap-2 leading-tight">
+          <span className="material-symbols-outlined text-[20px]">terminal</span>
+          Local executor providers
+        </h2>
+        <Card padding="md">
+          <p className="text-sm text-text-muted">
+            These providers do not call a remote API — they run a program on{" "}
+            <span className="font-medium text-text-main">this machine</span> as your OS user.
+            Off by default: while a switch is off, the card is hidden and{" "}
+            <code className="rounded bg-black/[0.04] px-1 py-0.5 text-xs dark:bg-white/[0.06]">/v1</code>{" "}
+            answers <span className="font-medium text-text-main">403</span>, whatever a client or a saved combo asks for.
+          </p>
+          <div className="mt-4 flex flex-col gap-4">
+            <div className="flex items-start gap-3 rounded-lg border border-amber-500/30 bg-amber-500/5 p-3">
+              <span className="material-symbols-outlined text-[18px] text-amber-500">warning</span>
+              <p className="text-xs leading-5 text-text-muted">
+                <span className="font-semibold text-text-main">Devin CLI</span> is{" "}
+                <code className="rounded bg-black/[0.04] px-1 dark:bg-white/[0.06]">noAuth</code>{" "}
+                and spawns a local agent with shell and filesystem access. Anyone who can reach this
+                dashboard can drive the host through it. Turn it on only on a machine you control,
+                and keep the dashboard on localhost while it is on.
+              </p>
+            </div>
+            <Toggle
+              checked={localExecutors.devinCli === true}
+              onChange={(next) => saveLocalExecutor("devinCli", next)}
+              disabled={savingLocalExecutor}
+              label="Devin CLI (local agent)"
+              description={
+                localExecutors.devinCli === true
+                  ? "On — the card is visible and /v1 accepts devin-cli/*"
+                  : "Off — hidden, and /v1 refuses devin-cli/*"
+              }
+            />
+          </div>
+        </Card>
+      </div>
 
       <AddCompatibleModal
         variant="openai"

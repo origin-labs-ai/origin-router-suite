@@ -57,7 +57,18 @@ export default function LocalModelsClient() {
   // Managed llama.cpp servers (one per served GGUF): id, status, port, modelPath.
   const [llamaServers, setLlamaServers] = useState([]);
 
-  // Search state: `results` rows are source-tagged HF/Ollama entries.
+  // Settings card (f) — persisted server-side in settings.localModels, so the
+  // Serve button, the download destination and the search token all read the
+  // same values this card writes.
+  const [localSettings, setLocalSettings] = useState({
+    dir: "", defaultPort: 8080, defaultCtxSize: 4096, defaultGpuLayers: -1, binaryPath: "",
+  });
+  const [hasHfToken, setHasHfToken] = useState(false);
+  const [hfTokenDraft, setHfTokenDraft] = useState("");
+  const [settingsStatus, setSettingsStatus] = useState(null); // { ok, text }
+  const [savingSettings, setSavingSettings] = useState(false);
+
+  // Search state: `results` rows are source-tagged HF/Ollama/llama.cpp entries.
   const [query, setQuery] = useState("");
   const [searching, setSearching] = useState(false);
   const [searchNotes, setSearchNotes] = useState([]);
@@ -117,6 +128,16 @@ export default function LocalModelsClient() {
       if (Array.isArray(data.registered)) setRegistered(data.registered);
       if (Array.isArray(data.downloads)) setDownloads(data.downloads);
       if (Array.isArray(data.llamaServers)) setLlamaServers(data.llamaServers);
+      if (data.localModels) {
+        setLocalSettings({
+          dir: data.localModels.dir || "",
+          defaultPort: data.localModels.defaultPort ?? 8080,
+          defaultCtxSize: data.localModels.defaultCtxSize ?? 4096,
+          defaultGpuLayers: data.localModels.defaultGpuLayers ?? -1,
+          binaryPath: data.localModels.binaryPath || "",
+        });
+      }
+      setHasHfToken(Boolean(data.hasHuggingfaceToken));
     } catch {
       // Backend briefly unreachable — keep the last good snapshot on screen.
     }
@@ -144,7 +165,7 @@ export default function LocalModelsClient() {
 
   // --- actions (all POST { action, ... } to the same endpoint) ---------------
 
-  // Search both catalogs. Results merge server-side; notes explain any
+  // Search all three catalogs. Results merge server-side; notes explain any
   // fail-open fallback (e.g. "showing curated list").
   const runSearch = async (e) => {
     e?.preventDefault?.();
@@ -166,6 +187,43 @@ export default function LocalModelsClient() {
       setResults([]);
     } finally {
       setSearching(false);
+    }
+  };
+
+  // Persist the settings card. The server validates every field (port range,
+  // context range, binary path) and reports the first failure as the message —
+  // nothing is saved half-way.
+  const saveSettings = async (e) => {
+    e?.preventDefault?.();
+    setSavingSettings(true);
+    setSettingsStatus(null);
+    try {
+      const payload = {
+        action: "save-settings",
+        dir: localSettings.dir,
+        defaultPort: localSettings.defaultPort,
+        defaultCtxSize: localSettings.defaultCtxSize,
+        defaultGpuLayers: localSettings.defaultGpuLayers,
+        binaryPath: localSettings.binaryPath,
+      };
+      if (hfTokenDraft.trim()) payload.huggingfaceToken = hfTokenDraft.trim();
+      const res = await fetch("/api/local-models", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setSettingsStatus({ ok: false, text: data.error || "Could not save settings." });
+        return;
+      }
+      if (hfTokenDraft.trim()) setHasHfToken(true);
+      setHfTokenDraft("");
+      setSettingsStatus({ ok: true, text: "Saved." });
+    } catch {
+      setSettingsStatus({ ok: false, text: "Save request failed — try again." });
+    } finally {
+      setSavingSettings(false);
     }
   };
 
@@ -418,7 +476,7 @@ export default function LocalModelsClient() {
             <Input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search Hugging Face &amp; Ollama library — e.g. qwen2.5-coder"
+              placeholder="Search Hugging Face, the llama.cpp GGUF shelf &amp; the Ollama library — e.g. qwen2.5-coder"
               icon="search"
               className="[&>div]:w-full"
             />
@@ -445,8 +503,11 @@ export default function LocalModelsClient() {
                 <div key={key} className="flex items-center gap-3 py-2.5">
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
-                      <Badge size="sm" variant={row.source === "ollama" ? "primary" : "info"}>
-                        {row.source === "ollama" ? "Ollama" : "Hugging Face"}
+                      <Badge
+                        size="sm"
+                        variant={row.library === "llamacpp" ? "success" : row.source === "ollama" ? "primary" : "info"}
+                      >
+                        {row.library === "llamacpp" ? "llama.cpp" : row.source === "ollama" ? "Ollama" : "Hugging Face"}
                       </Badge>
                       <span className="text-sm font-medium text-text-main truncate">{row.id}</span>
                     </div>
@@ -667,6 +728,75 @@ export default function LocalModelsClient() {
             })}
           </div>
         )}
+      </Card>
+
+      {/* (f) Settings — the knobs every action above reads back: the download
+          destination, the llama-server launch defaults and the optional HF
+          token that lifts anonymous search rate limits. */}
+      <Card
+        title="Settings"
+        subtitle="Where model files land and how llama.cpp is launched"
+        icon="settings"
+        padding="md"
+      >
+        <form onSubmit={saveSettings} className="space-y-3">
+          <Input
+            label="Models folder"
+            value={localSettings.dir}
+            onChange={(e) => setLocalSettings((s) => ({ ...s, dir: e.target.value }))}
+            placeholder="Leave empty for <data>/models"
+            icon="folder"
+            hint="Download destination for streamed GGUF files."
+          />
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <Input
+              label="Default server port"
+              type="number"
+              value={localSettings.defaultPort}
+              onChange={(e) => setLocalSettings((s) => ({ ...s, defaultPort: e.target.value }))}
+              hint="Used when Serve launches llama-server (1–65535)."
+            />
+            <Input
+              label="Default context size"
+              type="number"
+              value={localSettings.defaultCtxSize}
+              onChange={(e) => setLocalSettings((s) => ({ ...s, defaultCtxSize: e.target.value }))}
+              hint="-c passed to llama-server (512–1048576)."
+            />
+            <Input
+              label="GPU layers"
+              type="number"
+              value={localSettings.defaultGpuLayers}
+              onChange={(e) => setLocalSettings((s) => ({ ...s, defaultGpuLayers: e.target.value }))}
+              hint="--n-gpu-layers. -1 = let llama.cpp decide, 0 = CPU only."
+            />
+          </div>
+          <Input
+            label="llama-server binary (optional)"
+            value={localSettings.binaryPath}
+            onChange={(e) => setLocalSettings((s) => ({ ...s, binaryPath: e.target.value }))}
+            placeholder="C:\tools\llama.cpp\llama-server.exe"
+            icon="terminal"
+            hint="Absolute path; overrides PATH and ~/.or/bin discovery. Leave empty to auto-detect."
+          />
+          <Input
+            label={hasHfToken ? "Hugging Face token (saved — enter a new one to replace)" : "Hugging Face token (optional)"}
+            type="password"
+            value={hfTokenDraft}
+            onChange={(e) => setHfTokenDraft(e.target.value)}
+            placeholder={hasHfToken ? "••••••••" : "hf_..."}
+            icon="key"
+            hint="Only lifts anonymous search rate limits. Stored server-side; never sent back to this page."
+          />
+          {settingsStatus && (
+            <p className={`text-sm ${settingsStatus.ok ? "text-green-600" : "text-red-500"}`}>
+              {settingsStatus.text}
+            </p>
+          )}
+          <div className="flex justify-end">
+            <Button type="submit" loading={savingSettings}>Save settings</Button>
+          </div>
+        </form>
       </Card>
 
       {/* (c) "+ Add model file" modal */}

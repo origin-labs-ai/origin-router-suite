@@ -240,11 +240,15 @@ describe("search normalization", () => {
     }
   });
 
-  it("merges both sources with tags in searchLocal", async () => {
+  it("merges all three sources with tags in searchLocal", async () => {
     let call = 0;
+    const urls = [];
     vi.stubGlobal("fetch", vi.fn(async (url) => {
       call += 1;
+      urls.push(String(url));
       if (String(url).includes("huggingface.co")) {
+        // The gguf shelf returns the same repo the plain search does, so the
+        // dedupe (one row per source:id) is exercised too.
         return new Response(JSON.stringify([{ id: "owner/repo-gguf", downloads: 5, likes: 1 }]), { status: 200 });
       }
       return new Response('<a href="/library/qwen2.5">Qwen 2.5</a><p>Qwen general models.</p>', { status: 200 });
@@ -255,9 +259,22 @@ describe("search normalization", () => {
     const sources = out.results.map((r) => r.source);
     expect(sources).toContain("huggingface");
     expect(sources).toContain("ollama");
-    // Every row keeps its source tag.
+    // Every row keeps a source tag the download path understands.
     for (const row of out.results) expect(["huggingface", "ollama"]).toContain(row.source);
-    expect(call).toBe(2); // exactly one request per source
+    // The llama.cpp shelf rides the HF host with the gguf filter, and its rows
+    // are tagged library:"llamacpp" so the UI can badge them apart.
+    expect(urls.some((u) => u.includes("filter=gguf"))).toBe(true);
+    expect(call).toBe(3); // exactly one request per source
+  });
+
+  it("the llama.cpp shelf only returns gguf-tagged rows", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(
+      JSON.stringify([{ id: "owner/qwen-gguf", downloads: 9, likes: 2 }]),
+      { status: 200 },
+    )));
+    const out = await search.searchLlamaCppLibrary("qwen");
+    expect(out.results).toHaveLength(1);
+    expect(out.results[0]).toMatchObject({ library: "llamacpp", format: "gguf", source: "huggingface" });
   });
 });
 

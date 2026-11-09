@@ -91,7 +91,7 @@ const DEFAULT_SETTINGS = {
   // Local Models page + its wizard step: whether the owner intends to download
   // local models at all, and where downloaded model files are saved. Empty dir
   // means the default <data>/models.
-  localModels: { wantDownload: false, dir: "" },
+  localModels: { wantDownload: false, dir: "", defaultCtxSize: 4096, defaultPort: 8080, defaultGpuLayers: -1, binaryPath: "" },
   // Skills page catalog source (src/lib/skillsPipeline/). `kind` is the source
   // the page loads first (the UI toggle also remembers the user's last pick in
   // localStorage on top of this); `github` names the repo the cloud catalog is

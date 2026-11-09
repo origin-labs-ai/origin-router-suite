@@ -1,7 +1,9 @@
 // Local model search — find models the user can pull onto their machine.
 //
-// Two upstream catalogs are searched:
+// Three upstream catalogs are searched:
 //   • Hugging Face  — official JSON API (https://huggingface.co/api/models)
+//   • llama.cpp     — the same API narrowed to the gguf shelf, because llama.cpp
+//                     loads GGUF and nothing else (see searchLlamaCppLibrary)
 //   • Ollama        — the public library page (https://ollama.com/library),
 //                     parsed lightly from HTML because Ollama ships no
 //                     official search API.
@@ -113,6 +115,65 @@ export async function searchHuggingFace(query, { limit = 20 } = {}) {
   }
 }
 
+// Search llama.cpp's model shelf. llama.cpp loads GGUF only, so "search the
+// llama.cpp library" is the Hugging Face catalog narrowed to the gguf filter,
+// ranked by downloads. Rows keep source:"huggingface" on purpose: the existing
+// GGUF download stream (and its host allowlist) then applies unchanged, and
+// `library:"llamacpp"` is the tag the UI badges and filters on.
+export async function searchLlamaCppLibrary(query, { limit = 20 } = {}) {
+  const source = "llamacpp";
+  try {
+    const q = typeof query === "string" ? query.trim() : "";
+    if (!q) return { source, results: [], note: null };
+
+    const capped = Math.max(1, Math.min(Number(limit) || 20, MAX_RESULTS));
+    const url = new URL("https://huggingface.co/api/models");
+    url.searchParams.set("search", q);
+    url.searchParams.set("filter", "gguf");
+    url.searchParams.set("sort", "downloads");
+    url.searchParams.set("direction", "-1");
+    url.searchParams.set("limit", String(capped));
+
+    if (!parseAllowedUrl(url.toString(), HF_ALLOWED_HOSTS)) {
+      return { source, results: [], note: "Blocked non-HTTPS or non-Hugging Face request." };
+    }
+
+    const headers = { Accept: "application/json" };
+    const token = await readHfToken();
+    if (token) headers.Authorization = `Bearer ${token}`;
+
+    const res = await fetchPublic(url.toString(), { headers });
+    if (!res.ok) {
+      return { source, results: [], note: `llama.cpp library responded ${res.status}.` };
+    }
+    const rows = await res.json();
+    if (!Array.isArray(rows)) {
+      return { source, results: [], note: "Unexpected llama.cpp library response shape." };
+    }
+
+    return {
+      source,
+      results: rows
+        .slice(0, capped)
+        .map((row) => ({
+          source: "huggingface",
+          library: "llamacpp",
+          format: "gguf",
+          id: typeof row?.id === "string" ? row.id : "",
+          author: typeof row?.author === "string" ? row.author : null,
+          downloads: Number.isFinite(Number(row?.downloads)) ? Number(row.downloads) : 0,
+          likes: Number.isFinite(Number(row?.likes)) ? Number(row.likes) : 0,
+          pipelineTag: "text-generation",
+          lastModified: typeof row?.lastModified === "string" ? row.lastModified : null,
+          tags: Array.isArray(row?.tags) ? row.tags.filter((t) => typeof t === "string").slice(0, 8) : [],
+        }))
+        .filter((row) => row.id),
+    };
+  } catch (err) {
+    return { source, results: [], note: `llama.cpp library search failed: ${err?.message || err}` };
+  }
+}
+
 // Curated fallback: the well-known Ollama families, used whenever the library
 // page cannot be fetched or parsed. Hard-coded, so this path never touches the
 // network and can never break because the page markup changed.
@@ -205,28 +266,38 @@ function curatedRows(curated, q, capped) {
   return filtered.slice(0, capped);
 }
 
-// Unified search: ask both catalogs concurrently and interleave their rows,
-// keeping each row tagged with its source so the UI can badge them. One
-// catalog failing costs only its own half of the results. Rows are ordered
+// Unified search: ask all three catalogs concurrently and interleave their
+// rows, keeping each row tagged with its source so the UI can badge them. One
+// catalog failing costs only its own third of the results. Rows are ordered
 // best-first within each source (HF: downloads, already ranked by the API;
-// Ollama: page order), interleaved so neither source drowns the other out.
+// llama.cpp: the same API narrowed to gguf; Ollama: page order), interleaved so
+// no single source drowns the others out.
 export async function searchLocal(query, { limit = 20 } = {}) {
-  const [hf, ollama] = await Promise.all([
+  const [hf, llama, ollama] = await Promise.all([
     searchHuggingFace(query, { limit }),
+    searchLlamaCppLibrary(query, { limit }),
     searchOllamaLibrary(query, { limit }),
   ]);
 
-  // Round-robin merge: hf[0], ollama[0], hf[1], ollama[1], ... — up to `limit`.
+  // Round-robin merge: hf[0], llama[0], ollama[0], hf[1], llama[1], ...
   const merged = [];
-  const max = Math.max(hf.results.length, ollama.results.length);
+  const seen = new Set();
+  const max = Math.max(hf.results.length, llama.results.length, ollama.results.length);
   for (let i = 0; i < max && merged.length < limit; i++) {
-    if (hf.results[i]) merged.push(hf.results[i]);
-    if (ollama.results[i] && merged.length < limit) merged.push(ollama.results[i]);
+    for (const bucket of [hf, llama, ollama]) {
+      const row = bucket.results[i];
+      if (!row || merged.length >= limit) continue;
+      // The gguf shelf overlaps the plain HF search — one row per repo.
+      const key = `${row.source}:${row.id}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      merged.push(row);
+    }
   }
 
   return {
     query,
     results: merged,
-    notes: [hf.note, ollama.note].filter(Boolean),
+    notes: [hf.note, llama.note, ollama.note].filter(Boolean),
   };
 }

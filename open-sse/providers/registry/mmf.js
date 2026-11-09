@@ -1,6 +1,5 @@
 export default {
   id: "mmf",
-  hidden: true,
   priority: 200,
   display: {
     name: "MMF",

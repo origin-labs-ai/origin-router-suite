@@ -3,7 +3,6 @@ export default {
   alias: "samba",
   aliases: ["sambanova-ai"],
   uiAlias: "samba",
-  hidden: true,
   display: {
     name: "SambaNova",
     icon: "memory",

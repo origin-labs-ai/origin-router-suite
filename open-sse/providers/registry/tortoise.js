@@ -26,5 +26,4 @@ export default {
       }
     ]
   },
-  hidden: true
 };

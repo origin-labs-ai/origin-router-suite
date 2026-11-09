@@ -1,8 +1,10 @@
 // Xiaomi ended the free MiMo channel ("MiMo free API service has ended").
-// Hidden until/unless a replacement (OAuth MiMo Platform) is wired.
+// Kept visible per the owner's rule that nothing in the registry stays hidden:
+// the card explains itself, and this enables the day a replacement channel is
+// announced without a second edit here. The OAuth MiMo Platform is a separate
+// entry ("mimo").
 export default {
   id: "mimo-free",
-  hidden: true,
   priority: 50,
   hasFree: true,
   alias: "mmf",

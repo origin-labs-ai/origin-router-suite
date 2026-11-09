@@ -1,6 +1,5 @@
 export default {
   id: "gitlab",
-  hidden: true,
   priority: 100,
   display: {
     name: "GitLab Duo",
@@ -13,6 +12,10 @@ export default {
     },
   },
   category: "oauth",
+  // GitLab exposes no model catalog endpoint and Duo's ids are chosen
+  // server-side (they change as GitLab ships new models), so any id the client
+  // asks for is forwarded instead of a list that would rot.
+  passthroughModels: true,
   transport: {
     baseUrl: "https://gitlab.com/api/v4/chat/completions",
     auth: {

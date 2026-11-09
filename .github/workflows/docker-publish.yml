@@ -72,7 +72,13 @@ jobs:
           const { execFileSync } = require("child_process");
 
           const tag = process.env.RELEASE_TAG || "";
-          const match = /^v((?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?)$/.exec(tag);
+          // Numeric components may be zero-padded. Strict semver forbids a leading
+          // zero ("0.6.000" is not valid semver), but this project deliberately
+          // ships zero-padded versions so the release line sorts and reads the same
+          // way its tags do, and a Docker tag is an arbitrary string anyway. What
+          // must stay rejected is anything that is not a version: "main", "latest",
+          // build metadata, a missing prefix.
+          const match = /^v(\d+\.\d+\.\d+(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?)$/.exec(tag);
 
           if (tag.includes("+")) {
             console.error(`Build metadata is not supported in Docker release tags: ${tag}`);
@@ -80,7 +86,7 @@ jobs:
           }
 
           if (!match) {
-            console.error(`Expected a Docker-safe semver tag like v0.5.81 or v0.5.81-rc.1, received: ${tag || "<empty>"}`);
+            console.error(`Expected a release tag like v0.5.81, v0.6.000 or v0.5.81-rc.1, received: ${tag || "<empty>"}`);
             process.exit(1);
           }
 

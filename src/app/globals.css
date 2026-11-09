@@ -680,6 +680,20 @@ button:disabled,
   box-shadow: var(--or-lift) var(--or-lift) 0 0 var(--or-edge-strong);
 }
 
+/* A card holding an open popup keeps its resting position.
+
+   The hover lift is a CSS transform, and a transform makes the card the
+   containing block for every fixed-position descendant while it is applied.
+   A menu or popover rendered inside the card therefore rides on the lift: it
+   slides when the cursor enters, and slides back when the cursor leaves - the
+   "popup teleports when I move the mouse" glitch. Marking the open popup with
+   [data-popover-open] lets the card opt out of the lift for exactly as long as
+   the popup is on screen. Cards without a popup keep the lift. */
+.or-edge:has([data-popover-open]),
+.or-panel:has([data-popover-open]) {
+  transform: none;
+}
+
 /* Buttons: same lift, no border rewrite so brand colors stay intact */
 .or-press {
   transition: transform 140ms cubic-bezier(.2,.8,.2,1), box-shadow 140ms cubic-bezier(.2,.8,.2,1);

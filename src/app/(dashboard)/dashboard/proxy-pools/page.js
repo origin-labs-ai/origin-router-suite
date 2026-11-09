@@ -617,7 +617,7 @@ export default function ProxyPoolsPage() {
         </div>
 
         <div className="grid grid-cols-1 gap-2 sm:flex sm:items-center">
-          <div className="relative" ref={relayMenuRef}>
+          <div className="relative" ref={relayMenuRef} data-popover-open={showRelayMenu ? "" : undefined}>
             <Button
               size="sm"
               variant="secondary"

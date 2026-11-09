@@ -44,11 +44,20 @@ jobs:
 
       # Root deps first (the suite imports open-sse/ and src/ from the repo root),
       # then the tests/ package. `npm install` not `npm ci`: there is no committed
-      # lockfile (see .gitignore).
+      # lockfile (see .gitignore). `--no-package-lock` keeps the run honest about
+      # that too - without it npm WRITES a package-lock.json here, and that fresh
+      # root lockfile is what made the nested `--prefix tests` install below
+      # crash inside arborist ("Cannot read properties of null (reading
+      # 'edgesOut')"), which is how this job died after setup-node was fixed.
       - name: Install dependencies
-        run: |
-          npm install --no-audit --no-fund
-          npm --prefix tests install --no-audit --no-fund
+        run: npm install --no-audit --no-fund --no-package-lock
+
+      # `working-directory` instead of `npm --prefix tests`: the cwd form is the
+      # documented way (CLAUDE.md: `cd tests && npm install`) and does not go
+      # through the prefix path that npm handles poorly for a nested package.
+      - name: Install test dependencies
+        working-directory: tests
+        run: npm install --no-audit --no-fund --no-package-lock
 
       - name: Run test suite
         run: npm test

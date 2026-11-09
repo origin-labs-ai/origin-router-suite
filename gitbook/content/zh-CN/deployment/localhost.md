@@ -9,7 +9,7 @@
 通过 npm 全局安装 OriginRouter:
 
 ```bash
-npm install -g @origin-labs-ai/origin-router
+curl -fsSL https://raw.githubusercontent.com/origin-labs-ai/origin-router-suite/main/install.sh | bash
 ```
 
 **要求:**
@@ -81,7 +81,7 @@ originrouter
 更新到最新版本:
 
 ```bash
-npm update -g originrouter
+curl -fsSL https://raw.githubusercontent.com/origin-labs-ai/origin-router-suite/main/install.sh | bash
 ```
 
 查看当前版本:
@@ -113,7 +113,7 @@ kill -9 <PID>
 
 ```bash
 # 使用 sudo(不推荐)
-sudo npm install -g @origin-labs-ai/origin-router
+curl -fsSL https://raw.githubusercontent.com/origin-labs-ai/origin-router-suite/main/install.sh | bash
 
 # 或修复 npm 权限(推荐)
 mkdir ~/.npm-global

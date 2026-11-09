@@ -197,7 +197,7 @@ Xem [hướng dẫn tích hợp Cursor](integration/cursor.md) để biết chi 
 
 ### Localhost (Mặc định)
 ```bash
-npm install -g @origin-labs-ai/origin-router
+curl -fsSL https://raw.githubusercontent.com/origin-labs-ai/origin-router-suite/main/install.sh | bash
 originrouter
 → Dashboard: http://localhost:3000
 → API: http://localhost:20128/v1
@@ -285,7 +285,7 @@ Xem [hướng dẫn deployment](getting-started/installation.md#deployment) đ�
 
 ### Global NPM Install
 ```bash
-npm update -g originrouter
+curl -fsSL https://raw.githubusercontent.com/origin-labs-ai/origin-router-suite/main/install.sh | bash
 ```
 
 ### Local Install

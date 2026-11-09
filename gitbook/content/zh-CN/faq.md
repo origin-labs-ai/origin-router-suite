@@ -197,7 +197,7 @@ npm start
 
 ### Localhost(默认)
 ```bash
-npm install -g @origin-labs-ai/origin-router
+curl -fsSL https://raw.githubusercontent.com/origin-labs-ai/origin-router-suite/main/install.sh | bash
 originrouter
 → 仪表盘: http://localhost:3000
 → API: http://localhost:20128/v1
@@ -285,7 +285,7 @@ npm run deploy:cloudflare
 
 ### 全局 NPM 安装
 ```bash
-npm update -g originrouter
+curl -fsSL https://raw.githubusercontent.com/origin-labs-ai/origin-router-suite/main/install.sh | bash
 ```
 
 ### 本地安装

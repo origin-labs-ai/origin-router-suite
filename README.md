@@ -49,7 +49,6 @@ irm https://raw.githubusercontent.com/origin-labs-ai/origin-router-suite/main/in
 - Adds a **startup entry** (`HKCU\Software\Microsoft\Windows\CurrentVersion\Run`), so the gateway is up before your first tool call. It starts through a hidden PowerShell, so no console window appears.
 - Adds the **system tray** icon: open the dashboard, open the gateway console, open the brain console, restart the brain, check for updates, hide.
 - **Verifies the SHA256** of the download before it runs anything.
-- If the npm package is not reachable, the script falls back to the release installer from GitHub.
 - Remove it later through *Apps → Installed apps → OriginRouter*.
 
 Prefer a manual download? Grab **`OriginRouter-Setup-<version>.exe`** from the [releases page](https://github.com/origin-labs-ai/origin-router-suite/releases/latest).
@@ -60,14 +59,14 @@ Prefer a manual download? Grab **`OriginRouter-Setup-<version>.exe`** from the [
 curl -fsSL https://raw.githubusercontent.com/origin-labs-ai/origin-router-suite/main/install.sh | bash
 ```
 
-The script uses the npm package when it is reachable and falls back to the **portable build** from the release when it is not — same checksum check, no npm needed, no admin rights. It lands in `~/Applications/OriginRouter` (macOS) or `~/.local/opt/origin-router` (Linux).
+The script installs the **portable build** straight from the release — same SHA256 check, no registry, no admin rights. It lands in `~/Applications/OriginRouter` (macOS) or `~/.local/opt/origin-router` (Linux).
 
 Both scripts take flags when you run them from a file instead of the one-liner:
 
 | Flag | What it does |
 |---|---|
 | `-Version v0.5.117` | Installs a specific release. |
-| `-Portable` | Skips npm and the installer, unpacks the portable build. |
+| `-Portable` | Skips the installer, unpacks the portable build. |
 | `-SkipRun` | Downloads and verifies only, installs nothing. |
 
 ### Windows / macOS / Linux — portable zip (beta)
@@ -81,21 +80,6 @@ Both scripts take flags when you run them from a file instead of the one-liner:
 Unzip anywhere and run the launcher. No installer, no admin rights, no registry — and it can live on a USB stick.
 
 **First run asks one question: start in the system tray, or stay in the foreground?** The answer is remembered. A portable build has no installer task that could ask it, so it asks itself.
-
-### Any platform with Node 18+
-
-```bash
-npm install -g @origin-labs-ai/origin-router
-originrouter
-```
-
-Or run it without installing anything:
-
-```bash
-npx @origin-labs-ai/origin-router
-```
-
-The launcher installs a portable copy of the gateway, warms the SQLite runtime offline, writes `~/.or/install.json`, and starts the gateway on **20128**.
 
 ### Docker
 
@@ -164,10 +148,11 @@ originrouter show claude        # what is a tool configured with right now
 originrouter connect http://localhost:20128
 ```
 
-`connect` also works against a **remote** OriginRouter without installing anything locally:
+`connect` also works against a **remote** OriginRouter from another machine that
+has the launcher installed:
 
 ```bash
-npx @origin-labs-ai/origin-router connect http://your-server:20128
+originrouter connect http://your-server:20128
 ```
 
 ### What lives where
@@ -175,8 +160,7 @@ npx @origin-labs-ai/origin-router connect http://your-server:20128
 | | |
 |---|---|
 | **Data, keys, usage, logs** | `~/.or/` — `db/data.sqlite`, `logs/`, `panda/`, `tunnel/`, `install.json` |
-| **Install root** (installer) | `%LOCALAPPDATA%\Programs\OriginRouter` |
-| **Install root** (npm) | the global npm prefix |
+| **Install root** | `%LOCALAPPDATA%\Programs\OriginRouter` (Windows), `~/Applications/OriginRouter` (macOS), `~/.local/opt/origin-router` (Linux) |
 | **Port** | 20128 (`--port` to move it) |
 | **Dashboard** | `http://localhost:20128/dashboard` |
 
@@ -186,8 +170,7 @@ Old installs are migrated on first start — the data folder is found, moved and
 
 | How it was installed | How it updates |
 |---|---|
-| **Installer** | The launcher reads the GitHub release feed, downloads `OriginRouter-Setup-<version>.exe`, verifies the `.sha256` next to it and runs the silent Inno update. npm is never trusted for updates. |
-| **npm** | `npm install -g @origin-labs-ai/origin-router@latest` |
+| **Installer / portable** | The launcher reads the GitHub release feed, downloads `OriginRouter-Setup-<version>.exe`, verifies the `.sha256` next to it and runs the silent Inno update. On macOS and Linux it opens the release page for the portable build. |
 | **Docker** | `docker pull ghcr.io/origin-labs-ai/origin-router:latest`, then restart the container |
 
 ### Command reference
@@ -210,7 +193,6 @@ Old installs are migrated on first start — the data folder is found, moved and
 
 | Symptom | Fix |
 |---|---|
-| `npm` says the package is not found | The npm package is not published for every version. Use the **release installer** or the **portable zip** — both always exist. |
 | The dashboard answers `403 LAN access is disabled` | You reached it from another device. The LAN switch lives in **Settings → Endpoint**; from the same machine use `127.0.0.1`. |
 | `port 20128 already in use` | `originrouter --port 20129` and point the tools at that port. |
 | A tool still talks to its old endpoint | `originrouter show <tool>` prints what it is actually configured with. |
@@ -366,7 +348,7 @@ The dashboard is available in **37 languages** and follows the light/dark theme 
 | **Reliability** | An upstream error is never surfaced to your client while a healthy seat is left. Failing seats are degraded for a cooldown, quiet seats are silenced, and a last-resort completion is labelled as a last resort. |
 | **Model identity** | The model test reports **which model actually answered** (`answered by: <id>`), can re-check a verdict, and separates a broken provider from a provider that returned a different model than it claimed. |
 | **A naming system** | Provider heads, vendor namespaces, deployment tags, snapshot dates and quant/build stamps are folded away. Class words — `flash`, `pro`, `mini` — stay, because those are the ones you actually route on. |
-| **Packaging** | The **Windows installer**, the **desktop window app**, the **npm launcher** (`originrouter` / `or`), portable zips for Windows, macOS and Linux, and a **Docker image**. |
+| **Packaging** | The **Windows installer**, the **desktop window app**, the **CLI launcher** (`originrouter` / `or`), portable zips for Windows, macOS and Linux, and a **Docker image**. |
 | **Release engineering** | The pipeline builds every artifact, publishes them with curated release notes and checksums, and the launcher verifies the `.sha256` before it installs anything. |
 | **Local-first storage** | State and usage live in `~/.or/db/data.sqlite`. Old installs migrate themselves on first start instead of starting empty. |
 | **Safety** | The LAN gate derives the peer address from the socket, not from a spoofable header; local-only routes need the CLI token; the container gateway counts as "this computer" so a published Docker port still works. |
@@ -385,7 +367,7 @@ The dashboard is available in **37 languages** and follows the light/dark theme 
 |---|---|
 | **Gateway + dashboard** | The Next.js app on port 20128 — providers, combos, usage, quota, playground, CLI tools, skills, proxy pools, media providers, translator. |
 | **Built for concurrency** | Eight agents in flight by default, a queue instead of a rejection, per-credential limits, least-loaded selection, jittered failover hops, hedged starts. |
-| **CLI launcher** | `originrouter` (or `or`) — install, start, tray, update, logs, doctor. Publishable to npm as `@origin-labs-ai/origin-router`. |
+| **CLI launcher** | `originrouter` (or `or`) — install, start, tray, update, logs, doctor. Ships with the installer and the portable zips. |
 | **Desktop app** | A native window around the gateway (`OriginRouter-Desktop-Setup-<version>.exe`), built with electron-builder and packaged with Inno Setup. |
 | **Windows installer** | `OriginRouter-Setup-<version>.exe` — the gateway, the dashboard, the tray and the uninstaller. |
 | **Docker image** | `ghcr.io/origin-labs-ai/origin-router` for `linux/amd64` and `linux/arm64`. |

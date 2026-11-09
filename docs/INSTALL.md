@@ -91,19 +91,17 @@ client-to-client traffic.
 
 ## Installing the CLI launcher
 
-The launcher's npm name is `originrouter`. Until it is published (`npm login`, then
-`npm publish` from `cli/`), install it from the release tarball:
+The launcher ships with the installer and the portable zips; there is no
+package registry in the install path. The Windows installer puts `originrouter`
+and `or` on your `PATH` as part of the install, and the portable build carries
+the same launcher.
 
-```powershell
-npm install -g ".\origin-router-<version>.tgz"
-```
-
-Or build it from the repository root:
+To build the launcher from the repository instead:
 
 ```powershell
 npm install --prefix cli
 npm run build --prefix cli
-Push-Location cli; npm pack; Pop-Location   # -> cli\origin-router-<version>.tgz
+Push-Location cli; npm pack; Pop-Location   # -> cli/origin-router-<version>.tgz
 ```
 
 Either way the commands it puts on your `PATH` are `originrouter` and `or`.

@@ -105,7 +105,7 @@ MiniMax経由で200万: $0.40
 
 ```bash
 # グローバルインストール
-npm install -g @origin-labs-ai/origin-router
+curl -fsSL https://raw.githubusercontent.com/origin-labs-ai/origin-router-suite/main/install.sh | bash
 
 # 起動(ダッシュボードが自動で開きます)
 originrouter

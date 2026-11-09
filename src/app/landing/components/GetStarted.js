@@ -1,5 +1,16 @@
 "use client";
 import { useCopyToClipboard } from "@/shared/hooks/useCopyToClipboard";
+import { UPDATER_CONFIG } from "@/shared/constants/config";
+
+// No package registry: the product is installed from the GitHub release or the
+// one-line install script, never from npm. Pick the line that matches the reader.
+function installCommand() {
+  const ua = typeof navigator === "undefined" ? "" : navigator.userAgent;
+  return /Windows/i.test(ua)
+    ? UPDATER_CONFIG.installScriptCmdWin
+    : UPDATER_CONFIG.installScriptCmdPosix;
+}
+const INSTALL_CMD = installCommand();
 
 export default function GetStarted() {
   const { copied, copy } = useCopyToClipboard();
@@ -24,7 +35,7 @@ export default function GetStarted() {
                 <div className="flex-none w-8 h-8 rounded-full bg-[#2B7FFF]/20 text-[#2B7FFF] flex items-center justify-center font-bold">1</div>
                 <div>
                   <h4 className="font-bold text-lg">Install OriginRouter</h4>
-                  <p className="text-sm text-gray-500 mt-1">Run npx command to start the server instantly</p>
+                  <p className="text-sm text-gray-500 mt-1">Download the installer, or run the one-line install script</p>
                 </div>
               </div>
               
@@ -61,16 +72,18 @@ export default function GetStarted() {
               <div className="p-6 font-mono text-sm leading-relaxed overflow-x-auto">
                 <div 
                   className="flex items-center gap-2 mb-4 group cursor-pointer"
-                  onClick={() => handleCopy("npx @origin-labs-ai/origin-router")}
+                  onClick={() => handleCopy(INSTALL_CMD)}
                 >
                   <span className="text-green-400">$</span>
-                  <span className="text-white">npx @origin-labs-ai/origin-router</span>
+                  <span className="text-white">{INSTALL_CMD}</span>
                   <span className="ml-auto text-gray-500 text-xs opacity-0 group-hover:opacity-100">
                     {copied === "landing" ? "✓ Copied" : "Copy"}
                   </span>
                 </div>
                 
                 <div className="text-gray-400 mb-6">
+                  <span className="text-[#2B7FFF]">&gt;</span> Downloading the latest release...<br/>
+                  <span className="text-[#2B7FFF]">&gt;</span> Verifying SHA256...<br/>
                   <span className="text-[#2B7FFF]">&gt;</span> Starting OriginRouter...<br/>
                   <span className="text-[#2B7FFF]">&gt;</span> Server running on <span className="text-[#2B7FFF]">http://localhost:20128</span><br/>
                   <span className="text-[#2B7FFF]">&gt;</span> Dashboard: <span className="text-[#2B7FFF]">http://localhost:20128/dashboard</span><br/>

@@ -83,7 +83,7 @@ if (args[0] === "xai" && args[1] === "video") {
 
 // `originrouter connect <url>` configures local CLI tools against a remote server, and
 // `originrouter show` prints what they're currently set to — no local server, no
-// runtime deps. Usable via `npx @origin-labs-ai/origin-router …`.
+// runtime deps. Usable via `originrouter …` once installed.
 if (args[0] === "connect" || args[0] === "show") {
   const { run } = require(args[0] === "show" ? "./src/cli/commands/show" : "./src/cli/commands/connect");
   run(args.slice(1))
@@ -105,7 +105,10 @@ try { ensureTrayRuntime({ silent: true }); } catch {}
 
 // Configuration constants
 const APP_NAME = pkg.name; // Use from package.json
-const INSTALL_CMD_LATEST = `npm i -g ${APP_NAME}@latest --prefer-online`;
+// There is no package registry in the install path: the product ships as the
+// GitHub release installer and the portable zips. The update UI shows the
+// installer entry point, never an npm command.
+const INSTALL_CMD_LATEST = "https://github.com/origin-labs-ai/origin-router-suite/releases/latest";
 
 const DEFAULT_PORT = 20128;
 const DEFAULT_HOST = "0.0.0.0";
@@ -181,7 +184,7 @@ Options:
 
 Commands:
   connect <server-url> Configure Claude Code for a remote originrouter server
-                      (npx @origin-labs-ai/origin-router connect http://host:20128 — no install needed)
+                      (originrouter connect http://host:20128)
   show [tool…]        Show each CLI tool's current originrouter config and models
                       (e.g. originrouter show claude)
   xai video --prompt "..." --output video.mp4

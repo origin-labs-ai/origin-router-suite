@@ -9,7 +9,7 @@ Khởi chạy OriginRouter trong 5 phút và bắt đầu định tuyến các r
 ### 1. Cài đặt
 
 ```bash
-npm install -g @origin-labs-ai/origin-router
+curl -fsSL https://raw.githubusercontent.com/origin-labs-ai/origin-router-suite/main/install.sh | bash
 ```
 
 **Yêu cầu:** Node.js 20+ ([Chi tiết cài đặt](getting-started/installation.md))

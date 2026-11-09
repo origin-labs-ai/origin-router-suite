@@ -9,7 +9,7 @@ Run OriginRouter on your local machine for development and personal use.
 Install OriginRouter globally via npm:
 
 ```bash
-npm install -g @origin-labs-ai/origin-router
+curl -fsSL https://raw.githubusercontent.com/origin-labs-ai/origin-router-suite/main/install.sh | bash
 ```
 
 **Requirements:**
@@ -81,7 +81,7 @@ All your configurations, API keys, and combos are preserved in the data director
 Update to the latest version:
 
 ```bash
-npm update -g originrouter
+curl -fsSL https://raw.githubusercontent.com/origin-labs-ai/origin-router-suite/main/install.sh | bash
 ```
 
 Check your current version:
@@ -113,7 +113,7 @@ If you encounter permission errors during installation:
 
 ```bash
 # Use sudo (not recommended)
-sudo npm install -g @origin-labs-ai/origin-router
+curl -fsSL https://raw.githubusercontent.com/origin-labs-ai/origin-router-suite/main/install.sh | bash
 
 # Or fix npm permissions (recommended)
 mkdir ~/.npm-global

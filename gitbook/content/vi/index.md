@@ -105,7 +105,7 @@ Bắt đầu trong 2 phút:
 
 ```bash
 # Install globally
-npm install -g @origin-labs-ai/origin-router
+curl -fsSL https://raw.githubusercontent.com/origin-labs-ai/origin-router-suite/main/install.sh | bash
 
 # Start (dashboard opens automatically)
 originrouter

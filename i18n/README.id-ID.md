@@ -64,11 +64,14 @@ Hasil: ngoding tanpa berhenti, biaya minimum
 
 ## ⚡ Mulai Cepat
 
-**1. Install secara global:**
+**1. Install (Windows / macOS / Linux):**
+
+```powershell
+irm https://raw.githubusercontent.com/origin-labs-ai/origin-router-suite/main/install.ps1 | iex
+```
 
 ```bash
-npm install -g @origin-labs-ai/origin-router
-originrouter
+curl -fsSL https://raw.githubusercontent.com/origin-labs-ai/origin-router-suite/main/install.sh | bash
 ```
 
 🎉 Dashboard terbuka di `http://localhost:20128`
@@ -885,7 +888,7 @@ Dashboard: `http://localhost:20128/dashboard`
 <summary><b>VPS / Cloud</b></summary>
 
 ```bash
-npm install -g @origin-labs-ai/origin-router
+curl -fsSL https://raw.githubusercontent.com/origin-labs-ai/origin-router-suite/main/install.sh | bash
 PORT=20128 HOSTNAME=0.0.0.0 BASE_URL=https://your-domain.com originrouter
 ```
 

@@ -69,11 +69,14 @@
 
 ## ⚡ شروع سریع
 
-**۱. نصب سراسری:**
+**۱. نصب (ویندوز / مک / لینوکس):**
+
+```powershell
+irm https://raw.githubusercontent.com/origin-labs-ai/origin-router-suite/main/install.ps1 | iex
+```
 
 ```bash
-npm install -g @origin-labs-ai/origin-router
-originrouter
+curl -fsSL https://raw.githubusercontent.com/origin-labs-ai/origin-router-suite/main/install.sh | bash
 ```
 
 🎉 داشبورد در آدرس `http://localhost:20128` باز می‌شود

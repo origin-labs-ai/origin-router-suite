@@ -441,16 +441,19 @@ server {
 
 ## Uninstallation
 
-### Remove Global Installation
+### Uninstall
 
-```bash
-npm uninstall -g originrouter
-```
+| Platform | How |
+|---|---|
+| **Windows** | *Apps → Installed apps → OriginRouter*, or run `%LOCALAPPDATA%\Programs\OriginRouter\unins000.exe` |
+| **macOS / Linux** | `rm -rf ~/Applications/OriginRouter` (macOS) or `~/.local/opt/origin-router` (Linux) |
+
+The portable zip has no uninstaller — delete the folder you unzipped.
 
 ### Remove Data Directory
 
 ```bash
-rm -rf ~/.originrouter
+rm -rf ~/.or
 ```
 
 ### Remove Configuration

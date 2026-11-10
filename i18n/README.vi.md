@@ -65,11 +65,14 @@ Kết quả: Không bao giờ ngừng code, chi phí tối thiểu + tiết ki�
 
 ## ⚡ Bắt đầu nhanh
 
-**1. Cài đặt toàn cục:**
+**1. Cài đặt (Windows / macOS / Linux):**
+
+```powershell
+irm https://raw.githubusercontent.com/origin-labs-ai/origin-router-suite/main/install.ps1 | iex
+```
 
 ```bash
-npm install -g @origin-labs-ai/origin-router
-originrouter
+curl -fsSL https://raw.githubusercontent.com/origin-labs-ai/origin-router-suite/main/install.sh | bash
 ```
 
 🎉 Bảng điều khiển (Dashboard) sẽ tự động mở tại `http://localhost:20128`

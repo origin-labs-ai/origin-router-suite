@@ -70,11 +70,14 @@
 
 ## ⚡ เริ่มต้นใช้งาน
 
-**1. ติดตั้งแบบ Global:**
+**1. ติดตั้ง (Windows / macOS / Linux):**
+
+```powershell
+irm https://raw.githubusercontent.com/origin-labs-ai/origin-router-suite/main/install.ps1 | iex
+```
 
 ```bash
-npm install -g @origin-labs-ai/origin-router
-originrouter
+curl -fsSL https://raw.githubusercontent.com/origin-labs-ai/origin-router-suite/main/install.sh | bash
 ```
 
 🎉 เปิดแดชบอร์ดที่ `http://localhost:20128`

@@ -75,7 +75,7 @@ worked on one machine.
 - **`GET /api/version` reads the release feed, not npm.** It queried
   `registry.npmjs.org/originrouter/latest`, which is 404 — the package has never been
   published — so the sidebar's update banner could never light up, while still offering
-  `npm i -g @origin-labs-ai/origin-router` as the fix. Both now point at the GitHub release.
+  a global npm install as the fix. Both now point at the GitHub release.
 - **`release.yml` rewritten.** It used `setup-node`'s `cache: npm` plus `npm ci`, and
   lockfiles are ignored, so every CI release died in 18s with
   `Dependencies lock file is not found`. It now installs with `npm install` and a single

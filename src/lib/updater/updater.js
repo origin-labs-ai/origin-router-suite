@@ -1,5 +1,6 @@
 // Standalone detached updater process.
-// Spawns `npm i -g <pkg>@latest`, exposes progress via tiny HTTP server.
+// Downloads the signed installer from the release feed, runs it silently and
+// exposes progress over a tiny HTTP server while the Next server is down.
 // Survives after parent Next server exits (detached + unref by spawner).
 
 const { spawn } = require("child_process");
@@ -103,7 +104,8 @@ function isAppPortBusy() {
   });
 }
 
-// Wait for app process to fully exit before running npm (avoids Windows file-lock)
+// Wait for the app process to fully exit before the installer runs (avoids a
+// Windows file-lock on the replaced files).
 async function waitForAppExit() {
   setPhase("waitingForExit");
   pushLog(`[updater] waiting for app to exit (min ${Math.round(waitMinMs / 1000)}s)...`);

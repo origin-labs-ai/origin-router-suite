@@ -69,11 +69,14 @@ Resultado: programe sem interrupções, com custo mínimo e economia de 20% a 40
 
 ## ⚡ Início rápido
 
-**1. Instale globalmente:**
+**1. Instale (Windows / macOS / Linux):**
+
+```powershell
+irm https://raw.githubusercontent.com/origin-labs-ai/origin-router-suite/main/install.ps1 | iex
+```
 
 ```bash
-npm install -g @origin-labs-ai/origin-router
-originrouter
+curl -fsSL https://raw.githubusercontent.com/origin-labs-ai/origin-router-suite/main/install.sh | bash
 ```
 
 🎉 O painel abre em `http://localhost:20128`

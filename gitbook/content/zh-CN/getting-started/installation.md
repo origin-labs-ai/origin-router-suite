@@ -441,16 +441,19 @@ server {
 
 ## 卸载
 
-### 移除全局安装
+### 卸载
 
-```bash
-npm uninstall -g originrouter
-```
+| 平台 | 方法 |
+|---|---|
+| **Windows** | *应用 → 已安装的应用 → OriginRouter*，或运行 `%LOCALAPPDATA%\Programs\OriginRouter\unins000.exe` |
+| **macOS / Linux** | `rm -rf ~/Applications/OriginRouter`（macOS）或 `~/.local/opt/origin-router`（Linux） |
+
+便携版 zip 没有卸载程序——直接删除你解压出来的文件夹即可。
 
 ### 移除数据目录
 
 ```bash
-rm -rf ~/.originrouter
+rm -rf ~/.or
 ```
 
 ### 移除配置

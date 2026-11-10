@@ -1,5 +1,5 @@
 // Ensure better-sqlite3 is installed in USER_DATA_DIR/runtime/node_modules
-// (user-writable, avoids Windows EBUSY locks during npm i -g updates).
+// (user-writable, avoids Windows EBUSY locks while the installer updates).
 // sql.js is bundled in bin/app already; node:sqlite / bun:sqlite are built-in.
 const { execSync, spawnSync } = require("child_process");
 const fs = require("fs");

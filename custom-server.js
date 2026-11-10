@@ -201,8 +201,65 @@ http.createServer = (...args) => {
     req.headers.connection = "close";
     return true;
   };
+  attachWebSocket(server);
   return server;
 };
+
+// WebSocket chat surface. Next's app router cannot own a socket upgrade, so the
+// wrapper above hands /v1/ws upgrades to this server. The handler module lives in
+// src/ when the source tree ships; a pure standalone without src/ logs once and
+// leaves HTTP surfaces untouched.
+let wsHandlerPromise = null;
+function loadWsHandler() {
+  if (!wsHandlerPromise) {
+    const modPath = path.join(__dirname, "src", "sse", "handlers", "ws.js");
+    wsHandlerPromise = import(pathToFileURL(modPath).href).catch((error) => {
+      console.warn(`[WS] handler unavailable: ${error && error.message ? error.message : error}`);
+      return null;
+    });
+  }
+  return wsHandlerPromise;
+}
+
+function attachWebSocket(server) {
+  let WebSocketServer;
+  try {
+    ({ WebSocketServer } = require("ws"));
+  } catch (error) {
+    console.warn(`[WS] ws unavailable: ${error && error.message ? error.message : error}`);
+    return;
+  }
+  const wss = new WebSocketServer({ noServer: true });
+  wss.on("connection", (ws, req) => {
+    loadWsHandler()
+      .then((mod) => {
+        if (!mod || typeof mod.handleWsChat !== "function") {
+          try { ws.close(1011, "WebSocket chat unavailable"); } catch { /* closed */ }
+          return;
+        }
+        mod.handleWsChat(ws, req);
+      })
+      .catch((error) => {
+        try { ws.close(1011, error && error.message ? error.message : "WebSocket chat unavailable"); } catch { /* closed */ }
+      });
+  });
+
+  // Listen on the raw HTTP upgrade event. The h2c replay path above already
+  // returns true for its own upgrades, so websocket frames reach this listener.
+  server.on("upgrade", (req, socket, head) => {
+    let pathname = "/";
+    try {
+      pathname = new URL(req.url, "http://localhost").pathname;
+    } catch {
+      socket.destroy();
+      return;
+    }
+    if (pathname !== "/v1/ws" && pathname !== "/ws") return;
+    wss.handleUpgrade(req, socket, head, (ws) => {
+      wss.emit("connection", ws, req);
+    });
+  });
+}
 
 if (require.main === module) {
   const standalone = path.join(__dirname, "server.js");

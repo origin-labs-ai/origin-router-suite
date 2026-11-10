@@ -231,7 +231,13 @@ async function transcribeOpenAICompatible(cfg, file, model, token, formData) {
   const fd = new FormData();
   fd.append("file", file, file.name || "audio.wav");
   fd.append("model", model);
-  for (const k of ["language", "prompt", "response_format", "temperature"]) {
+  // Translation endpoints reject the `language` field (source language is always
+  // auto-detected), so only forward fields the target transport accepts.
+  const task = String(formData.get("task") ?? "").trim().toLowerCase();
+  const fields = task === "translate"
+    ? ["prompt", "response_format", "temperature"]
+    : ["language", "prompt", "response_format", "temperature"];
+  for (const k of fields) {
     const v = formData.get(k);
     if (v !== null && v !== undefined && v !== "") fd.append(k, v);
   }
@@ -290,6 +296,14 @@ export async function handleSttCore({ provider, model, formData, credentials, st
   // providers, which already resolve baseUrl the same way.
   const overrideUrl = credentials?.providerSpecificData?.baseUrl;
   if (overrideUrl) cfg = { ...cfg, baseUrl: String(overrideUrl).replace(/\/+$/, "") };
+
+  // Task-switch extension: `task=translate` retargets Whisper-compatible
+  // transports from /audio/transcriptions to /audio/translations. Providers
+  // whose format ignores the marker keep their native endpoint.
+  const task = String(formData.get("task") ?? "").trim().toLowerCase();
+  if (task === "translate") {
+    cfg = { ...cfg, baseUrl: cfg.baseUrl.replace(/\/audio\/transcriptions\/?$/, "/audio/translations") };
+  }
 
   const token = cfg.authType === "none" ? null : (credentials?.apiKey || credentials?.accessToken);
   if (cfg.authType !== "none" && !token) {

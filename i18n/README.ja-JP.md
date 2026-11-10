@@ -64,11 +64,14 @@
 
 ## ⚡ クイックスタート
 
-**1. グローバルインストール：**
+**1. インストール（Windows / macOS / Linux）：**
+
+```powershell
+irm https://raw.githubusercontent.com/origin-labs-ai/origin-router-suite/main/install.ps1 | iex
+```
 
 ```bash
-npm install -g @origin-labs-ai/origin-router
-originrouter
+curl -fsSL https://raw.githubusercontent.com/origin-labs-ai/origin-router-suite/main/install.sh | bash
 ```
 
 🎉 ダッシュボードが `http://localhost:20128` で開きます

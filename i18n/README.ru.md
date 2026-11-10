@@ -66,11 +66,14 @@ Result: Never stop coding, minimal cost
 
 ## ⚡ Быстрый старт
 
-**1. Глобальная установка:**
+**1. Установка (Windows / macOS / Linux):**
+
+```powershell
+irm https://raw.githubusercontent.com/origin-labs-ai/origin-router-suite/main/install.ps1 | iex
+```
 
 ```bash
-npm install -g @origin-labs-ai/origin-router
-originrouter
+curl -fsSL https://raw.githubusercontent.com/origin-labs-ai/origin-router-suite/main/install.sh | bash
 ```
 
 🎉 Панель управления откроется на `http://localhost:20128`

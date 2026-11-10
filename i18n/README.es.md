@@ -69,11 +69,14 @@ Result: Never stop coding, minimal cost + 20-40% token savings via RTK
 
 ## ⚡ Inicio rápido
 
-**1. Instálalo globalmente:**
+**1. Instálalo (Windows / macOS / Linux):**
+
+```powershell
+irm https://raw.githubusercontent.com/origin-labs-ai/origin-router-suite/main/install.ps1 | iex
+```
 
 ```bash
-npm install -g @origin-labs-ai/origin-router
-originrouter
+curl -fsSL https://raw.githubusercontent.com/origin-labs-ai/origin-router-suite/main/install.sh | bash
 ```
 
 🎉 El panel de control se abre en `http://localhost:20128`

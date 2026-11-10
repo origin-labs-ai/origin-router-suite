@@ -67,11 +67,14 @@
 
 ## ⚡ 快速开始
 
-**1. 全局安装：**
+**1. 安装（Windows / macOS / Linux）：**
+
+```powershell
+irm https://raw.githubusercontent.com/origin-labs-ai/origin-router-suite/main/install.ps1 | iex
+```
 
 ```bash
-npm install -g @origin-labs-ai/origin-router
-originrouter
+curl -fsSL https://raw.githubusercontent.com/origin-labs-ai/origin-router-suite/main/install.sh | bash
 ```
 
 🎉 仪表板将在 `http://localhost:20128` 打开

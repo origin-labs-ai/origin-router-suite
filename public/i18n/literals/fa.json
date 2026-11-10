@@ -995,7 +995,6 @@
   "Routing Strategy": "استراتژی مسیردهی",
   "Rows:": "ردیف‌ها:",
   "Run": "اجرا",
-  "Run npx command to start the server instantly": "دستور npx را برای راه‌اندازی فوری سرور اجرا کنید",
   "Run this command in your terminal, then click": "این دستور را در ترمینال خود اجرا کنید، سپس کلیک کنید",
   "Running": "در حال اجرا",
   "Running on your machine": "در حال اجرا روی دستگاه شما",
@@ -1399,5 +1398,6 @@
   "Keep legacy password login.": "حفظ ورود با نام کاربری و رمز عبور قدیمی",
   "Require SSO for dashboard access.": "برای دسترسی به داشبورد نیاز به SSO دارد.",
   "Allow password or SSO login.": "اجازه ورود با رمز عبور یا ورود یک‌بار مصرف (SSO)",
-  "Save OIDC settings": "ذخیره تنظیمات OIDC"
+  "Save OIDC settings": "ذخیره تنظیمات OIDC",
+  "Download the installer, or run the one-line install script": "نصب‌کننده را دانلود کنید یا اسکریپت نصب یک‌خطی را اجرا کنید"
 }

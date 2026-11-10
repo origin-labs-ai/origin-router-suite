@@ -441,16 +441,19 @@ server {
 
 ## アンインストール
 
-### グローバルインストールを削除
+### アンインストール
 
-```bash
-npm uninstall -g originrouter
-```
+| プラットフォーム | 方法 |
+|---|---|
+| **Windows** | *アプリ → インストールされているアプリ → OriginRouter*、または `%LOCALAPPDATA%\Programs\OriginRouter\unins000.exe` を実行 |
+| **macOS / Linux** | `rm -rf ~/Applications/OriginRouter`（macOS）または `~/.local/opt/origin-router`（Linux） |
+
+ポータブル zip にはアンインストーラーがありません。解凍したフォルダーを削除してください。
 
 ### データディレクトリを削除
 
 ```bash
-rm -rf ~/.originrouter
+rm -rf ~/.or
 ```
 
 ### 設定を削除

@@ -441,16 +441,19 @@ server {
 
 ## Gỡ cài đặt
 
-### Gỡ Global Installation
+### Gỡ cài đặt
 
-```bash
-npm uninstall -g originrouter
-```
+| Nền tảng | Cách làm |
+|---|---|
+| **Windows** | *Ứng dụng → Ứng dụng đã cài → OriginRouter*, hoặc chạy `%LOCALAPPDATA%\Programs\OriginRouter\unins000.exe` |
+| **macOS / Linux** | `rm -rf ~/Applications/OriginRouter` (macOS) hoặc `~/.local/opt/origin-router` (Linux) |
+
+Bản zip portable không có trình gỡ cài đặt — chỉ cần xóa thư mục bạn đã giải nén.
 
 ### Xóa Data Directory
 
 ```bash
-rm -rf ~/.originrouter
+rm -rf ~/.or
 ```
 
 ### Xóa Cấu hình

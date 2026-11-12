@@ -5,7 +5,7 @@
 
   **One endpoint for every AI provider. Never stop coding.**
 
-  Route across **140+ providers** and **24 routing strategies** from a single local port, fold months-long conversations to a fraction of their tokens (OriginFold), fall back before an upstream error ever reaches your code, and cut **60-90%** of tool-output tokens.
+  Route across **192+ providers** and **24 routing strategies** from a single local port, fold months-long conversations to a fraction of their tokens (OriginFold), fall back before an upstream error ever reaches your code, and cut **60-90%** of tool-output tokens.
 
   <p>
     <a href="#-install"><b>Install</b></a> •

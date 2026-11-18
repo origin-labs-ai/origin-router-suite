@@ -30,6 +30,16 @@ import {
   orderModelsByChoice,
 } from "./systemoneRouter.js";
 import { orderSeats, recordComboOutcome } from "./comboOrderers.js";
+import {
+  HYDRAFUSION_CATEGORIES,
+  HYDRAFUSION_DEFAULT_EFFORT,
+  HYDRAFUSION_DEFAULT_PATTERN,
+  planHydraRun,
+  rankHydraSeats,
+  resolveHydraEffort,
+} from "../config/hydrafusion.js";
+import { injectHydraState, loadHydraState, saveHydraState } from "./hydrafusionState.js";
+import { isSeatHealthy, markSeatFailure, markSeatSuccess } from "./seatHealth.js";
 
 // Peek a 2xx combo response for real content. Returns null for non-SSE responses (leave
 // them untouched). For SSE, returns { outcome: "content"|"empty", finishReason, response }
@@ -814,6 +824,13 @@ function extractPanelText(json) {
   return "";
 }
 
+// The router's own "no provider" notice is an HTTP 200 with prose. It is not
+// a model answer; treating it as a draft poisons the panel and the judge.
+const ROUTER_UNAVAILABLE = /could not reach any provider|send it again and it will be routed|no available provider|all providers failed|provider is temporarily unavailable/i;
+function isUnavailableText(text) {
+  return ROUTER_UNAVAILABLE.test(String(text || ""));
+}
+
 /**
  * Append a synthesized user turn to whichever message array the request format uses.
  * Preserves the original conversation + system prompt so the judge has full context.
@@ -1097,6 +1114,805 @@ export async function handlePipelineChat({ body, models, handleSingleModel, log,
   const finalBody = appendUserTurn(body, buildPipelinePrompt(drafts));
   log.info("PIPELINE", `Final answer from ${finalModel} with ${drafts.length} draft(s)`);
   return handleSingleModel(finalBody, finalModel);
+}
+
+/* ══════════════════════════════ HydraFusion ════════════════════════════════
+ *
+ * HydraFusion is Fusion's successor. Fusion had one shape: fan out, judge. The
+ * Hydra ladder adds six effort tiers and three explicit orchestration shapes
+ * (Single / Cascade / Critique), so the same combo can answer a lookup in one
+ * cheap call or spend a few auditors on a long-horizon engineering task.
+ *
+ * The judge call is always the last call and always keeps the client's stream
+ * flag + tools, exactly like Fusion, so streaming and tool use still work.
+ * Intermediate calls are non-streaming, tools-stripped prose calls.
+ */
+
+/** Last user turn as plain text, across the request formats clients send. */
+function lastUserText(body) {
+  const list = Array.isArray(body?.messages)
+    ? body.messages
+    : Array.isArray(body?.input)
+      ? body.input
+      : Array.isArray(body?.contents)
+        ? body.contents
+        : [];
+  for (let i = list.length - 1; i >= 0; i -= 1) {
+    const msg = list[i];
+    if (msg?.role !== "user") continue;
+    const content = msg.content ?? msg.parts;
+    const text = extractTextContent(content);
+    if (text.trim()) return text.trim();
+  }
+  return "";
+}
+
+/** First user turn: the stable anchor for a conversation without a session id. */
+function firstUserText(body) {
+  const list = Array.isArray(body?.messages)
+    ? body.messages
+    : Array.isArray(body?.input)
+      ? body.input
+      : Array.isArray(body?.contents)
+        ? body.contents
+        : [];
+  for (let i = 0; i < list.length; i += 1) {
+    const msg = list[i];
+    if (msg?.role !== "user") continue;
+    const content = msg.content ?? msg.parts;
+    const text = extractTextContent(content);
+    if (text.trim()) return text.trim();
+  }
+  return "";
+}
+
+/** Clone the body with the tier's reasoning budget attached. */
+function withHydraEffort(body, tier) {
+  return { ...body, reasoning_effort: tier.reasoningEffort };
+}
+
+/**
+ * One panel/stage call with a fail-open effort retry. A provider that does not
+ * know `reasoning_effort` (or rejects a tier it does not have) gets one retry
+ * without the field instead of losing the seat.
+ */
+async function hydraSeatCall({ handleSingleModel, body, model, log, tag }) {
+  try {
+    const first = await handleSingleModel(body, model, true);
+    if (!first) return { __error: new Error("empty response") };
+    if (first.ok || !body.reasoning_effort) return first;
+    let detail = "";
+    try { detail = await first.clone().text(); } catch { /* ignore */ }
+    if (first.status === 400 || first.status === 422 || /reason|effort|thinking|invalid/i.test(detail)) {
+      const retry = { ...body };
+      delete retry.reasoning_effort;
+      log.warn(tag, `${model} rejected effort "${body.reasoning_effort}" — retrying without it`);
+      return await handleSingleModel(retry, model, true);
+    }
+    return first;
+  } catch (error) {
+    return { __error: error };
+  }
+}
+
+/** Fan out, then collect usable prose. Sparse results are expected by design. */
+async function hydraPanelAnswers({ seats, body, handleSingleModel, log, tag, tier, minPanel = 2, timeoutMs = null }) {
+  const budget = Math.max(5000, Number(timeoutMs) || tier.hardTimeoutMs);
+  const calls = seats.map((model) =>
+    withTimeout(
+      hydraSeatCall({ handleSingleModel, body, model, log, tag }),
+      budget,
+    ),
+  );
+  const settled = await collectPanel(calls, {
+    minPanel: Math.min(Math.max(1, minPanel), Math.max(1, seats.length)),
+    stragglerGraceMs: Math.max(1, Math.min(tier.graceMs || 1, Math.floor(budget / 3))),
+    panelHardTimeoutMs: budget,
+  });
+  const answers = [];
+  for (let i = 0; i < settled.length; i += 1) {
+    const res = settled[i];
+    const model = seats[i];
+    if (!res) { markSeatFailure(model, "dropped"); log.warn(tag, `${model} dropped (straggler/timeout)`); continue; }
+    if (res.__timeout) { markSeatFailure(model, "timeout"); log.warn(tag, `${model} timed out`); continue; }
+    if (res.__error) { markSeatFailure(model, "error"); log.warn(tag, `${model} threw`, { error: res.__error?.message || String(res.__error) }); continue; }
+    if (!res.ok) { markSeatFailure(model, `status ${res.status}`); log.warn(tag, `${model} failed`, { status: res.status }); continue; }
+    try {
+      const json = await res.clone().json();
+      const text = extractPanelText(json);
+      if (isUnavailableText(text)) {
+        markSeatFailure(model, "provider unavailable", 300000);
+        log.warn(tag, `${model} returned the router's no-provider notice`);
+      } else if (text.trim()) {
+        answers.push({ model, text: text.trim().slice(0, 8000) });
+        markSeatSuccess(model);
+      } else {
+        markSeatFailure(model, "empty");
+        log.warn(tag, `${model} returned empty content`);
+      }
+    } catch (error) {
+      markSeatFailure(model, "unparseable");
+      log.warn(tag, `${model} unparseable`, { error: error?.message || String(error) });
+    }
+  }
+  return answers;
+}
+
+function buildHydraCritiquePrompt(answers) {
+  const sources = answers.map((answer, i) => `[Draft ${i + 1}]\n${answer.text}`).join("\n\n");
+  return [
+    "You are the AUDITOR in a quality-controlled answer pipeline. The user's request is above.",
+    `${answers.length} anonymous draft answers are below. Audit them against the request.`,
+    "",
+    "Find, in priority order: factual errors, missed constraints, invalid assumptions, incomplete cases, contradictions between drafts, and reasoning that only looks correct. For each finding, quote the failing claim and state the correction. Do not rewrite the answer and do not praise.",
+    "Return at most 8 numbered findings, most severe first. If the drafts have no material problems, return exactly: NO MATERIAL FINDINGS.",
+    "",
+    "=== DRAFTS ===",
+    sources,
+    "=== END DRAFTS ===",
+  ].join("\n");
+}
+
+function buildHydraFinalPrompt({ answers = [], drafts = [], critiques = [], pattern, tier }) {
+  const blocks = [];
+  if (answers.length > 0) {
+    blocks.push(
+      "=== PANEL ANSWERS ===",
+      answers.map((answer, i) => `[Source ${i + 1}]\n${answer.text}`).join("\n\n"),
+      "=== END PANEL ANSWERS ===",
+    );
+  }
+  if (drafts.length > 0) {
+    blocks.push(
+      "=== DRAFTS ===",
+      drafts.map((draft, i) => `[Draft ${i + 1} from stage ${i + 1}]\n${draft.text}`).join("\n\n"),
+      "=== END DRAFTS ===",
+    );
+  }
+  if (critiques.length > 0) {
+    blocks.push(
+      "=== AUDITOR FINDINGS ===",
+      critiques.map((critique, i) => `[Audit ${i + 1}]\n${critique.text}`).join("\n\n"),
+      "=== END AUDITOR FINDINGS ===",
+    );
+  }
+
+  const shapeLine = pattern === "cascade"
+    ? "Earlier stages produced the drafts below, in order. Each stage improved the previous one."
+    : "A panel of experts answered independently; auditors then attacked those answers.";
+
+  return [
+    `You are the final JUDGE in a ${tier.id}-effort HydraFusion run. ${shapeLine}`,
+    "",
+    "Write ONE authoritative final answer addressed directly to the user.",
+    "Resolve every valid auditor finding, keep points the sources agree on, correct contradictions with your own reasoning, preserve unique insights that survive scrutiny, and cover blind spots the drafts missed. Do not mention the panel, the drafts, the auditors, or this process.",
+    "Be complete but not padded. If the request asks for code, give the code; if it asks for a number, give the number.",
+    "",
+    ...blocks,
+    "",
+    "Now write the final answer to the user's original request.",
+  ].join("\n");
+}
+
+function buildHydraDraftPrompt(drafts, stageIndex) {
+  if (drafts.length === 0) {
+    return "Produce the strongest possible first draft for the user's request. Be complete; later stages will audit and correct it.";
+  }
+  return [
+    `You are refinement stage ${stageIndex + 1}. Improve the draft below.`,
+    "Fix errors, fill missing cases, tighten weak reasoning, and keep everything that was already correct. Return the complete improved answer, not a diff.",
+    "",
+    ...drafts.map((draft, i) => `--- Draft ${i + 1} ---\n${draft.text}`),
+  ].join("\n");
+}
+
+async function hydraAuditAnswers({ answers, critics, body, handleSingleModel, log, tag, tier, timeoutMs = null }) {
+  if (critics.length === 0 || answers.length === 0) return [];
+  const budget = Math.max(5000, Number(timeoutMs) || tier.hardTimeoutMs);
+  const prompt = buildHydraCritiquePrompt(answers);
+  const auditBody = appendUserTurn(body, prompt);
+  const calls = critics.map((model) =>
+    withTimeout(
+      hydraSeatCall({ handleSingleModel, body: auditBody, model, log, tag }),
+      budget,
+    ),
+  );
+  const settled = await collectPanel(calls, {
+    minPanel: 1,
+    stragglerGraceMs: Math.max(1, Math.min(tier.graceMs || 1, Math.floor(budget / 3))),
+    panelHardTimeoutMs: budget,
+  });
+  const critiques = [];
+  for (let i = 0; i < settled.length; i += 1) {
+    const res = settled[i];
+    const model = critics[i];
+    if (!res || res.__timeout || res.__error || !res.ok) {
+      markSeatFailure(model, res?.__timeout ? "audit timeout" : "audit failure");
+      log.warn(tag, `Auditor ${model} unavailable`);
+      continue;
+    }
+    try {
+      const json = await res.clone().json();
+      const text = extractPanelText(json);
+      if (isUnavailableText(text)) {
+        markSeatFailure(model, "auditor unavailable", 300000);
+        log.warn(tag, `Auditor ${model} returned the router's no-provider notice`);
+      } else if (text.trim()) {
+        critiques.push({ model, text: text.trim().slice(0, 8000) });
+        markSeatSuccess(model);
+      } else {
+        markSeatFailure(model, "audit empty");
+      }
+    } catch (error) {
+      markSeatFailure(model, "audit unparseable");
+      log.warn(tag, `Auditor ${model} unparseable`, { error: error?.message || String(error) });
+    }
+  }
+  return critiques;
+}
+
+async function hydraDirectAnswer({ body, seats, handleSingleModel, log, tag, tier, timeoutMs = null }) {
+  const budget = Math.max(5000, Number(timeoutMs) || tier.hardTimeoutMs);
+  const deadline = Date.now() + budget;
+  let last = null;
+  for (const model of seats) {
+    const left = deadline - Date.now();
+    if (left < 3000) break;
+    const res = await withTimeout(
+      hydraSeatCall({ handleSingleModel, body: withHydraEffort(body, tier), model, log, tag }),
+      Math.min(60000, left),
+    );
+    if (res && res.ok) {
+      // A 200 with the router's no-provider notice is not an answer.
+      if (body?.stream !== true) {
+        try {
+          const json = await res.clone().json();
+          if (isUnavailableText(extractPanelText(json))) {
+            markSeatFailure(model, "provider unavailable", 300000);
+            last = res;
+            continue;
+          }
+        } catch {
+          /* non-JSON responses are left alone */
+        }
+      }
+      markSeatSuccess(model);
+      return res;
+    }
+    markSeatFailure(model, res?.__timeout ? "direct timeout" : "direct failure");
+    last = res;
+  }
+  if (last && !last.__error && !last.__timeout) return last;
+  log.warn(tag, "No seat answered");
+  return new Response(
+    JSON.stringify({ error: { message: "All HydraFusion seats failed" } }),
+    { status: 503, headers: { "Content-Type": "application/json" } },
+  );
+}
+
+/** Last-resort answer when the judge cannot answer before the deadline. */
+function bestHydraFallback({ answers = [], drafts = [] }) {
+  const pool = [...drafts, ...answers].filter((entry) => entry?.text?.trim());
+  if (pool.length === 0) return "";
+  // A draft that already carries a final marker is safer than a long musing.
+  const marked = pool.filter((entry) => /FINAL:|answer\s+is|\\boxed\{/i.test(entry.text));
+  const chosen = (marked.length > 0 ? marked : pool).sort((a, b) => b.text.length - a.text.length)[0];
+  return chosen.text.trim().slice(0, 12000);
+}
+
+/**
+ * Build an Anthropic Messages response (JSON or SSE) from plain text.
+ * The wire format is the endpoint's, not the judge's: a /v1/messages caller
+ * rejects `chat.completion` shapes, so the fallback must speak Messages.
+ */
+function hydraClaudeResponse(text, body) {
+  const model = body?.model || "hydrafusion";
+  const id = `msg_hydra_${Date.now()}`;
+  const outputTokens = Math.max(1, Math.ceil(String(text).length / 4));
+  if (body?.stream) {
+    const frame = (event, data) => `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
+    const events = [
+      frame("message_start", {
+        type: "message_start",
+        message: {
+          id,
+          type: "message",
+          role: "assistant",
+          model,
+          content: [],
+          stop_reason: null,
+          stop_sequence: null,
+          usage: { input_tokens: 0, output_tokens: 0 },
+        },
+      }),
+      frame("content_block_start", {
+        type: "content_block_start",
+        index: 0,
+        content_block: { type: "text", text: "" },
+      }),
+      frame("content_block_delta", {
+        type: "content_block_delta",
+        index: 0,
+        delta: { type: "text_delta", text },
+      }),
+      frame("content_block_stop", { type: "content_block_stop", index: 0 }),
+      frame("message_delta", {
+        type: "message_delta",
+        delta: { stop_reason: "end_turn", stop_sequence: null },
+        usage: { output_tokens: outputTokens },
+      }),
+      frame("message_stop", { type: "message_stop" }),
+    ].join("");
+    const stream = new ReadableStream({
+      start(controller) {
+        controller.enqueue(new TextEncoder().encode(events));
+        controller.close();
+      },
+    });
+    return new Response(stream, {
+      status: 200,
+      headers: { "Content-Type": "text/event-stream", "Cache-Control": "no-cache" },
+    });
+  }
+  return new Response(
+    JSON.stringify({
+      id,
+      type: "message",
+      role: "assistant",
+      model,
+      content: [{ type: "text", text }],
+      stop_reason: "end_turn",
+      stop_sequence: null,
+      usage: { input_tokens: 0, output_tokens: outputTokens },
+    }),
+    { status: 200, headers: { "Content-Type": "application/json" } },
+  );
+}
+
+/** Build a response (JSON or SSE) in the client's wire format from plain text. */
+function hydraTextResponse(text, body, format = null) {
+  if (format === "claude") return hydraClaudeResponse(text, body);
+  const model = body?.model || "hydrafusion";
+  const id = `chatcmpl-hydra-${Date.now()}`;
+  const created = Math.floor(Date.now() / 1000);
+  if (body?.stream) {
+    const chunk = {
+      id,
+      object: "chat.completion.chunk",
+      created,
+      model,
+      choices: [{ index: 0, delta: { role: "assistant", content: text }, finish_reason: null }],
+    };
+    const stop = {
+      id,
+      object: "chat.completion.chunk",
+      created,
+      model,
+      choices: [{ index: 0, delta: {}, finish_reason: "stop" }],
+    };
+    const stream = new ReadableStream({
+      start(controller) {
+        const encoder = new TextEncoder();
+        controller.enqueue(encoder.encode(`data: ${JSON.stringify(chunk)}\n\n`));
+        controller.enqueue(encoder.encode(`data: ${JSON.stringify(stop)}\n\n`));
+        controller.enqueue(encoder.encode("data: [DONE]\n\n"));
+        controller.close();
+      },
+    });
+    return new Response(stream, {
+      status: 200,
+      headers: { "Content-Type": "text/event-stream", "Cache-Control": "no-cache" },
+    });
+  }
+  return new Response(
+    JSON.stringify({
+      id,
+      object: "chat.completion",
+      created,
+      model,
+      choices: [{ index: 0, message: { role: "assistant", content: text }, finish_reason: "stop" }],
+      usage: { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 },
+    }),
+    { status: 200, headers: { "Content-Type": "application/json" } },
+  );
+}
+
+/** Stable, tiny hash for the conductor cache. */
+function hashText(text) {
+  let hash = 2166136261;
+  const value = String(text || "");
+  for (let i = 0; i < value.length; i += 1) {
+    hash ^= value.charCodeAt(i);
+    hash = Math.imul(hash, 16777619);
+  }
+  return (hash >>> 0).toString(36);
+}
+
+/** Cheap first-pass classifier; always available, even when every seat is slow. */
+function hydraHeuristicCategory(text, body) {
+  const lower = String(text || "").toLowerCase();
+  const scores = { code: 0, math: 0, science: 0, knowledge: 0, writing: 0, agentic: 0, general: 1 };
+  const add = (category, weight) => {
+    scores[category] += weight;
+  };
+  if (/```|function\s|class\s|def\s|import\s|const\s|let\s|bug|stack trace|exception|compile|api|sql|python|javascript|typescript|react|docker|git\s|unit test/.test(lower)) add("code", 3);
+  if (/solve|equation|integral|derivative|probability|modulo|prime|matrix|geometry|polynomial|combinator|proof|integer|math/.test(lower)) add("math", 3);
+  if (/physics|chemistry|biology|quantum|molecule|protein|thermodynamic|experiment|dna|cell|energy level/.test(lower)) add("science", 3);
+  if (/history|law|economics|business|politics|philosophy|compare|explain|what is|why does/.test(lower)) add("knowledge", 2);
+  if (/write|draft|email|essay|blog|story|summarize|rewrite|tone|copy/.test(lower)) add("writing", 3);
+  if ((Array.isArray(body?.tools) && body.tools.length > 0) || /terminal|bash|shell|command|filesystem|repository|repo|install|build|execute/.test(lower)) add("agentic", 3);
+  return Object.entries(scores).sort((a, b) => b[1] - a[1])[0][0];
+}
+
+const conductorCache = new Map();
+const CONDUCTOR_TTL_MS = 10 * 60 * 1000;
+
+/**
+ * Per-request model-selection judge.
+ *
+ * A fast pool seat reads the request, classifies it, and the family ranker
+ * turns that into a diverse, best-fit panel. The call is cached and capped at
+ * 8s; if the conductor itself is unavailable the heuristic keeps routing
+ * deterministic instead of failing the request.
+ */
+async function conductHydraCategory({ body, models, handleSingleModel, log, tag }) {
+  const text = lastUserText(body);
+  const heuristic = hydraHeuristicCategory(text, body);
+  if (!text.trim()) return heuristic;
+  const key = hashText(text.slice(0, 4000));
+  const cached = conductorCache.get(key);
+  if (cached && cached.expires > Date.now()) return cached.category;
+
+  const preferred = [
+    "or/deepseek/deepseek-v4.1-flash-1017",
+    "or/deepseek/deepseek-chat",
+    "or/~deepseek/deepseek-flash-latest",
+    "or/deepseek/deepseek-v4-pro",
+  ];
+  const conductorModel = preferred.find((model) => models.includes(model)) || models[0];
+  if (!conductorModel) return heuristic;
+
+  const prompt = [
+    "You are the conductor for a multi-model answering panel.",
+    "Classify the user's request into exactly one category:",
+    HYDRAFUSION_CATEGORIES.join(", ") + ".",
+    'Return only JSON: {"category":"<category>"}.',
+    "code=programming/debugging; math=competition or symbolic math; science=physics/chemistry/biology; knowledge=history/law/economics/explanation; writing=copy/essays/summaries; agentic=terminal/files/tools/multi-step execution; general=everything else.",
+    "",
+    "USER REQUEST:",
+    text.slice(0, 4000),
+  ].join("\n");
+
+  try {
+    const res = await withTimeout(
+      handleSingleModel(
+        {
+          model: conductorModel,
+          messages: [{ role: "user", content: prompt }],
+          temperature: 0,
+          stream: false,
+          max_tokens: 80,
+        },
+        conductorModel,
+        true,
+      ),
+      8000,
+    );
+    if (!res || res.__timeout || res.__error || !res.ok) throw new Error("conductor unavailable");
+    const json = await res.clone().json();
+    const raw = extractPanelText(json);
+    const match = raw.match(/"category"\s*:\s*"([a-z]+)"/i) || raw.match(/\b(code|math|science|knowledge|writing|agentic|general)\b/i);
+    const category = match ? match[1].toLowerCase() : heuristic;
+    const valid = HYDRAFUSION_CATEGORIES.includes(category) ? category : heuristic;
+    conductorCache.set(key, { category: valid, expires: Date.now() + CONDUCTOR_TTL_MS });
+    if (conductorCache.size > 500) {
+      for (const [cacheKey, entry] of conductorCache) {
+        if (entry.expires <= Date.now()) conductorCache.delete(cacheKey);
+      }
+    }
+    log.info(tag, `conductor classified request as ${valid} (${conductorModel})`);
+    return valid;
+  } catch (error) {
+    log.warn(tag, `conductor unavailable — heuristic=${heuristic}`, {
+      error: error?.message || String(error),
+    });
+    conductorCache.set(key, { category: heuristic, expires: Date.now() + 60000 });
+    return heuristic;
+  }
+}
+
+/**
+ * HydraFusion combo entry point.
+ *
+ * @param {Object} options
+ * @param {Object} options.body - Client request body
+ * @param {string[]} options.models - Combo members
+ * @param {Function} options.handleSingleModel - (body, model, isPanel) => Promise<Response>
+ * @param {Object} options.log
+ * @param {string} [options.comboName]
+ * @param {string} [options.judgeModel]
+ * @param {string} [options.effort] - minimal|light|low|medium|high|xhigh|max|ultra
+ * @param {string} [options.pattern] - auto|single|cascade|critique
+ * @param {Object} [options.tuning] - Per-combo overrides ({ effort, pattern })
+ * @param {string|null} [options.sessionId]
+ * @param {string|null} [options.seed] - Override the seat-rotation seed (tests)
+ * @returns {Promise<Response>}
+ */
+export async function handleHydraFusionChat({
+  body,
+  models,
+  handleSingleModel,
+  log,
+  comboName,
+  judgeModel,
+  effort,
+  pattern,
+  tuning,
+  sessionId = null,
+  seed = null,
+  category: categoryOverride = null,
+  format = null,
+}) {
+  const requestedEffort = effort || tuning?.effort || HYDRAFUSION_DEFAULT_EFFORT;
+  const requestedPattern = pattern || tuning?.pattern || HYDRAFUSION_DEFAULT_PATTERN;
+  const tag = "HYDRA";
+  const userText = lastUserText(body);
+  const anchorText = firstUserText(body);
+  // Seat health gate: a seat that just timed out stays out of the next panel
+  // until its cooldown expires. The full pool is still used whenever the
+  // healthy subset is too small to orchestrate.
+  const pool = Array.isArray(models) ? models : [];
+  const healthy = pool.filter((model) => isSeatHealthy(model));
+  const modelPool = healthy.length >= Math.min(4, pool.length) ? healthy : pool;
+  const healthyJudge = judgeModel && isSeatHealthy(judgeModel) ? judgeModel : "";
+  const seedText = seed ?? (sessionId ? `${sessionId}:${userText}` : `${anchorText}:${userText}`);
+
+  // Per-request conductor: classify the request, then rank the pool so each
+  // family contributes one seat before any family contributes a second alias.
+  // The conductor is capped and falls back to the heuristic classifier.
+  //
+  // A tool-bearing request is classified locally: an extra probe call before
+  // every agent turn buys nothing (the tools already say "agentic") and costs
+  // seconds on a pool where probes often fail first.
+  const hasTools = Array.isArray(body?.tools) && body.tools.length > 0;
+  const category =
+    categoryOverride && HYDRAFUSION_CATEGORIES.includes(categoryOverride)
+      ? categoryOverride
+      : hasTools
+        ? hydraHeuristicCategory(userText, body)
+        : await conductHydraCategory({ body, models: modelPool, handleSingleModel, log, tag });
+  const rankedPool = rankHydraSeats(modelPool, category, seedText);
+  // A client that sends tools is an agent loop: every turn must end in a real
+  // tool call from one model. Panels and audits only produce prose, so for
+  // tool-bearing or agentic requests the run collapses to the best-ranked seat
+  // with the client's tools and stream untouched. Debate cannot replace the
+  // actor in an agent loop, and pretending otherwise would silently break it.
+  const agentic = hasTools || category === "agentic";
+  const plan = planHydraRun({
+    models: rankedPool,
+    // The dedicated judge is a prose synthesizer, not the actor; agentic turns
+    // go to the best-fit pool seat instead.
+    judgeModel: agentic ? "" : healthyJudge,
+    effort: requestedEffort,
+    pattern: agentic ? "single" : requestedPattern,
+    // Seat order is already the conductor's ranking; planHydraRun must not
+    // rotate it away again.
+    seed: seedText,
+    preserveOrder: true,
+  });
+
+  if (plan.seats.length === 0) {
+    return new Response(
+      JSON.stringify({ error: { message: "HydraFusion combo has no models" } }),
+      { status: 400, headers: { "Content-Type": "application/json" } },
+    );
+  }
+
+  const tier = plan.effort;
+  const runBudgetMs = tier.runBudgetMs || tier.hardTimeoutMs;
+  const deadline = Date.now() + runBudgetMs;
+  const remaining = () => Math.max(0, deadline - Date.now());
+  const previous = loadHydraState({ comboName, sessionId, userText, anchorText });
+  // Reasoning-state preservation: the compact block goes everywhere the run
+  // reasons (panel, drafts, auditors, final judge), never into the client's
+  // visible transcript.
+  const stateBody = injectHydraState(body, previous);
+
+  log.info(
+    tag,
+    `Combo "${comboName}" | effort=${tier.id} | category=${category} | pattern=${plan.pattern} | panel=${plan.panel.length} | stages=${plan.stages.length} | critics=${plan.critics.length} | judge=${plan.judge} | budget=${runBudgetMs}ms | healthy=${healthy.length}/${pool.length}${agentic ? " | agentic=direct" : ""}`,
+  );
+
+  // Nothing to orchestrate: one seat, one pass, tools and stream intact.
+  if (plan.seats.length === 1 || plan.pattern === "single") {
+    const seats = [plan.judge, ...plan.seats.filter((m) => m !== plan.judge)];
+    const res = await hydraDirectAnswer({ body: stateBody, seats, handleSingleModel, log, tag, tier, timeoutMs: runBudgetMs });
+    saveHydraState({
+      comboName,
+      sessionId,
+      userText,
+      anchorText,
+      effort: tier.id,
+      pattern: plan.pattern,
+      previous,
+      relay: { lastDraft: "", critique: "", panel: [] },
+    });
+    return res;
+  }
+
+  // Intermediate calls never stream and never carry tools; they are prose.
+  const { tools, tool_choice, stream_options, ...rest } = withHydraEffort(stateBody, tier);
+  const workBody = { ...rest, stream: false };
+  if (Array.isArray(workBody.messages)) {
+    workBody.messages = flattenToolHistory(workBody.messages);
+  } else if (Array.isArray(workBody.input)) {
+    workBody.input = flattenToolHistory(workBody.input);
+  }
+
+  let answers = [];
+  let drafts = [];
+  let critiques = [];
+
+  try {
+    if (plan.pattern === "critique") {
+      const panelMs = Math.max(10000, Math.min(tier.hardTimeoutMs, Math.floor(remaining() * 0.62)));
+      answers = await hydraPanelAnswers({
+        seats: plan.panel,
+        body: workBody,
+        handleSingleModel,
+        log,
+        tag,
+        tier,
+        minPanel: Math.min(2, plan.panel.length),
+        timeoutMs: panelMs,
+      });
+      log.info(tag, `panel produced ${answers.length}/${plan.panel.length} answers (${panelMs}ms budget)`);
+      if (answers.length > 0 && remaining() > 12000) {
+        const auditMs = Math.max(8000, Math.min(tier.hardTimeoutMs, Math.floor(remaining() * 0.55)));
+        critiques = await hydraAuditAnswers({
+          answers,
+          critics: plan.critics,
+          body: workBody,
+          handleSingleModel,
+          log,
+          tag,
+          tier,
+          timeoutMs: auditMs,
+        });
+        log.info(tag, `${critiques.length} audit(s) collected (${auditMs}ms budget)`);
+      }
+    } else {
+      // Cascade: each stage sees the previous stage's complete draft.
+      for (let i = 0; i < plan.stages.length; i += 1) {
+        const left = remaining();
+        if (left < 6000) {
+          log.warn(tag, `cascade stopped at stage ${i + 1} — run budget exhausted`);
+          break;
+        }
+        const model = plan.stages[i];
+        const stagesLeft = Math.max(1, plan.stages.length - i);
+        const reserve = Math.min(30000, Math.max(8000, Math.floor(runBudgetMs * 0.25)));
+        const stageMs = Math.max(6000, Math.min(60000, Math.floor(Math.max(0, left - reserve) / stagesLeft)));
+        const stageBody = appendUserTurn(workBody, buildHydraDraftPrompt(drafts, i));
+        const res = await withTimeout(
+          hydraSeatCall({ handleSingleModel, body: stageBody, model, log, tag }),
+          stageMs,
+        );
+        if (!res || res.__timeout || res.__error || !res.ok) {
+          markSeatFailure(model, res?.__timeout ? "stage timeout" : "stage failure");
+          log.warn(tag, `stage ${i + 1} (${model}) failed — skipping`);
+          continue;
+        }
+        try {
+          const json = await res.clone().json();
+          const text = extractPanelText(json);
+          if (isUnavailableText(text)) {
+            markSeatFailure(model, "provider unavailable", 300000);
+            log.warn(tag, `stage ${i + 1} (${model}) returned the no-provider notice`);
+          } else if (text.trim()) {
+            drafts.push({ model, text: text.trim().slice(0, 8000) });
+            markSeatSuccess(model);
+            log.info(tag, `stage ${i + 1} (${model}) ok (${text.length} chars)`);
+          } else {
+            markSeatFailure(model, "stage empty");
+          }
+        } catch (error) {
+          markSeatFailure(model, "stage unparseable");
+          log.warn(tag, `stage ${i + 1} (${model}) unparseable`, { error: error?.message || String(error) });
+        }
+      }
+      if (drafts.length > 0 && remaining() > 10000) {
+        const auditMs = Math.max(8000, Math.min(tier.hardTimeoutMs, Math.floor(remaining() * 0.5)));
+        critiques = await hydraAuditAnswers({
+          answers: drafts,
+          critics: plan.critics,
+          body: workBody,
+          handleSingleModel,
+          log,
+          tag,
+          tier,
+          timeoutMs: auditMs,
+        });
+      }
+    }
+  } catch (error) {
+    // Any orchestration surprise drops to a direct answer; a combo must never
+    // fail because its quality stage did.
+    log.warn(tag, "Orchestration failed — falling back to a direct judge call", {
+      error: error?.message || String(error),
+    });
+  }
+
+  const relay = {
+    lastDraft: drafts.at(-1)?.text || answers[0]?.text || "",
+    critique: critiques.map((c) => c.text).join("\n\n"),
+    panel: answers.length > 0 ? answers : drafts,
+  };
+
+  // The final judge always streams and keeps tools. If it cannot answer at all,
+  // fall back to a cold direct call so the client still gets a usable response.
+  const finalPrompt = buildHydraFinalPrompt({
+    answers,
+    drafts,
+    critiques,
+    pattern: plan.pattern,
+    tier,
+  });
+  const finalBody = appendUserTurn(withHydraEffort(stateBody, tier), finalPrompt);
+  const judgeMs = Math.max(5000, Math.min(90000, remaining()));
+  let finalRes = await withTimeout(
+    hydraSeatCall({ handleSingleModel, body: finalBody, model: plan.judge, log, tag }),
+    judgeMs,
+  );
+
+  // A streaming judge cannot be inspected without consuming the stream; a
+  // non-streaming judge is checked so the router's no-provider notice never
+  // reaches the client as if it were a model answer.
+  if (finalRes && finalRes.ok && body?.stream !== true) {
+    try {
+      const json = await finalRes.clone().json();
+      if (isUnavailableText(extractPanelText(json))) {
+        markSeatFailure(plan.judge, "judge unavailable", 300000);
+        finalRes = { __error: new Error("judge unavailable") };
+      }
+    } catch {
+      /* leave non-JSON responses alone */
+    }
+  }
+
+  let fallbackText = "";
+  if (!finalRes || finalRes.__error || finalRes.__timeout || !finalRes.ok) {
+    if (finalRes?.__timeout) markSeatFailure(plan.judge, "judge timeout", 120000);
+    fallbackText = bestHydraFallback({ answers, drafts });
+    if (!fallbackText) {
+      log.warn(tag, "Final judge failed — using a cold direct answer");
+      finalRes = await hydraDirectAnswer({
+        body: stateBody,
+        seats: [plan.judge, ...plan.seats.filter((m) => m !== plan.judge)],
+        handleSingleModel,
+        log,
+        tag,
+        tier,
+        timeoutMs: Math.max(10000, remaining()),
+      });
+    } else {
+      log.warn(tag, "Final judge failed — returning the strongest draft");
+    }
+  }
+
+  saveHydraState({
+    comboName,
+    sessionId,
+    userText,
+    anchorText,
+    effort: tier.id,
+    pattern: plan.pattern,
+    previous,
+    relay,
+  });
+
+  if (fallbackText) return hydraTextResponse(fallbackText, body, format);
+  return finalRes;
 }
 
 export {

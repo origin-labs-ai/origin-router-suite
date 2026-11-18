@@ -3,8 +3,9 @@
 //
 // v0.6 grew the router from 4 strategies (smart / fusion / round-robin /
 // fallback) to 24 by porting the strategy families that made OmniRoute and
-// 9Router interesting and adding OriginRouter-native ones. Every strategy is
-// either:
+// 9Router interesting and adding OriginRouter-native ones. v0.7 replaced Fusion
+// with HydraFusion (six effort tiers, three orchestration shapes). Every
+// strategy is either:
 //
 //   kind: "orderer" — reorders the seat list before the fallback walk; the walk
 //                     itself (seat-silence cuts, failover) is unchanged.
@@ -36,9 +37,9 @@ export const ROUTING_STRATEGIES = [
     kind: "brain",
   },
   {
-    id: "fusion",
-    label: "Fusion",
-    hint: "Several seats answer in parallel, a judge synthesizes one answer",
+    id: "hydrafusion",
+    label: "HydraFusion",
+    hint: "Six effort tiers × Single/Cascade/Critique: panel, audit, then one judge",
     kind: "panel",
   },
   {
@@ -186,6 +187,9 @@ export const STRATEGY_IDS = ROUTING_STRATEGIES.map((s) => s.id);
 // migration aliases OmniRoute kept. Unknown ids fall back to "fallback" — a
 // misspelled strategy must never disable routing.
 export const STRATEGY_ALIASES = {
+  // Fusion was replaced by HydraFusion. Older combos keep working: the alias
+  // sends them through the same entry point with the default tier.
+  fusion: "hydrafusion",
   priority: "fallback",
   sequential: "fallback",
   usage: "least-used",

@@ -2,6 +2,8 @@
 
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/shared/components";
+import EffortSlider from "@/shared/components/EffortSlider";
+import { resolveHydraEffort } from "open-sse/config/hydrafusion.js";
 import { getModelsByProviderId } from "@/shared/constants/models";
 import {
   ALIAS_TO_ID,
@@ -24,14 +26,6 @@ import {
   defaultContextWindow,
   ensureMaxContextWindow,
 } from "@/lib/contextLimits";
-
-const EFFORT_LEVELS = [
-  { value: "low", label: "Low" },
-  { value: "medium", label: "Med" },
-  { value: "high", label: "High" },
-  { value: "xhigh", label: "Extra High" },
-  { value: "max", label: "Max" },
-];
 
 const CONTEXT_FILTERS = [
   { value: "0", label: "Any context" },
@@ -398,7 +392,6 @@ export default function PlaygroundPageClient({ variant = "full" }) {
   // Reasoning controls — sent only when the brain toggle is on, so providers
   // that reject the fields keep working untouched.
   const [effort, setEffort] = useState("high");
-  const [thinking, setThinking] = useState(false);
   const [extendedThinking, setExtendedThinking] = useState(false);
   const composerRef = useRef(null);
   const fileInputRef = useRef(null);
@@ -1306,12 +1299,14 @@ export default function PlaygroundPageClient({ variant = "full" }) {
           model: model.requestModel || model.id,
           messages: requestMessages,
           stream: true,
-          // Reasoning is opt-in: only sent when the brain toggle is on.
-          ...(thinking ? {
-            reasoning_effort: effort,
+          // Reasoning is opt-in: the extended-thinking toggle sends the chosen
+          // tier with a 16K budget. Ultra forwards "max" — its extra depth comes
+          // from HydraFusion orchestration, not a provider-side tier.
+          ...(extendedThinking ? {
+            reasoning_effort: resolveHydraEffort(effort).reasoningEffort,
             thinking: {
               type: "enabled",
-              budget_tokens: extendedThinking ? 16000 : 4000,
+              budget_tokens: 16000,
             },
           } : {}),
         }),
@@ -1790,30 +1785,13 @@ export default function PlaygroundPageClient({ variant = "full" }) {
                   <div className="mt-2 space-y-2">
                     <div className="flex items-center justify-between gap-3">
                       <div className="min-w-0">
-                        <p className="text-sm text-white">Thinking</p>
-                        <p className="text-[11px] text-white/40">Send the effort level and a 4K thinking budget</p>
-                      </div>
-                      <ToggleSwitch
-                        checked={thinking}
-                        label="Thinking"
-                        onChange={(next) => {
-                          setThinking(next);
-                          if (!next) setExtendedThinking(false);
-                        }}
-                      />
-                    </div>
-                    <div className="flex items-center justify-between gap-3">
-                      <div className="min-w-0">
                         <p className="text-sm text-white">Extended thinking</p>
-                        <p className="text-[11px] text-white/40">Raise the thinking budget to 16K</p>
+                        <p className="text-[11px] text-white/40">Send the effort tier with a 16K thinking budget</p>
                       </div>
                       <ToggleSwitch
                         checked={extendedThinking}
                         label="Extended thinking"
-                        onChange={(next) => {
-                          setExtendedThinking(next);
-                          if (next) setThinking(true);
-                        }}
+                        onChange={setExtendedThinking}
                       />
                     </div>
                   </div>
@@ -2101,24 +2079,12 @@ export default function PlaygroundPageClient({ variant = "full" }) {
                     </button>
                     <input ref={fileInputRef} type="file" accept="image/*" multiple className="hidden" onChange={handleAttachFiles} />
 
-                    {/* Effort stays in the composer; thinking toggles live in the model selector */}
-                    <div className="flex items-center rounded-full border border-white/10 bg-white/[0.04] p-0.5">
-                      {EFFORT_LEVELS.map((level) => (
-                        <button
-                          key={level.value}
-                          type="button"
-                          onClick={() => setEffort(level.value)}
-                          className={`rounded-full px-2 py-1 text-[10px] font-semibold transition ${
-                            effort === level.value
-                              ? "bg-white/90 text-black"
-                              : "text-white/50 hover:bg-white/10 hover:text-white"
-                          }`}
-                          title={`Reasoning effort: ${level.label}`}
-                        >
-                          {level.label}
-                        </button>
-                      ))}
-                    </div>
+                    {/* Effort stays in the composer; the extended-thinking toggle lives in the model selector */}
+                    <EffortSlider
+                      value={effort}
+                      onChange={setEffort}
+                      disabled={!activeModel || loadingData}
+                    />
                   </div>
 
                   <div className="flex items-center gap-2">

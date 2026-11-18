@@ -7,6 +7,8 @@ import { arrayMove, SortableContext, sortableKeyboardCoordinates, useSortable, v
 import { CSS } from "@dnd-kit/utilities";
 import { restrictToVerticalAxis, restrictToParentElement } from "@dnd-kit/modifiers";
 import { Card, Button, Modal, Input, CardSkeleton, ModelSelectModal, ConfirmModal, CapacityBadges, Select, Toggle, Badge, SmartPolicyModal, SeatName } from "@/shared/components";
+import EffortSlider from "@/shared/components/EffortSlider";
+import { HYDRAFUSION_PATTERNS } from "open-sse/config/hydrafusion.js";
 import { useCopyToClipboard } from "@/shared/hooks/useCopyToClipboard";
 import { useModelCaps } from "@/shared/hooks/useModelCaps";
 import { aggregateComboCapabilities } from "open-sse/providers/capabilities.js";
@@ -337,12 +339,21 @@ export default function CombosPage() {
   };
 
   const persistComboStrategies = async (updated) => {
-    await fetch("/api/settings", {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ comboStrategies: updated }),
-    });
+    // Paint first, persist second: the effort slider and strategy pickers must
+    // never snap back to the old value while the PATCH is in flight.
+    const previous = comboStrategies;
     setComboStrategies(updated);
+    try {
+      const res = await fetch("/api/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ comboStrategies: updated }),
+      });
+      if (!res.ok) throw new Error(`settings PATCH ${res.status}`);
+    } catch (error) {
+      setComboStrategies(previous);
+      throw error;
+    }
   };
 
   const handleDelete = async (id) => {
@@ -468,7 +479,7 @@ export default function CombosPage() {
             <li><span className="font-medium text-text-main">Fallback</span> — tries models in order (next on failure)</li>
             <li><span className="font-medium text-text-main">Round Robin</span> — rotates models across requests to spread load</li>
             <li><span className="font-medium text-text-main">Smart Router</span> — queries a System One decision model to pick the optimal model before generation; supports Smart Switch (adaptive hysteresis), Strict Lock (1 task = 1 session, +0ms latency), and Per-Turn modes to maximize prompt-cache retention</li>
-            <li><span className="font-medium text-text-main">Fusion</span> — queries all models in parallel, then a judge synthesizes one answer. Best quality, but costs the most: every request bills all panel models + the judge (N+1 calls)</li>
+            <li><span className="font-medium text-text-main">HydraFusion</span> — six effort tiers across Single, Cascade and Critique: draft, audit, and one judge-synthesised answer. Low tiers stay cheap; High+ adds independent auditors.</li>
           </ul>
           <p className="hidden text-xs text-text-muted mt-3 max-w-2xl">
             <span className="font-medium text-text-main">Cursor / Claude Default</span> create combos named exactly like those clients&apos; model IDs (e.g. <code className="font-mono">composer-2.5</code>, <code className="font-mono">opus</code>), seeded with the matching <code className="font-mono">cu/…</code> or <code className="font-mono">cc/…</code> route so traffic can hit originrouter without the prefix.
@@ -756,11 +767,14 @@ function ComboCard({ combo, getCaps, comboByName = {}, activeProviders = [], cop
   const [showJudgeSelect, setShowJudgeSelect] = useState(false);
   const [showRouterSelect, setShowRouterSelect] = useState(false);
   const [showPolicyModal, setShowPolicyModal] = useState(false);
-  const current = strategy.fallbackStrategy || "fallback";
+  const currentRaw = strategy.fallbackStrategy || "fallback";
+  const current = currentRaw === "fusion" ? "hydrafusion" : currentRaw;
   const judge = strategy.judgeModel || "";
   const routerModel = strategy.routerModel || "";
-  const isFusion = current === "fusion";
+  const isFusion = current === "hydrafusion";
   const isSmart = current === "smart";
+  const hydraEffort = strategy.effort || "high";
+  const hydraPattern = strategy.pattern || "auto";
   // The synced catalog is server-only, so resolving here would fall back to the
   // generic patterns and under-report the limits. getCaps carries the server's
   // answer for /api/models.
@@ -823,7 +837,30 @@ function ComboCard({ combo, getCaps, comboByName = {}, activeProviders = [], cop
                 )}
               </div>
             )}
-            {/* Fusion: judge picker (Auto = first model) */}
+            {/* HydraFusion: effort slider + pattern picker, then the judge picker */}
+            {isFusion && (
+              <div className="mt-2 flex min-w-0 flex-wrap items-center gap-1.5">
+                <span className="text-[11px] font-medium text-text-muted">Effort</span>
+                <EffortSlider
+                  value={hydraEffort}
+                  onChange={(effort) => onSetStrategy({ fallbackStrategy: "hydrafusion", effort })}
+                />
+                <span className="ml-1 text-[11px] font-medium text-text-muted">Pattern</span>
+                <select
+                  value={hydraPattern}
+                  onChange={(e) => onSetStrategy({ fallbackStrategy: "hydrafusion", pattern: e.target.value })}
+                  className="rounded border border-border/70 bg-black/[0.02] px-1.5 py-0.5 text-[11px] text-text-main outline-none transition-colors hover:border-primary/50 focus:border-primary dark:bg-white/[0.02]"
+                  title="HydraFusion orchestration shape"
+                >
+                  {HYDRAFUSION_PATTERNS.map((pattern) => (
+                    <option key={pattern.id} value={pattern.id} title={pattern.hint}>{pattern.label}</option>
+                  ))}
+                </select>
+                <span className="text-[10px] text-text-muted">
+                  {HYDRAFUSION_PATTERNS.find((p) => p.id === hydraPattern)?.hint}
+                </span>
+              </div>
+            )}
             {isFusion && (
               <div className="mt-2 flex min-w-0 flex-wrap items-center gap-1.5">
                 <span className="text-[11px] font-medium text-text-muted">Judge</span>

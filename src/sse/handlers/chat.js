@@ -17,7 +17,7 @@ import { getTransform as getPxpipeTransform } from "@/lib/pxpipe/loader.js";
 import { appendPxpipeEvent } from "@/lib/pxpipe/events.js";
 import { errorResponse, unavailableResponse } from "open-sse/utils/error.js";
 import { upstreamResponseHeaders } from "open-sse/utils/upstreamHeaders.js";
-import { handleComboChat, handleFusionChat, handlePipelineChat, detectRequiredCapabilities } from "open-sse/services/combo.js";
+import { handleComboChat, handleHydraFusionChat, handlePipelineChat, detectRequiredCapabilities } from "open-sse/services/combo.js";
 import { normalizeStrategy } from "@/lib/routing/strategies.js";
 import { augmentModelsWithCapacityAdapter, withCapacityAdapterStripping, getActiveAdapterStrategy } from "open-sse/services/capacityAdapter.js";
 import { handleBypassRequest, synthesizeResponse } from "open-sse/utils/bypassHandler.js";
@@ -50,6 +50,25 @@ const MODEL_TEST_HEADER = "x-or-model-test";
 
 function isStrictModelTest(request) {
   return request?.headers?.get?.(MODEL_TEST_HEADER) === "1";
+}
+
+// HydraFusion needs seats, not one nested combo name. A chained combo
+// (fable → mythos → opus pool) is flattened here so every Hydra tier sees the
+// real pool, and edits to the base combo flow through without copying lists.
+async function expandHydraPool(members, depth = 0) {
+  if (!Array.isArray(members) || depth > 4) return members;
+  const out = [];
+  for (const member of members) {
+    const nested = typeof member === "string" && !member.includes("/")
+      ? await getComboModels(member).catch(() => null)
+      : null;
+    if (Array.isArray(nested) && nested.length > 0) {
+      out.push(...(await expandHydraPool(nested, depth + 1)));
+    } else {
+      out.push(member);
+    }
+  }
+  return [...new Set(out)];
 }
 
 /**
@@ -127,7 +146,7 @@ export async function handleChat(request, clientRawRequest = null, options = {})
   // The seat-silence budget is injected here so every combo entry point — top level,
   // capacity adapter, nested — walks on the same rule without repeating the knob.
   const comboChat = (args) => serve(handleComboChat({ seatSilenceMs: policy.seatSilenceMs, ...args }), resilience);
-  const fusionChat = (args) => serve(handleFusionChat(args), resilience);
+  const fusionChat = (args) => serve(handleHydraFusionChat({ format: resilience.sourceFormat, ...args }), resilience);
   const pipelineChat = (args) => serve(handlePipelineChat(args), resilience);
   if (settings.requireApiKey && options.internal !== true) {
     if (!apiKey) {
@@ -204,11 +223,13 @@ export async function handleChat(request, clientRawRequest = null, options = {})
       });
     }
 
-    if (comboStrategy === "fusion") {
-      log.info("CHAT", `Combo "${modelStr}" with ${comboModels.length} models (strategy: fusion)`);
+    if (comboStrategy === "hydrafusion") {
+      const hydraCfg = comboStrategies[modelStr] || {};
+      const hydraPool = await expandHydraPool(comboModels);
+      log.info("CHAT", `Combo "${modelStr}" with ${hydraPool.length} pool models (strategy: hydrafusion, effort: ${hydraCfg.effort || "high"}, pattern: ${hydraCfg.pattern || "auto"})`);
       return fusionChat({
         body,
-        models: comboModels,
+        models: hydraPool,
         handleSingleModel: (b, m, isPanel) => {
           let cleanRawReq = clientRawRequest;
           if (isPanel && clientRawRequest) {
@@ -219,8 +240,11 @@ export async function handleChat(request, clientRawRequest = null, options = {})
         },
         log,
         comboName: modelStr,
-        judgeModel: comboStrategies[modelStr]?.judgeModel,
-        tuning: comboStrategies[modelStr]?.fusionTuning,
+        judgeModel: hydraCfg.judgeModel,
+        effort: hydraCfg.effort,
+        pattern: hydraCfg.pattern,
+        tuning: hydraCfg.hydraTuning || hydraCfg.fusionTuning,
+        sessionId,
       });
     }
 
@@ -316,19 +340,23 @@ async function handleSingleModelChat(body, modelStr, clientRawRequest = null, re
       // Check for combo-specific strategy first, fallback to global
       const comboStrategies = chatSettings.comboStrategies || {};
       const comboSpecificStrategy = comboStrategies[modelStr]?.fallbackStrategy;
-      const comboStrategy = comboSpecificStrategy || chatSettings.comboStrategy || "fallback";
+      const comboStrategy = normalizeStrategy(comboSpecificStrategy || chatSettings.comboStrategy || "fallback");
       const requiredCapabilities = detectRequiredCapabilities(body);
       // Nested combo (a combo member that is itself a combo): the access decision
       // was made on the outer target; only drop adapter models the key may not call.
       const keyAccess = await getKeyAccessContext(request);
       const augmentedModels = await filterAdapterModels(keyAccess, augmentModelsWithCapacityAdapter(comboModels, requiredCapabilities, chatSettings), comboModels);
       const adapterAdded = augmentedModels.filter((m) => !comboModels.includes(m));
+      const nestedSession = resolveSessionIdentity({ headers: clientRawRequest?.headers, body });
+      const nestedSessionId = nestedSession?.sessionId || null;
 
-      if (comboStrategy === "fusion") {
-        log.info("CHAT", `Combo "${modelStr}" with ${comboModels.length} models (strategy: fusion)`);
-        return handleFusionChat({
+      if (comboStrategy === "hydrafusion") {
+        const hydraCfg = comboStrategies[modelStr] || {};
+        const hydraPool = await expandHydraPool(comboModels);
+        log.info("CHAT", `Combo "${modelStr}" with ${hydraPool.length} pool models (strategy: hydrafusion, effort: ${hydraCfg.effort || "high"}, pattern: ${hydraCfg.pattern || "auto"})`);
+        return handleHydraFusionChat({
           body,
-          models: comboModels,
+          models: hydraPool,
           handleSingleModel: (b, m, isPanel) => {
             let cleanRawReq = clientRawRequest;
             if (isPanel && clientRawRequest) {
@@ -339,15 +367,17 @@ async function handleSingleModelChat(body, modelStr, clientRawRequest = null, re
           },
           log,
           comboName: modelStr,
-          judgeModel: comboStrategies[modelStr]?.judgeModel,
-          tuning: comboStrategies[modelStr]?.fusionTuning,
+          judgeModel: hydraCfg.judgeModel,
+          effort: hydraCfg.effort,
+          pattern: hydraCfg.pattern,
+          tuning: hydraCfg.hydraTuning || hydraCfg.fusionTuning,
+          sessionId: nestedSessionId,
+          format: request?.url ? detectFormatByEndpoint(new URL(request.url).pathname, body) : null,
         });
       }
 
       const comboStickyLimit = chatSettings.comboStickyRoundRobinLimit;
       const comboCfg = comboStrategies[modelStr] || {};
-      const nestedSession = resolveSessionIdentity({ headers: clientRawRequest?.headers, body });
-      const nestedSessionId = nestedSession?.sessionId || null;
       // A nested combo gets the same brain treatment as a top-level one, so
       // "claude-opus-5-5 → someCombo" is decided by the configured brains rather
       // than falling back to raw member order.

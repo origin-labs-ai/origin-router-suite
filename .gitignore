@@ -93,6 +93,7 @@ graphify-out/*
 
 # Local-only working dirs (notes, vendored repos, scripts, skills)
 .claude/
+.agents/
 .docs/
 .repo/
 .script/
@@ -139,4 +140,16 @@ cli/*.tgz
 # build/test logs and stray checksum drops
 *.log
 /*OriginRouter*.exe
+
+# Local benchmark harness and dataset scratch (never shipped)
+/bench/
+/aime-*.json
+/hle-search.json
+/ifb*.json*
+/lcb-*.json
+/mmlu.json
+/repo.json
+/s.json
+/tb-*.json
+/tb-readme.md
 

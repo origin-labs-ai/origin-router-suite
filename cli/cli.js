@@ -95,6 +95,23 @@ if (args[0] === "connect" || args[0] === "show") {
   return;
 }
 
+// `originrouter patch` applies a bundle that `npm run patch:local` registered.
+// It talks to the running gateway, so it is a subcommand and not a launcher flag.
+if (args[0] === "patch") {
+  const { run } = require("./src/cli/commands/patch");
+  // Natural exit, not process.exit(): the command uses fetch, and exiting with
+  // a closing undici handle trips a libuv assertion on Windows.
+  run(args.slice(1))
+    .then((code) => {
+      process.exitCode = code;
+    })
+    .catch((err) => {
+      console.error(`❌ ${err?.message || err}`);
+      process.exitCode = 1;
+    });
+  return;
+}
+
 // Self-heal SQLite runtime deps (sql.js + better-sqlite3) into ~/.originrouter/runtime
 // so the server can resolve them via NODE_PATH. Best-effort — sql.js is required,
 // better-sqlite3 is optional. Logs to stderr only on failure.
@@ -187,6 +204,8 @@ Commands:
                       (originrouter connect http://host:20128)
   show [tool…]        Show each CLI tool's current originrouter config and models
                       (e.g. originrouter show claude)
+  patch [options]     Apply a locally built bundle to the running gateway
+                      (e.g. originrouter patch --status | originrouter patch --force)
   xai video --prompt "..." --output video.mp4
                       Generate a Grok Imagine video via the running gateway
                       (see: ${APP_NAME} xai video --help)

@@ -264,6 +264,19 @@ function buildCliPackage() {
     process.exit(1);
   }
 
+  // Step 3a-b: Copy the local patch runner. It is spawned as a standalone .cjs,
+  // never imported, so output tracing prunes it and the dashboard's patch route
+  // would answer "Patch runner is missing from this build".
+  const patchRunnerSrc = path.join(appDir, "src", "lib", "localPatch", "runner.cjs");
+  if (fs.existsSync(patchRunnerSrc)) {
+    const patchRunnerDest = path.join(cliAppDir, "src", "lib", "localPatch", "runner.cjs");
+    fs.mkdirSync(path.dirname(patchRunnerDest), { recursive: true });
+    fs.copyFileSync(patchRunnerSrc, patchRunnerDest);
+    console.log("✅ Copied local patch runner\n");
+  } else {
+    console.warn("⚠️  src/lib/localPatch/runner.cjs not found — local patching disabled in this bundle");
+  }
+
   // Step 3b: Ensure sql.js (pure JS fallback) bundled in app/cli/app/node_modules.
   // Strip better-sqlite3 (native) — it lives in ~/.originrouter/runtime to avoid
   // Windows EBUSY during global CLI updates. node:sqlite (Node ≥22.5) is also

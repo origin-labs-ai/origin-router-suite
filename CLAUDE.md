@@ -31,6 +31,16 @@ npm run cli:pack       # build + npm pack from root
 cd cli && npm run dev  # nodemon watch
 ```
 
+Local build patch (repo build → installed bundle, idle-gated, auto-rollback):
+```bash
+npm run patch:local            # rebuild when stale, swap, restart, roll back if unhealthy
+npm run patch:local -- --watch # same, whenever sources change and the gateway is idle
+npm run patch:local -- --all   # also patch installs that are not running (e.g. desktop app)
+```
+The bundle is registered in `~/.or/patch/source.json`, so the dashboard card
+(Settings → Local build patch) and `or patch` can re-apply it. Both are local-only:
+they can stop and restart the gateway, so a remote dashboard is refused.
+
 Tests (vitest, in `tests/`, an **independent** ESM package — not wired into root `npm test`):
 ```bash
 npm install                             # ROOT deps first — tests import from src/ which needs `open`, `undici`, etc.

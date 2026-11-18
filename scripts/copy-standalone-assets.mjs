@@ -1,4 +1,4 @@
-import { cpSync, existsSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
 
@@ -36,6 +36,17 @@ export function copyStandaloneAssets({ projectRoot = process.cwd(), distDir = pr
   if (existsSync(serverWrapperSource)) {
     cpSync(serverWrapperSource, serverWrapperDestination, { force: true });
     console.log(`[standalone-assets] Copied custom-server.js to ${serverWrapperDestination}`);
+  }
+
+  // The patch runner is spawned as a standalone .cjs and never imported, so
+  // output tracing does not see it. Without this copy the dashboard's patch
+  // route reports "Patch runner is missing from this build".
+  const runnerSource = resolve(projectRoot, "src", "lib", "localPatch", "runner.cjs");
+  const runnerDestination = resolve(standaloneDir, "src", "lib", "localPatch", "runner.cjs");
+  if (existsSync(runnerSource)) {
+    mkdirSync(dirname(runnerDestination), { recursive: true });
+    cpSync(runnerSource, runnerDestination, { force: true });
+    console.log(`[standalone-assets] Copied patch runner to ${runnerDestination}`);
   }
 }
 

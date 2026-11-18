@@ -6,6 +6,7 @@ import { Card, Button, Toggle, Input } from "@/shared/components";
 import Modal, { ConfirmModal } from "@/shared/components/Modal";
 import LanguageSwitcher from "@/shared/components/LanguageSwitcher";
 import RoutingResilienceCard from "@/shared/components/RoutingResilienceCard";
+import LocalPatchCard from "@/shared/components/LocalPatchCard";
 import FusionSetupSection from "@/shared/components/FusionSetupSection";
 import DataManagerSection from "@/shared/components/DataManagerSection";
 import { useTheme } from "@/shared/hooks/useTheme";
@@ -1807,6 +1808,9 @@ export default function ProfilePage() {
             </div>
           </div>
         </Card>
+
+        {/* Local build patch — repo build → installed bundle, idle-gated */}
+        {!isRemoteHost && <LocalPatchCard />}
 
         {/* Account actions */}
         <div className="flex flex-col sm:flex-row gap-2">

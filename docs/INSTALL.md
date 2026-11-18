@@ -123,6 +123,30 @@ npm run dist:win --prefix desktop                   # -> dist\installer\OriginRo
 `.github/workflows/release.yml` runs the same steps on a `v*` tag and attaches the
 artifacts plus their `.sha256` files to the release.
 
+## Local build patch
+
+A source checkout can replace an installed bundle without the installer or a manual
+copy. The patch is **idle-gated**: if requests are in flight it refuses and prints the
+count, the same way the update command makes you choose.
+
+```bash
+npm run patch:local                   # build when stale, then patch the running install
+npm run patch:local -- --dry-run      # plan only
+npm run patch:local -- --build        # force a rebuild
+npm run patch:local -- --all          # also patch installs that are not running
+npm run patch:local -- --target <dir> # explicit install root or bundle
+npm run patch:local -- --watch        # rebuild + patch when sources change and the gateway is idle
+npm run patch:local -- --no-restart   # register the bundle for the dashboard / `or patch`
+```
+
+`or patch` (and **Settings → Local build patch** in the dashboard) applies the bundle
+that the repo registered. They talk to the running gateway, so they can only run on the
+machine hosting it. `--force` cuts in-flight requests off; the default is to wait.
+
+The swap renames the old folder to `app.bak-<timestamp>`, copies the new bundle, and
+carries `.env` across. A build that does not answer `/api/health` is rolled back
+automatically, and only the newest backup is kept. The data folder is never touched.
+
 ## Data
 
 | Path | Contents |
@@ -130,6 +154,7 @@ artifacts plus their `.sha256` files to the release.
 | `~/.or` | database (`db/data.sqlite` + `db/backups`), keys, logs, cache, `updates.log` |
 | `~/.or/desktop` | desktop window bounds and Electron profile |
 | `~/.or/panda` | PandaOrchestrator brain state + logs |
+| `~/.or/patch` | registered local patch source, `status.json`, `patch.log`, `runner.cjs` |
 | `~/.fusion/.or` | mirrored copy of `~/.or` kept by `dataMirror.js` |
 
 Uninstalling either installer leaves `~/.or` untouched; delete it to reset completely.

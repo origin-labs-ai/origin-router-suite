@@ -19,6 +19,8 @@
     "test:verbose": "npm --prefix tests run test:verbose",
     "cli:pack": "npm --prefix cli run pack:cli",
     "cli:publish": "npm --prefix cli run publish:cli",
+    "patch:local": "node scripts/local-patch.mjs",
+    "patch:watch": "node scripts/local-patch.mjs --watch",
     "predev": "node scripts/gen-provider-icons.mjs",
     "prebuild": "node scripts/gen-provider-icons.mjs"
   },

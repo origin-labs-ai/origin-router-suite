@@ -292,6 +292,10 @@ function buildCliPackage() {
   // the bundle's node_modules or every importer throws MODULE_NOT_FOUND at runtime. Output
   // tracing normally copies it; this is the same belt-and-braces guard used for sql.js.
   ensureModuleInBundle("open");
+  // custom-server.js loads `ws` inside a try/catch, so output tracing never sees the
+  // require and the packaged bundle boots with "[WS] ws unavailable". The /v1/ws
+  // upgrade then never happens in installed builds. Bundle the real package.
+  ensureModuleInBundle("ws");
   const betterDir = path.join(cliAppDir, "node_modules", "better-sqlite3");
   if (fs.existsSync(betterDir)) {
     fs.rmSync(betterDir, { recursive: true, force: true });

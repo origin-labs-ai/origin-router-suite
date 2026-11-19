@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { pipelineStatus, runScan, runInstall, installOne } from "@/lib/skillsPipeline/index.js";
 import { githubCatalog, localCatalog, pageSlice } from "@/lib/skillsPipeline/catalog.js";
+import { discoverLocalSkills, importSkillFile } from "@/lib/skillsPipeline/localSkills.js";
 import { CARD_PREVIEW_CHARS } from "@/lib/skillsPipeline/preview.js";
 
 // Skills pipeline API — import a skills catalog into DATA_DIR/skills with
@@ -61,6 +62,7 @@ export async function GET(request) {
       let effective = source; // the source the list actually came from
       let list;
       let sourceConfig = null;
+      let installedDir = "";
 
       if (source === "github") {
         try {
@@ -76,7 +78,11 @@ export async function GET(request) {
           list.fallback = true;
         }
       } else {
-        list = await localCatalog();
+        // Local is what is actually installed/imported/discoverable on this
+        // machine, not a configured payload folder that may not exist here.
+        const local = await discoverLocalSkills();
+        installedDir = local.installedDir;
+        list = { skills: local.skills, notes: local.notes, fallback: false };
       }
 
       const allNotes = [...notes, ...(list?.notes || [])];
@@ -88,6 +94,7 @@ export async function GET(request) {
           fallback: !!list.fallback,
           notes: allNotes,
           sourceConfig,
+          installedDir,
           ...paged, // { skills, total, page, pageSize, hasMore }
           previewChars: CARD_PREVIEW_CHARS, // the card preview length the client may assume
         },
@@ -131,6 +138,16 @@ export async function POST(request) {
       }
       const result = await installOne(body.name, opts);
       return NextResponse.json(result);
+    }
+    // A user-picked SKILL.md arrives as TEXT, never as a path. The server
+    // sanitizes the name and writes it under the installed-skills dir.
+    if (action === "import") {
+      const result = await importSkillFile({
+        fileName: body?.fileName,
+        content: body?.content,
+        destDir: opts.destDir,
+      });
+      return NextResponse.json({ skill: result });
     }
     return NextResponse.json({ error: `unknown action: ${action}` }, { status: 400 });
   } catch (err) {

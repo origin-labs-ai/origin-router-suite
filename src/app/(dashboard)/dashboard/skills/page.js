@@ -46,11 +46,15 @@ function readStoredSource() {
   }
 }
 
+const KIND_LABEL = { imported: "imported", installed: "installed", discovered: "found" };
+
 // One catalog card. Same scale vocabulary as LocalModelsClient: Card padding
 // "md" (rounded-[12px], p-6), text-sm titles, text-xs meta, xs ghost/secondary
 // buttons. Wide and short: name row, two clamped lines of the skill's own
 // description (body preview when it has none, always "…" when cut), footer.
-function SkillCard({ skill, preview, onRead }) {
+// Local cards show the real on-disk path instead of just the folder name —
+// that is the whole point of the Local tab: where the skill lives.
+function SkillCard({ skill, preview, onRead, showPath }) {
   return (
     <Card padding="md" className="flex flex-col">
       <div className="flex items-center gap-2.5 min-w-0">
@@ -67,9 +71,14 @@ function SkillCard({ skill, preview, onRead }) {
         {preview}
       </p>
       <div className="mt-3 pt-3 border-t border-border-subtle flex items-center justify-between gap-2">
-        <span className="text-[11px] font-mono text-text-muted truncate" title={skill.path}>
-          {skill.dirName}
-        </span>
+        <div className="flex items-center gap-2 min-w-0">
+          {showPath && skill.source ? (
+            <Badge size="sm" variant="default">{KIND_LABEL[skill.source] || "local"}</Badge>
+          ) : null}
+          <span className="text-[11px] font-mono text-text-muted truncate" title={skill.path}>
+            {showPath ? skill.path : skill.dirName}
+          </span>
+        </div>
         <Button size="xs" variant="secondary" icon="book" onClick={() => onRead(skill)} className="shrink-0">
           Read
         </Button>
@@ -84,8 +93,18 @@ export default function SkillsPage() {
   const [skills, setSkills] = useState([]);
   const [notes, setNotes] = useState([]);
   const [sourceConfig, setSourceConfig] = useState(null); // { owner, repo, branch, path } for github
+  const [installedDir, setInstalledDir] = useState(""); // local skills' real on-disk home
+  const [reloadKey, setReloadKey] = useState(0); // bump after an import to refetch the local catalog
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+
+  // ── local SKILL.md import ───────────────────────────────────────────────────
+  const [importOpen, setImportOpen] = useState(false);
+  const [importFileName, setImportFileName] = useState("");
+  const [importText, setImportText] = useState("");
+  const [importBusy, setImportBusy] = useState(false);
+  const [importError, setImportError] = useState("");
+  const fileInputRef = useRef(null);
 
   // ── incremental rendering + search ─────────────────────────────────────────
   const [query, setQuery] = useState("");
@@ -145,17 +164,19 @@ export default function SkillsPage() {
         setSkills(Array.isArray(data.skills) ? data.skills : []);
         setNotes(Array.isArray(data.notes) ? data.notes : []);
         setSourceConfig(data.sourceConfig || null);
+        setInstalledDir(data.installedDir || "");
         setVisibleCount(BATCH);
       } catch (err) {
         if (seq !== catalogSeq.current) return;
         setError(err?.message || String(err));
         setSkills([]);
         setNotes([]);
+        setInstalledDir("");
       } finally {
         if (seq === catalogSeq.current) setLoading(false);
       }
     })();
-  }, [source]);
+  }, [source, reloadKey]);
 
   // Restore the remembered source once, after mount. Runs after the initial
   // catalog effect fired for the default ("github") — a stored "local" costs
@@ -268,12 +289,17 @@ export default function SkillsPage() {
       setReadText("");
       setReadError("");
       setReadLoading(true);
-      // Both sources answer the same endpoint; github keys on the repo path,
-      // local on the validated dir name (the route refuses anything else).
-      const qs =
-        source === "github"
-          ? `source=github&path=${encodeURIComponent(skill.path)}`
-          : `source=local&name=${encodeURIComponent(skill.dirName)}`;
+      // Local cards already carry a longer excerpt from the file scan — a
+      // discovered skill may live outside the installed dir, so the preview
+      // endpoint (which only resolves installed names) cannot read it. Only
+      // GitHub cards need a round trip.
+      if (source === "local") {
+        setReadText(skill.modalText || skill.card || skill.preview || "");
+        setReadError("");
+        setReadLoading(false);
+        return;
+      }
+      const qs = `source=github&path=${encodeURIComponent(skill.path)}`;
       (async () => {
         try {
           const res = await fetch(`/api/skills-pipeline/preview?${qs}&limit=${MODAL_PREVIEW_CHARS}`, { cache: "no-store" });
@@ -308,6 +334,49 @@ export default function SkillsPage() {
   useEffect(() => {
     refreshStatus(); // eslint-disable-line react-hooks/set-state-in-effect -- initial load is an async fetch, not a sync setState
   }, [refreshStatus]);
+
+  // Pick a SKILL.md from the browser. Only its TEXT crosses the boundary —
+  // the server never trusts a client-supplied path.
+  const pickImportFile = useCallback(async (event) => {
+    const file = event?.target?.files?.[0];
+    if (!file) return;
+    setImportError("");
+    try {
+      setImportFileName(file.name);
+      setImportText(await file.text());
+    } catch (err) {
+      setImportError(err?.message || "Could not read that file.");
+    }
+  }, []);
+
+  const importSkill = useCallback(async () => {
+    if (!importText.trim()) {
+      setImportError("Select a SKILL.md first.");
+      return;
+    }
+    setImportBusy(true);
+    setImportError("");
+    try {
+      const res = await fetch("/api/skills-pipeline", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "import", fileName: importFileName, content: importText }),
+      });
+      const data = await res.json();
+      if (!res.ok || data.error) throw new Error(data.error || "import failed");
+      setImportOpen(false);
+      setImportFileName("");
+      setImportText("");
+      if (fileInputRef.current) fileInputRef.current.value = "";
+      if (source === "local") setReloadKey((key) => key + 1);
+      else switchSource("local");
+      await refreshStatus();
+    } catch (err) {
+      setImportError(err?.message || String(err));
+    } finally {
+      setImportBusy(false);
+    }
+  }, [importText, importFileName, source, switchSource, refreshStatus]);
 
   const act = useCallback(
     async (action) => {
@@ -352,8 +421,8 @@ export default function SkillsPage() {
           <p className="text-sm text-text-muted mt-1">
             {source === "github"
               ? "Agent skills from the GitHub catalog"
-              : "Agent skills from the local payloads catalog"}
-            {sourceHint ? (
+              : "Skills installed or found on this machine"}
+            {source === "github" && sourceHint ? (
               <>
                 {" — "}
                 <span className="font-mono">{sourceHint}</span>
@@ -361,16 +430,28 @@ export default function SkillsPage() {
             ) : null}
             .
           </p>
+          {source === "local" && installedDir ? (
+            <p className="mt-1 text-[11px] font-mono text-text-muted break-all">
+              Installed at {installedDir}
+            </p>
+          ) : null}
         </div>
-        <SegmentedControl
-          size="sm"
-          value={source}
-          onChange={switchSource}
-          options={[
-            { value: "github", label: "GitHub", icon: "cloud" },
-            { value: "local", label: "Local", icon: "hard_drive" },
-          ]}
-        />
+        <div className="flex items-center gap-2">
+          <SegmentedControl
+            size="sm"
+            value={source}
+            onChange={switchSource}
+            options={[
+              { value: "github", label: "GitHub", icon: "cloud" },
+              { value: "local", label: "Local", icon: "hard_drive" },
+            ]}
+          />
+          {source === "local" ? (
+            <Button size="sm" variant="secondary" icon="add" onClick={() => setImportOpen(true)}>
+              Add
+            </Button>
+          ) : null}
+        </div>
       </div>
 
       {/* Search + count */}
@@ -416,13 +497,32 @@ export default function SkillsPage() {
           ))}
         </div>
       ) : filtered.length === 0 ? (
-        <Card padding="md">
-          <p className="text-sm text-text-muted">
-            {skills.length === 0
-              ? "No skills found in this catalog yet."
-              : `No skills match “${query.trim()}”.`}
-          </p>
-        </Card>
+        // Local empty state is an invitation, not a dead end: whether nothing
+        // was ever added or nothing was auto-discovered, the single central "+"
+        // is the way in. A filtered-out search keeps its own message.
+        skills.length === 0 && source === "local" ? (
+          <Card padding="md">
+            <div className="flex flex-col items-center justify-center text-center py-8 gap-3">
+              <span className="material-symbols-outlined text-[32px] text-text-muted">folder_off</span>
+              <p className="text-sm font-medium text-text-main">No skills added</p>
+              <p className="text-xs text-text-muted max-w-sm">
+                Add a SKILL.md to install it here. Skills already on this machine
+                are found automatically.
+              </p>
+              <Button size="sm" icon="add" onClick={() => setImportOpen(true)}>
+                Add skill
+              </Button>
+            </div>
+          </Card>
+        ) : (
+          <Card padding="md">
+            <p className="text-sm text-text-muted">
+              {skills.length === 0
+                ? "No skills found in this catalog yet."
+                : `No skills match “${query.trim()}”.`}
+            </p>
+          </Card>
+        )
       ) : (
         <>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -432,6 +532,7 @@ export default function SkillsPage() {
                 skill={skill}
                 preview={source === "github" ? previews[skill.path] ?? "" : skill.card || skill.preview || ""}
                 onRead={openRead}
+                showPath={source === "local"}
               />
             ))}
           </div>
@@ -507,6 +608,66 @@ export default function SkillsPage() {
           </div>
         ) : null}
       </Card>
+
+      {/* Add modal — pick a SKILL.md from disk. Only its text is uploaded;
+          the server picks a safe destination under the installed-skills dir. */}
+      <Modal
+        isOpen={importOpen}
+        onClose={() => {
+          if (importBusy) return;
+          setImportOpen(false);
+          setImportError("");
+          setImportFileName("");
+          setImportText("");
+          if (fileInputRef.current) fileInputRef.current.value = "";
+        }}
+        title="Add a local skill"
+        size="md"
+      >
+        <div className="flex flex-col gap-4">
+          <p className="text-sm text-text-muted">
+            Choose a <span className="font-mono">SKILL.md</span>. It is copied into the
+            installed-skills folder and shows up here right away.
+          </p>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".md,text/markdown,text/plain"
+            onChange={pickImportFile}
+            className="hidden"
+          />
+          <Button
+            size="sm"
+            variant="secondary"
+            icon="upload_file"
+            onClick={() => fileInputRef.current?.click()}
+          >
+            {importFileName || "Choose SKILL.md"}
+          </Button>
+          {importText ? (
+            <p className="text-[11px] text-text-muted">
+              {(importText.length / 1024).toFixed(1)} KB ready to import.
+            </p>
+          ) : null}
+          {importError ? <p className="text-xs text-red-500 break-words">{importError}</p> : null}
+          <div className="flex justify-end gap-2">
+            <Button
+              size="sm"
+              variant="ghost"
+              disabled={importBusy}
+              onClick={() => {
+                setImportOpen(false);
+                setImportError("");
+              }}
+            >
+              Cancel
+            </Button>
+            <Button size="sm" icon="add" loading={importBusy} disabled={!importText.trim()} onClick={importSkill}>
+              Add skill
+            </Button>
+          </div>
+        </div>
+      </Modal>
 
       {/* Read modal — the SKILL.md opening text, rendered as plain text.
           Never the whole file, never an authored description. */}

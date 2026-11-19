@@ -44,7 +44,10 @@ async function chatWith(jwt, ua) {
 }
 
 describe("MiMo Free bootstrap (live)", () => {
-  it("bootstrap returns 200 with JWT", async () => {
+  // Same upstream shutdown as the chat test below: the bootstrap endpoint now
+  // answers 404 with an HTML body instead of a JWT. Keep the repro here for
+  // whoever revives the channel, but do not fail CI on a dead public service.
+  it.skip("bootstrap returns 200 with JWT", async () => {
     const { status, jwt } = await bootstrapWith(CHROME_UA);
     expect(status).toBe(200);
     expect(jwt).toBeTruthy();

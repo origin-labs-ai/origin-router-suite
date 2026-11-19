@@ -34,7 +34,9 @@ const VOLATILE_HEADERS = new Set(["x-msh-device-name", "x-mavis-session-id", "x-
 //   <VERSION>   the app version riding in User-Agent / X-*-Version (it changes every cut)
 //   <PLATFORM>  OS / arch / node version (linux vs win32 is a checkout detail, not a contract)
 const UUID_RE = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi;
-const SEMVER_RE = /\bv?\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?\b/g;
+// A release may be a two-part version (0.6) as well as x.y.z — both are the
+// app version riding in headers, so both fold to <VERSION> before snapshotting.
+const SEMVER_RE = /\bv?\d+\.\d+(?:\.\d+)?(?:[-+][0-9A-Za-z.-]+)?\b/g;
 const PLATFORM_RE = /\b(?:linux|win32|darwin|windows|macos|freebsd|x64|x86|arm64|aarch64)\b/gi;
 
 // Sanitize header: khử token + field thời gian động (kimi X-Msh-Device-Id) để snapshot ổn định.

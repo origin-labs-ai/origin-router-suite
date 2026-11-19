@@ -33,7 +33,11 @@ if (!fs.existsSync(path.join(unpacked, "OriginRouter Desktop.exe"))) {
   process.exit(1);
 }
 
-const result = spawnSync(iscc, [script, `/DAppVersion=${pkg.version}`], {
+// electron-builder needs strict semver in package.json, but a release can use
+// a shorter display version (0.6 rather than 0.6.0). The installer, its file
+// name and the Windows version info follow the display version when set.
+const displayVersion = String(process.env.OR_DISPLAY_VERSION || "").trim() || pkg.version;
+const result = spawnSync(iscc, [script, `/DAppVersion=${displayVersion}`], {
   stdio: "inherit",
   cwd: repoRoot,
 });

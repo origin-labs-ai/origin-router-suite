@@ -44,26 +44,24 @@ import { join, resolve, sep, basename } from "node:path";
 
 // ─── Paths ───────────────────────────────────────────────────────────────────
 
-// Default import source: the code-fusion payloads skills catalog. Owner machines
-// keep it at the fusion workspace checkout; the settings key
-// `skillsPipeline.sourceDir` (see DEFAULT_SETTINGS use in the API route) can
-// point this at any other catalog directory with the same shape.
-export const DEFAULT_SOURCE_DIR =
-  "C:\\Users\\thaku\\Workspaces\\fusion\\code-fusion\\payloads\\skills";
-
 // Where installed skills live in THIS app. The existing skills system is the
 // agent-skills directory convention (one dir per skill, each with a SKILL.md —
 // the same shape src/shared/constants/skills.js publishes and the repo's own
 // .agents/skills/<name>/SKILL.md uses), rooted at the runtime data dir so the
 // install follows DATA_DIR like every other piece of app state and never
 // writes into the source tree at runtime.
+//
+// This is also the fallback for an unconfigured LOCAL source: "Local" now means
+// what is on this machine, not a developer checkout path that only ever existed
+// on the owner's box. A catalog elsewhere is still available by setting
+// `skillsPipeline.sourceDir`.
 export async function defaultDestDir() {
   const { DATA_DIR } = await import("@/lib/dataDir.js");
   return join(DATA_DIR, "skills");
 }
 
 // Resolve the configured source dir: settings key skillsPipeline.sourceDir,
-// else the payloads default above. Fail-open — any settings problem falls
+// else the installed-skills directory. Fail-open — any settings problem falls
 // back to the default rather than breaking the pipeline.
 export async function resolveSourceDir() {
   try {
@@ -74,7 +72,7 @@ export async function resolveSourceDir() {
   } catch {
     // settings unavailable (tests, first boot) — the default is still valid.
   }
-  return DEFAULT_SOURCE_DIR;
+  return defaultDestDir();
 }
 
 // ─── Frontmatter parsing ─────────────────────────────────────────────────────
@@ -537,7 +535,7 @@ async function resolvePipelineSource(opts = {}) {
   const kind = settings?.skillsSource?.kind === "local" ? "local" : "github";
   if (kind === "local") {
     const configured = settings?.skillsPipeline?.sourceDir;
-    const sourceDir = typeof configured === "string" && configured.trim() ? configured.trim() : DEFAULT_SOURCE_DIR;
+    const sourceDir = typeof configured === "string" && configured.trim() ? configured.trim() : await defaultDestDir();
     return { kind: "local", sourceDir: resolve(sourceDir) };
   }
   const { normalizeSkillsSource } = await import("./githubSource.js");

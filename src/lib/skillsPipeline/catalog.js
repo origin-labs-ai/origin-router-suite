@@ -81,10 +81,9 @@ export async function localCatalog(opts = {}) {
     String(opts.sourceDir || "").trim() || (await resolveSourceDir()),
   );
   const entries = scanSourceDir(sourceDir);
+  // No "catalog is empty" note: the page's own empty state says that, and a
+  // note here used to leak a machine-specific absolute path to every install.
   const notes = [];
-  if (!entries.length) {
-    notes.push(`Local catalog is empty or unreadable: ${sourceDir}`);
-  }
   const skills = entries.map((entry) => {
     let preview = "";
     let card = "";

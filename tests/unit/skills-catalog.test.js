@@ -29,6 +29,7 @@ const {
   PREVIEW_MAX_CHARS,
 } = await import("../../src/lib/skillsPipeline/preview.js");
 const { pageSlice, localCatalog, localPreview } = await import("../../src/lib/skillsPipeline/catalog.js");
+const { resolveSourceDir, defaultDestDir } = await import("../../src/lib/skillsPipeline/index.js");
 const {
   assertGithubUrl,
   normalizeSkillsSource,
@@ -480,5 +481,18 @@ describe("localCatalog / localPreview", () => {
     expect(ok.truncated).toBe(false);
     await expect(localPreview({ sourceDir: LOCAL_SRC }, "../escape", 100)).rejects.toThrow(/invalid skill name/);
     await expect(localPreview({ sourceDir: LOCAL_SRC }, "no-such-skill", 100)).rejects.toThrow(/no SKILL\.md/);
+  });
+
+  it("adds no machine-specific path note when the local catalog is empty", async () => {
+    const { skills, notes } = await localCatalog({ sourceDir: join(TMP, "empty-catalog") });
+    expect(skills).toEqual([]);
+    // The page has its own empty state; the old note leaked an absolute path
+    // from one developer's machine into every install's UI.
+    expect(notes).toEqual([]);
+  });
+
+  it("defaults an unconfigured local source to this app's installed skills", async () => {
+    expect(await resolveSourceDir()).toBe(await defaultDestDir());
+    expect(await resolveSourceDir()).not.toMatch(/code-fusion/);
   });
 });

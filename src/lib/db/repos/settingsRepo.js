@@ -101,13 +101,15 @@ const DEFAULT_SETTINGS = {
   // localStorage on top of this); `github` names the repo the cloud catalog is
   // fetched from — same shape as the payloads folder on disk (one dir per
   // skill, each with a SKILL.md), so both sources render through one card grid.
+  // The catalog itself lives in the `code` mono-repo; the old 0.6 default
+  // pointed at origin-labs-ai/revolt-fusion/skills, which does not exist (404).
   skillsSource: {
     kind: "github", // github | local
     github: {
       owner: "origin-labs-ai",
-      repo: "revolt-fusion",
+      repo: "code",
       branch: "main",
-      path: "skills",
+      path: "payloads/skills",
     },
   },
   // The skills system prompt: the router tells every model what skills and
@@ -192,12 +194,24 @@ export function mergeWithDefaults(raw) {
   // And for skillsSource: the github repo block is nested one level deeper, so
   // a partial PATCH of just `kind` must not lose owner/repo/branch/path (and
   // vice versa) — same drill as fusion.source above.
+  //
+  // 0.6 shipped origin-labs-ai/revolt-fusion@main · skills/ as the catalog.
+  // That repo does not exist (404), so the exact legacy signature is treated
+  // as "never configured" and resolves to the code mono-repo instead. An
+  // explicit kind: "local" is untouched — only the dead repo block migrates.
+  const storedSkillsSource = merged.skillsSource || {};
+  const storedGithub = storedSkillsSource.github || {};
+  const isLegacySkillsRepo =
+    storedGithub.owner === "origin-labs-ai" &&
+    storedGithub.repo === "revolt-fusion" &&
+    storedGithub.path === "skills" &&
+    (!storedGithub.branch || storedGithub.branch === "main");
   merged.skillsSource = {
     ...DEFAULT_SETTINGS.skillsSource,
-    ...(merged.skillsSource || {}),
+    ...storedSkillsSource,
     github: {
       ...DEFAULT_SETTINGS.skillsSource.github,
-      ...((merged.skillsSource || {}).github || {}),
+      ...(isLegacySkillsRepo ? {} : storedGithub),
     },
   };
   // Same nested rule for skills.systemPrompt: a partial PATCH must never lose

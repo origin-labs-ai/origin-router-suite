@@ -1,3 +1,15 @@
+# v0.7.000 (unreleased)
+
+## Fixed
+- **The three tray console items did nothing.** "Open Gateway Console", "Open Panda Orchestrator Console" and "Restart Panda Orchestrator" all launched PowerShell with `detached: true`, which on Windows means `DETACHED_PROCESS`: no console is ever created and the child exits 0, so every click looked dead. The launcher now goes through `cmd /c start <title> powershell -File <helper.ps1>` (`desktop/consoleWindow.cjs`), so a real, visible console opens and tails the log. The helper waits for a missing log instead of closing in the user's face, and the dashboard remains the fallback when it cannot start at all.
+- **Console logs showed mojibake (`ðŸ’¡`).** Windows PowerShell reads with the ANSI code page and writes with the OEM code page by default, while the gateway writes UTF-8. The console helper now pins both to UTF-8 (`-Encoding UTF8` + `[Console]::OutputEncoding`), and the CLI's tray/startup lines are ASCII so a terminal with any code page renders them correctly.
+
+## Changed
+- **The skills catalog now comes from GitHub by default** (`origin-labs-ai/code@main`, `payloads/skills/`) instead of a local `code-fusion\payloads\skills` folder that only existed on one machine. Both the catalog and the installer read the same catalog shape — one directory per skill with a `SKILL.md` — and local remains available as an explicit opt-in. A configured source that 404s (the 0.6 `revolt-fusion` default) retries the built-in catalog once and says so in the UI; the full repo tree is never requested, only the `payloads/skills` subtree.
+- **GitHub installs fetch only `SKILL.md`** per skill, with 8 in flight, bounded timeouts and a jsDelivr mirror for networks where `raw.githubusercontent.com` is unreachable. Every file is hashed as a Git blob and compared with the tree's sha before it is written, so a mirror that serves different bytes is rejected. A failed skill is reported and the rest of the catalog still lands. Installed skills now match on both frontmatter name and directory name, so the 24 title-cased skills no longer re-install forever.
+- **Every Skills card shows the skill's own description**, taken from `SKILL.md` frontmatter and falling back to the opening prose, clamped to two lines with a word-safe "…" when it was cut. The preview endpoint returns `description` and `card`; the old body preview stays for the Read modal. Import failures now surface their error instead of looking like a button that did nothing.
+- **The skills prompt block has its skill list again.** `pipelineStatus()` returns `{ name, dirName, description }[]`, which is exactly what the system-prompt injector expects.
+
 # v0.6 (2026-11-09)
 
 The 0.6 line: 24 routing strategies, a conversation fold layer, 140+ providers, and the router can hold a key back.

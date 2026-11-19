@@ -22,6 +22,8 @@ process.env.DATA_DIR = TMP;
 const {
   skillPreview,
   previewWithEllipsis,
+  skillCardText,
+  skillDescription,
   wordSafeSlice,
   CARD_PREVIEW_CHARS,
   PREVIEW_MAX_CHARS,
@@ -32,6 +34,8 @@ const {
   normalizeSkillsSource,
   listGithubSkills,
   fetchGithubPreview,
+  fetchGithubSkillText,
+  gitBlobSha,
   DEFAULT_SKILLS_SOURCE,
 } = await import("../../src/lib/skillsPipeline/githubSource.js");
 const { mergeWithDefaults } = await import("../../src/lib/db/repos/settingsRepo.js");
@@ -87,6 +91,26 @@ describe("skillPreview", () => {
 
   it("keeps the card default at 280 chars (the contract the page renders)", () => {
     expect(CARD_PREVIEW_CHARS).toBe(280);
+  });
+});
+
+describe("skillCardText / skillDescription", () => {
+  it("prefers the frontmatter description over the body opening", () => {
+    const md = "---\nname: alpha\ndescription: A short description of the skill.\n---\n# Heading\n\nBody prose.";
+    expect(skillDescription(md)).toBe("A short description of the skill.");
+    expect(skillCardText(md, 280)).toBe("A short description of the skill.");
+  });
+
+  it("falls back to the body when there is no usable description", () => {
+    const md = "---\nname: alpha\ndescription: >-\n---\n# Heading\n\nBody prose.";
+    expect(skillDescription(md)).toBe(""); // block marker is not prose
+    expect(skillCardText(md, 280)).toBe("# Heading Body prose.");
+  });
+
+  it("appends '…' only when the card text was actually cut", () => {
+    const long = `---\nname: alpha\ndescription: ${"word ".repeat(200)}\n---\n`;
+    expect(skillCardText(long, 40).endsWith("…")).toBe(true);
+    expect(skillCardText("---\nname: alpha\n---\nshort body", 40)).toBe("short body");
   });
 });
 
@@ -190,15 +214,16 @@ function textResponse(text, { status = 200, ok = true } = {}) {
 }
 
 const FIXTURE_TREE = {
+  // GitHub's subtree API returns paths RELATIVE to the requested folder
+  // (main:payloads/skills), which is what listGithubSkills re-prefixes.
   tree: [
-    { type: "tree", path: "skills", sha: "t0" }, // tree nodes are ignored
-    { type: "blob", path: "skills/alpha/SKILL.md", sha: "a1" },
-    { type: "blob", path: "skills/alpha/references/ref.md", sha: "r1" }, // sibling — not a skill
-    { type: "blob", path: "skills/beta/SKILL.md", sha: "b2" },
-    { type: "blob", path: "skills/README.md", sha: "rd" }, // bare file — not a skill dir
-    { type: "blob", path: "skills/SKILL.md", sha: "x0" }, // bare SKILL.md — no dir, skipped
-    { type: "blob", path: "docs/elsewhere/SKILL.md", sha: "z9" }, // outside the configured path
-    { type: "blob", path: "skills/nested/deep/SKILL.md", sha: "n1" }, // deeper nesting: parent dir wins
+    { type: "tree", path: "alpha", sha: "t0" }, // tree nodes are ignored
+    { type: "blob", path: "alpha/SKILL.md", sha: "a1" },
+    { type: "blob", path: "alpha/references/ref.md", sha: "r1" }, // sibling — not a skill
+    { type: "blob", path: "beta/SKILL.md", sha: "b2" },
+    { type: "blob", path: "README.md", sha: "rd" }, // bare file — not a skill dir
+    { type: "blob", path: "SKILL.md", sha: "x0" }, // bare SKILL.md — no dir, skipped
+    { type: "blob", path: "nested/deep/SKILL.md", sha: "n1" }, // deeper nesting: parent dir wins
   ],
   truncated: false,
 };
@@ -215,9 +240,9 @@ describe("listGithubSkills (stubbed fetch)", () => {
     const { skills, truncated, notes } = await listGithubSkills({ source: { ...DEFAULT_SKILLS_SOURCE, repo: "fixture-a" } });
 
     expect(skills.map((s) => s.dirName)).toEqual(["alpha", "beta", "deep"]);
-    // path = the SKILL.md BLOB path — exactly what fetchGithubPreview (and so
-    // the client's preview fetches) hand back to the endpoint.
-    expect(skills.find((s) => s.dirName === "deep")?.path).toBe("skills/nested/deep/SKILL.md");
+    // path = the repo-relative SKILL.md BLOB path — exactly what
+    // fetchGithubPreview (and so the client's preview fetches) hand back.
+    expect(skills.find((s) => s.dirName === "deep")?.path).toBe("payloads/skills/nested/deep/SKILL.md");
     expect(skills.every((s) => s.sha && s.path.endsWith("/SKILL.md"))).toBe(true);
     expect(truncated).toBe(false);
     expect(notes).toEqual([]);
@@ -226,6 +251,8 @@ describe("listGithubSkills (stubbed fetch)", () => {
     const url = new URL(calls[0].url);
     expect(url.protocol).toBe("https:");
     expect(url.hostname).toBe("api.github.com");
+    // Subtree request: branch:path — not the whole mono-repo tree.
+    expect(decodeURIComponent(url.pathname)).toBe("/repos/origin-labs-ai/fixture-a/git/trees/main:payloads/skills");
     expect(url.searchParams.get("recursive")).toBe("1");
     expect(calls[0].init.headers["User-Agent"]).toContain("origin-router");
     expect(calls[0].init.headers.Authorization).toBeUndefined();
@@ -258,6 +285,24 @@ describe("listGithubSkills (stubbed fetch)", () => {
       listGithubSkills({ source: { ...DEFAULT_SKILLS_SOURCE, repo: "fixture-d" } }),
     ).rejects.toThrow(/rate limit/i);
   });
+
+  it("retries the built-in catalog once on 404 and says so in notes", async () => {
+    const calls = [];
+    vi.stubGlobal("fetch", async (url) => {
+      calls.push(String(url));
+      if (String(url).includes("revolt-fusion")) {
+        return jsonResponse({ message: "Not Found" }, { status: 404, ok: false });
+      }
+      return jsonResponse(FIXTURE_TREE);
+    });
+    const { skills, notes, sourceConfig } = await listGithubSkills({
+      source: { owner: "origin-labs-ai", repo: "revolt-fusion", branch: "main", path: "skills" },
+    });
+    expect(calls).toHaveLength(2); // stale source, then the built-in one
+    expect(skills.length).toBe(3);
+    expect(notes.some((n) => /not found \(404\)/i.test(n))).toBe(true);
+    expect(sourceConfig).toEqual(DEFAULT_SKILLS_SOURCE); // previews follow the fallback
+  });
 });
 
 describe("fetchGithubPreview (stubbed fetch)", () => {
@@ -269,13 +314,15 @@ describe("fetchGithubPreview (stubbed fetch)", () => {
       calls.push(String(url));
       return textResponse("---\nname: alpha\n---\nOpening body text that goes on for a while.".repeat(3));
     });
-    const { preview, truncated } = await fetchGithubPreview(
+    const { preview, card, description, truncated } = await fetchGithubPreview(
       { source: { ...DEFAULT_SKILLS_SOURCE, repo: "fixture-e" } },
-      "skills/alpha/SKILL.md",
+      "payloads/skills/alpha/SKILL.md",
       500,
     );
     expect(preview).toContain("Opening body text");
     expect(preview.startsWith("name:")).toBe(false); // frontmatter stripped
+    expect(card).toContain("Opening body text"); // no description → body
+    expect(description).toBe("");
     expect(truncated).toBe(false);
     expect(calls).toHaveLength(1);
     expect(new URL(calls[0]).hostname).toBe("raw.githubusercontent.com");
@@ -288,21 +335,80 @@ describe("fetchGithubPreview (stubbed fetch)", () => {
       return textResponse("nope");
     });
     const source = { ...DEFAULT_SKILLS_SOURCE, repo: "fixture-f" };
-    await expect(fetchGithubPreview({ source }, "skills/alpha/other.md", 100)).rejects.toThrow(/SKILL\.md under/);
+    await expect(
+      fetchGithubPreview({ source }, "payloads/skills/alpha/other.md", 100),
+    ).rejects.toThrow(/SKILL\.md under/);
     await expect(fetchGithubPreview({ source }, "secrets/SKILL.md", 100)).rejects.toThrow(/SKILL\.md under/);
     await expect(fetchGithubPreview({ source }, "../etc/passwd", 100)).rejects.toThrow(/invalid/);
     expect(fetchCount).toBe(0); // validation is a hard gate, not a best effort
+  });
+
+  it("falls back to the jsDelivr mirror when raw.githubusercontent.com is unreachable", async () => {
+    const calls = [];
+    vi.stubGlobal("fetch", async (url) => {
+      calls.push(String(url));
+      if (String(url).includes("raw.githubusercontent.com")) {
+        throw Object.assign(new TypeError("fetch failed"), { cause: { code: "UND_ERR_CONNECT_TIMEOUT" } });
+      }
+      return textResponse("---\nname: alpha\n---\nMirror body text.");
+    });
+    const { preview } = await fetchGithubPreview(
+      { source: { ...DEFAULT_SKILLS_SOURCE, repo: "fixture-g" } },
+      "payloads/skills/alpha/SKILL.md",
+      100,
+    );
+    expect(preview).toContain("Mirror body text");
+    expect(new URL(calls.at(-1)).hostname).toBe("cdn.jsdelivr.net");
+    // One raw attempt, then the mirror — a connect timeout is not retried.
+    expect(calls.length).toBe(2);
+  });
+
+  it("verifies an installed SKILL.md against the tree sha (mirror content is not trusted)", async () => {
+    const text = "---\nname: alpha\n---\nbody";
+    vi.stubGlobal("fetch", async () => textResponse(text));
+    const source = { ...DEFAULT_SKILLS_SOURCE, repo: "fixture-h" };
+    const file = "payloads/skills/alpha/SKILL.md";
+
+    expect(await fetchGithubSkillText({ source }, file, gitBlobSha(text))).toBe(text);
+    await expect(fetchGithubSkillText({ source }, file, "deadbeef")).rejects.toThrow(/verification failed/i);
+  });
+
+  it("sends GITHUB_TOKEN to api.github.com only — never to raw or the CDN", async () => {
+    process.env.GITHUB_TOKEN = "ghp_test_token_do_not_leak";
+    const seen = [];
+    vi.stubGlobal("fetch", async (url, init = {}) => {
+      const host = new URL(String(url)).hostname;
+      seen.push({ host, auth: init.headers?.Authorization });
+      if (host === "api.github.com") {
+        return jsonResponse({
+          tree: [{ path: "alpha/SKILL.md", type: "blob", sha: gitBlobSha("---\nname: alpha\n---\nbody") }],
+          truncated: false,
+        });
+      }
+      return textResponse("---\nname: alpha\n---\nbody");
+    });
+    const source = { ...DEFAULT_SKILLS_SOURCE, repo: "fixture-i" };
+    try {
+      await listGithubSkills({ source });
+      await fetchGithubSkillText({ source }, "payloads/skills/alpha/SKILL.md");
+    } finally {
+      delete process.env.GITHUB_TOKEN;
+    }
+    expect(seen.find((c) => c.host === "api.github.com")?.auth).toBe("Bearer ghp_test_token_do_not_leak");
+    // raw.githubusercontent.com and cdn.jsdelivr.net are third parties: a PAT
+    // must never ride along to them.
+    expect(seen.filter((c) => c.host !== "api.github.com").every((c) => !c.auth)).toBe(true);
   });
 });
 
 // ─── Settings merge (skillsSource nested block) ──────────────────────────────
 
 describe("mergeWithDefaults: skillsSource", () => {
-  it("defaults to the revolt-fusion github catalog", () => {
+  it("defaults to the code mono-repo's payloads catalog", () => {
     const s = mergeWithDefaults({});
     expect(s.skillsSource).toEqual({
       kind: "github",
-      github: { owner: "origin-labs-ai", repo: "revolt-fusion", branch: "main", path: "skills" },
+      github: { owner: "origin-labs-ai", repo: "code", branch: "main", path: "payloads/skills" },
     });
   });
 
@@ -318,6 +424,23 @@ describe("mergeWithDefaults: skillsSource", () => {
     expect(s.skillsSource.github.owner).toBe("origin-labs-ai");
     expect(s.skillsSource.github.repo).toBe("custom-repo");
     expect(s.skillsSource.github.branch).toBe("main");
+  });
+
+  it("migrates the dead 0.6 revolt-fusion catalog but keeps a custom repo", () => {
+    const legacy = mergeWithDefaults({
+      skillsSource: { github: { owner: "origin-labs-ai", repo: "revolt-fusion", branch: "main", path: "skills" } },
+    });
+    expect(legacy.skillsSource.github).toEqual(DEFAULT_SKILLS_SOURCE);
+
+    const custom = mergeWithDefaults({
+      skillsSource: { github: { owner: "someone", repo: "their-skills", branch: "dev", path: "catalog" } },
+    });
+    expect(custom.skillsSource.github).toEqual({
+      owner: "someone",
+      repo: "their-skills",
+      branch: "dev",
+      path: "catalog",
+    });
   });
 });
 

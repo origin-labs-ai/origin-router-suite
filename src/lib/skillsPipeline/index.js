@@ -1,15 +1,21 @@
-// Skills pipeline — imports the owner's skills catalog from the code-fusion
-// payloads directory into this app's skills storage, with duplicate-merging.
+// Skills pipeline — imports a skills catalog into this app's skills storage,
+// with duplicate-merging.
 //
-// SOURCE (the contract): C:\Users\thaku\Workspaces\fusion\code-fusion\payloads\skills
-//   Each skill is ONE directory containing a SKILL.md whose YAML-ish frontmatter
-//   (--- name: ... description: ... ---) is the entire contract (see that dir's
-//   README.md / ADDED-SKILLS.md). Sibling files (references/, scripts/, …) are
-//   part of the skill and must survive the copy byte-exact. payloads/CONFLICT.md
-//   documents the merge policy this module implements:
-//     - A pre-existing entry wins; the incoming same-name skill is skipped.
-//     - Same-name duplicates within the source itself: the first one
-//       (deterministic dirName order) wins, the rest are skipped.
+// SOURCE (the contract): GitHub by default (origin-labs-ai/code,
+// payloads/skills) — each skill is ONE directory containing a SKILL.md whose
+// YAML-ish frontmatter (--- name: ... description: ... ---) is the entire
+// contract. The OLD local folder (C:\Users\thaku\…\code-fusion\payloads\skills)
+// remains available as an explicit `skillsSource.kind: "local"` opt-in for
+// development, but it is no longer the default: a path that exists on one
+// machine left every other install with an empty catalog. payloads/CONFLICT.md
+// documents the merge policy this module implements:
+//   - A pre-existing entry wins; the incoming same-name skill is skipped.
+//   - Same-name duplicates within the source itself: the first one
+//     (deterministic dirName order) wins, the rest are skipped.
+//
+// GITHUB INSTALLS write each skill's SKILL.md (the manifest this app's prompt
+// block reads). Reference siblings stay in the repo; downloading all ~6,000
+// of them (67 MB) on every install is not worth a minutes-long route.
 //
 // HOUSE RULES (repo conventions):
 //   - Plain JS ESM, heavy comments, no TypeScript, no YAML dependency (the
@@ -19,7 +25,8 @@
 //     out of the whole run. One bad skill must not block 950 good ones.
 //   - Skills are DATA — markdown + frontmatter only. NOTHING here executes,
 //     evaluates or imports any skill content. We hash bytes and copy bytes.
-//   - No shell, no child processes: all I/O goes through node:fs.
+//   - No shell, no child processes: all I/O goes through node:fs and the
+//     allow-listed GitHub fetches in githubSource.js.
 //   - Parameterized SQL where SQL exists (none here — see settingsRepo for the
 //     settings row this module persists its lastRun into; it is parameterized).
 
@@ -31,6 +38,7 @@ import {
   readFileSync,
   cpSync,
   statSync,
+  writeFileSync,
 } from "node:fs";
 import { join, resolve, sep, basename } from "node:path";
 
@@ -273,13 +281,20 @@ export function mergeSkills(incoming, existing) {
   const inc = Array.isArray(incoming) ? incoming : [];
   const exi = Array.isArray(existing) ? existing : [];
 
-  // Case-insensitive name index of what is already installed. Names come from
-  // frontmatter (or dirName fallback — scanSourceDir already normalized that).
+  // Case-insensitive indexes of what is already installed. Names come from
+  // frontmatter (or dirName fallback), but 24 skills in the payloads catalog
+  // use a Title Case frontmatter name ("Active Directory Attacks") over a
+  // kebab-case dir ("active-directory-attacks"). Matching on both keeps a
+  // re-install from reporting the same skill as new forever.
   const existingByName = new Map();
+  const existingByDir = new Map();
   for (const entry of exi) {
-    if (!entry || typeof entry.name !== "string" || !entry.name) continue;
-    if (!existingByName.has(entry.name.toLowerCase())) {
+    if (!entry) continue;
+    if (typeof entry.name === "string" && entry.name && !existingByName.has(entry.name.toLowerCase())) {
       existingByName.set(entry.name.toLowerCase(), entry);
+    }
+    if (typeof entry.dirName === "string" && entry.dirName && !existingByDir.has(entry.dirName.toLowerCase())) {
+      existingByDir.set(entry.dirName.toLowerCase(), entry);
     }
   }
 
@@ -293,8 +308,11 @@ export function mergeSkills(incoming, existing) {
     if (!entry || typeof entry.name !== "string" || !entry.name) continue;
     const key = entry.name.toLowerCase();
 
-    // Rule 1 — pre-existing wins.
-    const incumbent = existingByName.get(key);
+    // Rule 1 — pre-existing wins. Match by display name first, then by the
+    // destination directory: a frontmatter rename must not create a duplicate.
+    const incumbent =
+      existingByName.get(key) ||
+      (entry.dirName ? existingByDir.get(String(entry.dirName).toLowerCase()) : undefined);
     if (incumbent) {
       toSkip.push(entry);
       conflicts.push({
@@ -399,16 +417,131 @@ export function installSkills(list, opts = {}) {
   return { installed, skipped, errors };
 }
 
+// ─── Installing from GitHub ──────────────────────────────────────────────────
+
+// Small concurrency limiter for the raw downloads. GitHub's raw host is a CDN,
+// but a 952-file install still must not open 952 sockets at once.
+async function mapLimit(items, limit, fn) {
+  const results = new Array(items.length);
+  let next = 0;
+  const workers = Array.from({ length: Math.min(limit, items.length) }, async () => {
+    for (;;) {
+      const index = next;
+      next += 1;
+      if (index >= items.length) return;
+      results[index] = await fn(items[index], index);
+    }
+  });
+  await Promise.all(workers);
+  return results;
+}
+
+/**
+ * Install the GitHub catalog's SKILL.md files into destDir/<dirName>/.
+ *
+ * The local installer copies a whole folder tree; a GitHub install fetches the
+ * one file this app actually consumes (the manifest the prompt block reads).
+ * Every skill is independent: a 404/timeout is recorded and the rest of the
+ * catalog still lands (fail-open). Existing directories are never touched.
+ *
+ * @param {Array} list scan entries from runScan().toInstall (repo-relative path)
+ * @param {{destDir:string, source:object}} opts destination + effective source
+ * @returns {{installed:Array,skipped:Array,errors:Array}}
+ */
+export async function installGithubSkills(list, opts = {}) {
+  const rawDest = String(opts.destDir || "").trim();
+  const items = Array.isArray(list) ? list : [];
+  const installed = [];
+  const skipped = [];
+  const errors = [];
+  // Validate BEFORE resolve(): resolve("") is the process cwd, and an install
+  // into the cwd is never what an empty destination meant.
+  if (!rawDest) {
+    return { installed, skipped, errors: [{ name: "", error: "no destination configured" }] };
+  }
+  const destDir = resolve(rawDest);
+  const { fetchGithubSkillText } = await import("./githubSource.js");
+  const outcomes = await mapLimit(items, 8, async (entry) => {
+    try {
+      if (!entry || !entry.path) {
+        return { error: { name: entry?.name || "", error: "scan entry without a source path" } };
+      }
+      const baseName = isSafeDestSegment(entry.dirName)
+        ? entry.dirName
+        : isSafeDestSegment(entry.name)
+          ? entry.name
+          : null;
+      if (!baseName) {
+        return { error: { name: entry.name, error: `unsafe destination name: "${entry.name}"` } };
+      }
+      const dest = join(destDir, baseName);
+      if (!dest || !resolve(dest).startsWith(resolve(destDir) + sep)) {
+        return { error: { name: entry.name, error: `unsafe destination name: "${entry.name}"` } };
+      }
+      // Existing wins — the filesystem check is the last word, exactly like
+      // the local installer (two scans can race).
+      if (existsSync(dest)) {
+        return { skipped: { name: entry.name, dirName: entry.dirName, reason: "dest-exists", dest } };
+      }
+      const text = await fetchGithubSkillText({ source: opts.source }, entry.path, entry.sha);
+      mkdirSync(dest, { recursive: true });
+      writeFileSync(join(dest, "SKILL.md"), text, "utf8");
+      return { installed: { name: entry.name, dirName: entry.dirName, dest } };
+    } catch (err) {
+      return { error: { name: entry?.name || "", error: err?.message || String(err) } };
+    }
+  });
+  for (const outcome of outcomes) {
+    if (outcome.installed) installed.push(outcome.installed);
+    else if (outcome.skipped) skipped.push(outcome.skipped);
+    else if (outcome.error) errors.push(outcome.error);
+  }
+  return { installed, skipped, errors };
+}
+
 // ─── Run-level glue (what the API route calls) ───────────────────────────────
 //
-// runScan / runInstall resolve the source dir (settings → default) and the
-// dest dir (DATA_DIR/skills), then run the pure functions above. Both accept
-// explicit overrides ({ sourceDir, destDir }) so tests can run hermetically
-// against temp dirs without touching settings or the real data dir.
+// runScan / runInstall resolve the source (settings kind, GitHub by default;
+// an explicit sourceDir opts into the local folder) and the dest dir
+// (DATA_DIR/skills), then run the pure functions above. Both accept explicit
+// overrides ({ sourceDir, source, destDir }) so tests can run hermetically
+// without touching settings or the real data dir.
 
 async function resolveDestDir(override) {
   if (override && String(override).trim()) return resolve(String(override).trim());
   return defaultDestDir();
+}
+
+function githubLabel(cfg) {
+  return `${cfg.owner}/${cfg.repo}@${cfg.branch} · ${cfg.path}/`;
+}
+
+// Which source a run should use. Explicit opts.source (tests) or opts.sourceDir
+// (local power use) wins; otherwise settings skillsSource.kind decides, with
+// GitHub as the product default.
+async function resolvePipelineSource(opts = {}) {
+  if (opts.source && typeof opts.source === "object") {
+    const { normalizeSkillsSource } = await import("./githubSource.js");
+    return { kind: "github", github: normalizeSkillsSource(opts.source) };
+  }
+  if (opts.sourceDir && String(opts.sourceDir).trim()) {
+    return { kind: "local", sourceDir: resolve(String(opts.sourceDir).trim()) };
+  }
+  let settings = null;
+  try {
+    const { getSettings } = await import("@/lib/db/repos/settingsRepo.js");
+    settings = await getSettings();
+  } catch {
+    // settings unavailable (first boot, tests) — the product defaults still work
+  }
+  const kind = settings?.skillsSource?.kind === "local" ? "local" : "github";
+  if (kind === "local") {
+    const configured = settings?.skillsPipeline?.sourceDir;
+    const sourceDir = typeof configured === "string" && configured.trim() ? configured.trim() : DEFAULT_SOURCE_DIR;
+    return { kind: "local", sourceDir: resolve(sourceDir) };
+  }
+  const { normalizeSkillsSource } = await import("./githubSource.js");
+  return { kind: "github", github: normalizeSkillsSource(settings?.skillsSource?.github) };
 }
 
 // Validate the source dir BEFORE anything else touches the pipeline: it must
@@ -430,22 +563,40 @@ function assertSourceDir(sourceDir) {
 
 /**
  * Scan + merge WITHOUT writing anything. Returns the full merge report.
- * Safe to call repeatedly — it only reads the source and destination.
+ * Safe to call repeatedly — it only reads the source (and the GitHub tree,
+ * cached for 10 min) and the destination.
  */
 export async function runScan(opts = {}) {
-  const sourceDir = assertSourceDir(
-    opts.sourceDir && String(opts.sourceDir).trim() ? opts.sourceDir : await resolveSourceDir(),
-  );
+  const source = await resolvePipelineSource(opts);
   const destDir = await resolveDestDir(opts.destDir);
-  // Existing installs are scanned with the same scanner as the source, so
-  // both sides of the merge speak the same entry shape.
-  const incoming = scanSourceDir(sourceDir);
+  // Existing installs are scanned with the same scanner as the local source,
+  // so both sides of the merge speak the same entry shape.
   const existing = scanSourceDir(destDir);
+
+  let incoming = [];
+  let notes = [];
+  let sourceConfig = null;
+  let sourceDir = null;
+  if (source.kind === "github") {
+    const { listGithubSkills } = await import("./githubSource.js");
+    const list = await listGithubSkills({ source: source.github });
+    sourceConfig = list.sourceConfig;
+    notes = list.notes;
+    incoming = list.skills;
+  } else {
+    sourceDir = assertSourceDir(source.sourceDir);
+    incoming = scanSourceDir(sourceDir);
+  }
+
   const { toInstall, toSkip, conflicts } = mergeSkills(incoming, existing);
   return {
-    source: sourceDir,
+    source: source.kind === "local" ? sourceDir : githubLabel(sourceConfig || source.github),
+    sourceKind: source.kind,
+    sourceConfig,
+    sourceDir,
     destDir,
     sourceExists: true,
+    notes,
     discovered: incoming.length,
     existing: existing.length,
     toInstallCount: toInstall.length,
@@ -477,7 +628,10 @@ async function persistRunState(patch) {
  */
 export async function runInstall(opts = {}) {
   const report = await runScan(opts);
-  const result = installSkills(report.toInstall, { destDir: report.destDir });
+  const result =
+    report.sourceKind === "github"
+      ? await installGithubSkills(report.toInstall, { destDir: report.destDir, source: report.sourceConfig })
+      : installSkills(report.toInstall, { destDir: report.destDir });
   const at = new Date().toISOString();
   const lastRun = {
     at,
@@ -530,7 +684,10 @@ export async function installOne(rawName, opts = {}) {
     await persistRunState({ lastRun });
     return { ...report, install: { installed: [], skipped: [known || { name: rawName, reason: "not-found" }], errors: [] }, lastRun };
   }
-  const result = installSkills([match], { destDir: report.destDir });
+  const result =
+    report.sourceKind === "github"
+      ? await installGithubSkills([match], { destDir: report.destDir, source: report.sourceConfig })
+      : installSkills([match], { destDir: report.destDir });
   const lastRun = {
     at,
     action: "install-one",
@@ -551,10 +708,16 @@ export async function installOne(rawName, opts = {}) {
  * page stays usable and can still fix the source via settings.
  */
 export async function pipelineStatus(opts = {}) {
-  const sourceDir = opts.sourceDir && String(opts.sourceDir).trim()
-    ? resolve(String(opts.sourceDir).trim())
-    : await resolveSourceDir();
+  const source = await resolvePipelineSource(opts);
   const destDir = await resolveDestDir(opts.destDir);
+
+  let installedEntries = [];
+  try {
+    installedEntries = scanSourceDir(destDir);
+  } catch {
+    // dest unreadable → treated as empty
+  }
+
   let lastRun = null;
   let lastReport = null;
   try {
@@ -564,28 +727,50 @@ export async function pipelineStatus(opts = {}) {
     lastReport = settings?.skillsPipeline?.lastReport || null;
   } catch { /* settings unavailable — still report the filesystem truth */ }
 
-  let installedNames = [];
-  try {
-    installedNames = scanSourceDir(destDir).map((s) => s.name);
-  } catch { /* dest unreadable → treated as empty */ }
-
-  let scan = null;
+  let incoming = [];
+  let notes = [];
+  let sourceConfig = null;
+  let sourceDir = null;
+  let discovered = 0;
+  let merged = { toSkip: [], conflicts: [] };
   let scanError = "";
   try {
-    scan = await runScan({ sourceDir, destDir });
+    if (source.kind === "github") {
+      const { listGithubSkills } = await import("./githubSource.js");
+      const list = await listGithubSkills({ source: source.github });
+      sourceConfig = list.sourceConfig;
+      notes = list.notes;
+      incoming = list.skills;
+    } else {
+      sourceDir = assertSourceDir(source.sourceDir);
+      incoming = scanSourceDir(sourceDir);
+    }
+    discovered = incoming.length;
+    merged = mergeSkills(incoming, installedEntries);
   } catch (err) {
     scanError = err?.message || String(err);
   }
 
   return {
-    source: sourceDir,
+    source: source.kind === "local" ? sourceDir || source.sourceDir : githubLabel(sourceConfig || source.github),
+    sourceKind: source.kind,
+    sourceConfig,
     sourceExists: !scanError,
     destDir,
-    discovered: scan ? scan.discovered : 0,
-    installed: installedNames.length,
-    installedNames,
-    skipped: scan ? scan.toSkipCount : 0,
-    conflicts: scan ? scan.conflicts : [],
+    discovered,
+    installed: installedEntries.length,
+    installedNames: installedEntries.map((s) => s.name),
+    // The prompt block reads this list: name + the frontmatter description it
+    // was installed with. Kept beside installedNames (strings) so old callers
+    // keep working.
+    skills: installedEntries.map((s) => ({
+      name: s.name,
+      dirName: s.dirName,
+      description: s.description || "",
+    })),
+    skipped: merged.toSkip.length,
+    conflicts: merged.conflicts,
+    notes,
     scanError,
     lastRun,
     lastReport,

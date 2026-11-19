@@ -41,6 +41,14 @@ export function wordSafeSlice(text, limit) {
   return head;
 }
 
+function cutPreview(text, limit) {
+  const max = Math.max(1, Math.min(Number(limit) || CARD_PREVIEW_CHARS, PREVIEW_MAX_CHARS));
+  const flat = String(text ?? "").replace(/\s+/g, " ").trim();
+  if (!flat) return { preview: "", truncated: false };
+  const cut = wordSafeSlice(flat, max);
+  return { preview: cut, truncated: cut.length < flat.length };
+}
+
 /**
  * Build a display preview from a SKILL.md's raw text.
  *
@@ -51,19 +59,42 @@ export function wordSafeSlice(text, limit) {
  *   text had more to say than the limit allowed (drives the "…" suffix).
  */
 export function skillPreview(text, limit = CARD_PREVIEW_CHARS) {
-  const max = Math.max(1, Math.min(Number(limit) || CARD_PREVIEW_CHARS, PREVIEW_MAX_CHARS));
   // Fail-open: no frontmatter / unterminated frontmatter → parseSkillMd hands
   // back the whole text as body, which is exactly what we want here.
-  const body = parseSkillMd(String(text ?? "")).body;
-  const flat = body.replace(/\s+/g, " ").trim();
-  if (!flat) return { preview: "", truncated: false };
-  const cut = wordSafeSlice(flat, max);
-  return { preview: cut, truncated: cut.length < flat.length };
+  return cutPreview(parseSkillMd(String(text ?? "")).body, limit);
 }
 
 // The display form: preview text plus the ellipsis when content was cut. The
 // task contract is explicit — previews end with "…", never mid-sentence dots.
 export function previewWithEllipsis(text, limit = CARD_PREVIEW_CHARS) {
   const { preview, truncated } = skillPreview(text, limit);
+  return truncated ? `${preview}…` : preview;
+}
+
+// A YAML block marker (`>-`, `|`, …) is a parsing artifact, not prose — the
+// prompt block already refuses it, and a card must not show it either.
+function usableDescription(value) {
+  const flat = String(value ?? "").replace(/\s+/g, " ").trim();
+  return /^[|>][-+]?$/.test(flat) ? "" : flat;
+}
+
+/**
+ * The skill's own frontmatter description, cleaned for one-line display.
+ * Empty when the file has no usable description — callers fall back to the
+ * body preview rather than inventing copy.
+ */
+export function skillDescription(text) {
+  return usableDescription(parseSkillMd(String(text ?? "")).description);
+}
+
+/**
+ * The card's text: the frontmatter description when the skill has one, else
+ * the opening body prose. Same truncation policy as every other preview, so a
+ * card ending in "…" always means content was actually cut.
+ */
+export function skillCardText(text, limit = CARD_PREVIEW_CHARS) {
+  const parsed = parseSkillMd(String(text ?? ""));
+  const sourceText = usableDescription(parsed.description) || parsed.body;
+  const { preview, truncated } = cutPreview(sourceText, limit);
   return truncated ? `${preview}…` : preview;
 }

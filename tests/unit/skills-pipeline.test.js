@@ -7,7 +7,7 @@
 // throwaway SQLite in the temp dir — the real ~/.or is never touched.
 // Fixture skill dirs are created per-test in temp dirs; nothing in the repo
 // tree is written.
-import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
 import {
   mkdtempSync,
   mkdirSync,
@@ -29,10 +29,12 @@ const {
   scanSourceDir,
   mergeSkills,
   installSkills,
+  installGithubSkills,
   runScan,
   runInstall,
   installOne,
 } = await import("../../src/lib/skillsPipeline/index.js");
+const { DEFAULT_SKILLS_SOURCE } = await import("../../src/lib/skillsPipeline/githubSource.js");
 
 // ─── Fixture helpers ─────────────────────────────────────────────────────────
 
@@ -320,5 +322,51 @@ describe("runScan / runInstall / installOne", () => {
   it("rejects a missing source dir before anything runs", async () => {
     await expect(runScan({ sourceDir: join(TMP, "missing-dir"), destDir: DEST })).rejects.toThrow(/not found/i);
     await expect(runInstall({ sourceDir: join(TMP, "missing-dir"), destDir: DEST })).rejects.toThrow(/not found/i);
+  });
+});
+
+// ─── GitHub install (stubbed fetch, hermetic) ────────────────────────────────
+
+describe("installGithubSkills", () => {
+  afterAll(() => vi.unstubAllGlobals());
+
+  it("writes one SKILL.md per skill, skips existing dirs, and fails open per skill", async () => {
+    const dest = join(TMP, "gh-install");
+    mkdirSync(join(dest, "preexisting"), { recursive: true });
+    writeFileSync(join(dest, "preexisting", "SKILL.md"), "keep me");
+    vi.stubGlobal("fetch", async (url) => {
+      if (String(url).includes("broken")) {
+        return {
+          ok: false,
+          status: 404,
+          statusText: "Not Found",
+          headers: { get: () => null },
+          text: async () => "",
+        };
+      }
+      return {
+        ok: true,
+        status: 200,
+        statusText: "OK",
+        headers: { get: () => null },
+        text: async () => "---\nname: alpha\ndescription: fetched\n---\nbody",
+      };
+    });
+
+    const result = await installGithubSkills(
+      [
+        { dirName: "alpha", name: "alpha", path: "payloads/skills/alpha/SKILL.md" },
+        { dirName: "broken", name: "broken", path: "payloads/skills/broken/SKILL.md" },
+        { dirName: "preexisting", name: "preexisting", path: "payloads/skills/preexisting/SKILL.md" },
+      ],
+      { destDir: dest, source: DEFAULT_SKILLS_SOURCE },
+    );
+
+    expect(readFileSync(join(dest, "alpha", "SKILL.md"), "utf8")).toContain("body");
+    expect(readFileSync(join(dest, "preexisting", "SKILL.md"), "utf8")).toBe("keep me");
+    expect(result.installed.map((s) => s.dirName)).toEqual(["alpha"]);
+    expect(result.skipped.map((s) => s.reason)).toEqual(["dest-exists"]);
+    expect(result.errors).toHaveLength(1);
+    expect(result.errors[0].name).toBe("broken");
   });
 });

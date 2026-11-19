@@ -48,7 +48,8 @@ function readStoredSource() {
 
 // One catalog card. Same scale vocabulary as LocalModelsClient: Card padding
 // "md" (rounded-[12px], p-6), text-sm titles, text-xs meta, xs ghost/secondary
-// buttons. Wide and short: name row, two clamped preview lines, footer row.
+// buttons. Wide and short: name row, two clamped lines of the skill's own
+// description (body preview when it has none, always "…" when cut), footer.
 function SkillCard({ skill, preview, onRead }) {
   return (
     <Card padding="md" className="flex flex-col">
@@ -62,7 +63,9 @@ function SkillCard({ skill, preview, onRead }) {
       </div>
       {/* Reserved height keeps every card in a row the same height while
           github previews stream in (empty string until the fetch lands). */}
-      <p className="mt-3 text-xs text-text-muted line-clamp-2 min-h-[2rem] break-words">{preview}</p>
+      <p className="mt-3 text-xs text-text-muted line-clamp-2 min-h-[2rem] break-words" title={preview}>
+        {preview}
+      </p>
       <div className="mt-3 pt-3 border-t border-border-subtle flex items-center justify-between gap-2">
         <span className="text-[11px] font-mono text-text-muted truncate" title={skill.path}>
           {skill.dirName}
@@ -101,6 +104,7 @@ export default function SkillsPage() {
   const [status, setStatus] = useState(null);
   const [report, setReport] = useState(null); // last scan/install merge report
   const [busy, setBusy] = useState("");
+  const [actionError, setActionError] = useState("");
 
   // Monotonic sequence guard: only the newest request may touch state, so a
   // slow response from a previous source can never overwrite the current one
@@ -220,8 +224,11 @@ export default function SkillsPage() {
           .then((data) => {
             // A missing/failed preview stays undefined — the card simply
             // shows an empty line; the Read modal is the retry surface.
-            if (data && typeof data.preview === "string") {
-              setPreviews((prev) => ({ ...prev, [path]: data.preview }));
+            // `card` is description-first (frontmatter description, else the
+            // body opening) and already carries "…" when it was cut.
+            const text = data && typeof data.card === "string" && data.card ? data.card : data?.preview;
+            if (typeof text === "string") {
+              setPreviews((prev) => ({ ...prev, [path]: text }));
             }
           })
           .catch(() => { /* network hiccup — leave the card preview empty */ })
@@ -305,6 +312,7 @@ export default function SkillsPage() {
   const act = useCallback(
     async (action) => {
       setBusy(action);
+      setActionError("");
       try {
         const res = await fetch("/api/skills-pipeline", {
           method: "POST",
@@ -315,9 +323,10 @@ export default function SkillsPage() {
         if (!res.ok || data.error) throw new Error(data.error || `${action} failed`);
         setReport(data); // scan → merge preview; install → the run itself
         if (action !== "scan") await refreshStatus();
-      } catch {
-        // The import card shows state from refreshStatus; a failed action is
-        // retried by pressing the button again. Keep the grid unaffected.
+      } catch (err) {
+        // Surface the failure instead of a button that looks like it did
+        // nothing: a dead source, a 404 or a rate limit all land here.
+        setActionError(err?.message || String(err));
       } finally {
         setBusy("");
       }
@@ -342,8 +351,8 @@ export default function SkillsPage() {
           </h1>
           <p className="text-sm text-text-muted mt-1">
             {source === "github"
-              ? "Agent skills from the cloud catalog"
-              : "Agent skills from the local code-fusion payloads catalog"}
+              ? "Agent skills from the GitHub catalog"
+              : "Agent skills from the local payloads catalog"}
             {sourceHint ? (
               <>
                 {" — "}
@@ -421,7 +430,7 @@ export default function SkillsPage() {
               <SkillCard
                 key={`${skill.dirName}:${skill.path}`}
                 skill={skill}
-                preview={source === "github" ? previews[skill.path] ?? "" : skill.preview || ""}
+                preview={source === "github" ? previews[skill.path] ?? "" : skill.card || skill.preview || ""}
                 onRead={openRead}
               />
             ))}
@@ -444,13 +453,17 @@ export default function SkillsPage() {
         </>
       )}
 
-      {/* Import pipeline (kept) — the payloads → DATA_DIR machinery behind
+      {/* Import pipeline (kept) — the catalog → DATA_DIR machinery behind
           /api/skills-pipeline's legacy contract: Scan previews the merge,
-          Install copies what passed. An existing skill always wins. */}
+          Install writes what passed. GitHub (the default) fetches each
+          skill's SKILL.md; local copies the whole folder. An existing skill
+          always wins. */}
       <Card padding="md">
         <div className="flex items-center gap-2 mb-2">
           <span className="material-symbols-outlined text-primary">download</span>
-          <span className="text-sm font-semibold">Import from code-fusion payloads</span>
+          <span className="text-sm font-semibold">
+            {status?.sourceKind === "local" ? "Import from local folder" : "Import from GitHub catalog"}
+          </span>
         </div>
         <div className="text-xs text-text-muted mb-3 break-all">
           Source: <span className="font-mono">{status?.source || "…"}</span>
@@ -473,6 +486,9 @@ export default function SkillsPage() {
           <Badge size="sm" variant="success">{status?.installed ?? 0} installed</Badge>
           {status?.scanError ? <Badge size="sm" variant="error">source error</Badge> : null}
         </div>
+        {actionError ? (
+          <p className="mt-2 text-xs text-red-500 break-words">{actionError}</p>
+        ) : null}
 
         {/* Merge preview — only what the last Scan/Install reported. Conflicts
             name both sides (incoming vs the entry that won), per CONFLICT.md. */}

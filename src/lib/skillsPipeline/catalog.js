@@ -18,7 +18,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { join, resolve, sep } from "node:path";
 import { scanSourceDir, resolveSourceDir } from "./index.js";
-import { CARD_PREVIEW_CHARS, PREVIEW_MAX_CHARS, previewWithEllipsis, skillPreview } from "./preview.js";
+import { CARD_PREVIEW_CHARS, PREVIEW_MAX_CHARS, previewWithEllipsis, skillCardText, skillDescription, skillPreview } from "./preview.js";
 import { fetchGithubPreview, listGithubSkills } from "./githubSource.js";
 
 export { CARD_PREVIEW_CHARS, PREVIEW_MAX_CHARS };
@@ -62,7 +62,14 @@ export async function localPreview(opts, name, limit) {
     throw new Error(`could not read SKILL.md for ${name}: ${err?.message || err}`);
   }
   const { preview, truncated } = skillPreview(text, limit);
-  return { name, path: join(dir, "SKILL.md"), preview, truncated };
+  return {
+    name,
+    path: join(dir, "SKILL.md"),
+    preview,
+    card: skillCardText(text, limit),
+    description: skillDescription(text),
+    truncated,
+  };
 }
 
 // The full local catalog: same scanner the pipeline uses (dirs with a
@@ -80,9 +87,14 @@ export async function localCatalog(opts = {}) {
   }
   const skills = entries.map((entry) => {
     let preview = "";
+    let card = "";
+    let description = entry.description || "";
     if (entry.path) {
       try {
-        preview = previewWithEllipsis(readFileSync(join(entry.path, "SKILL.md"), "utf8"), CARD_PREVIEW_CHARS);
+        const text = readFileSync(join(entry.path, "SKILL.md"), "utf8");
+        preview = previewWithEllipsis(text, CARD_PREVIEW_CHARS);
+        card = skillCardText(text, CARD_PREVIEW_CHARS);
+        description = skillDescription(text) || description;
       } catch {
         // Unreadable SKILL.md → empty preview, the card still shows the name.
       }
@@ -90,9 +102,10 @@ export async function localCatalog(opts = {}) {
     return {
       dirName: entry.dirName,
       name: entry.name,
-      description: entry.description || "",
+      description,
       path: entry.path,
       preview,
+      card,
     };
   });
   return { skills, notes, sourceDir };
@@ -107,20 +120,21 @@ export async function localCatalog(opts = {}) {
 // from /api/skills-pipeline/preview as they mount, which is also cheaper —
 // the user only ever previews what they actually scroll to.
 export async function githubCatalog(opts = {}) {
-  const { skills, truncated, notes } = await listGithubSkills(opts);
+  const { skills, truncated, notes, sourceConfig } = await listGithubSkills(opts);
   const allNotes = [...notes];
   if (!skills.length) allNotes.push("No skill folders with a SKILL.md found in the repo tree.");
   return {
     skills: skills.map((s) => ({
       dirName: s.dirName,
       name: s.name,
-      description: "",
+      description: "", // filled by the preview endpoint (frontmatter description)
       path: s.path,
       preview: "", // filled on demand by the preview endpoint
       sha: s.sha,
     })),
     notes: allNotes,
     truncated: !!truncated,
+    sourceConfig,
   };
 }
 

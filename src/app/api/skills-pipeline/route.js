@@ -2,11 +2,10 @@ import { NextResponse } from "next/server";
 import { pipelineStatus, runScan, runInstall, installOne } from "@/lib/skillsPipeline/index.js";
 import { githubCatalog, localCatalog, pageSlice } from "@/lib/skillsPipeline/catalog.js";
 import { CARD_PREVIEW_CHARS } from "@/lib/skillsPipeline/preview.js";
-import { resolveSkillsSource } from "@/lib/skillsPipeline/githubSource.js";
 
-// Skills pipeline API — import the owner's code-fusion payloads skills catalog
-// into DATA_DIR/skills with CONFLICT.md duplicate-merging, and serve the
-// skills CATALOG the dashboard Skills page browses.
+// Skills pipeline API — import a skills catalog into DATA_DIR/skills with
+// CONFLICT.md duplicate-merging, and serve the skills CATALOG the dashboard
+// Skills page browses.
 //
 // AUTH: none here, on purpose. /api/skills-pipeline is not in dashboardGuard's
 // public path lists, so the central guard covers it exactly like /api/combos
@@ -24,11 +23,13 @@ import { resolveSkillsSource } from "@/lib/skillsPipeline/githubSource.js";
 // 2. CATALOG (?source=github|local): the skill list the redesigned page's
 //    card grid renders.
 //      ?source=github  → catalog from the settings-configured GitHub repo
-//                        (DEFAULT: origin-labs-ai/revolt-fusion@main, skills/),
-//                        one api.github.com tree call, 10-min in-memory cache.
-//                        On ANY github failure the response falls back to the
-//                        local catalog with fallback:true + a notes[] entry —
-//                        a dead repo must never blank the page.
+//                        (DEFAULT: origin-labs-ai/code@main, payloads/skills/),
+//                        one api.github.com subtree tree call, 10-min in-memory
+//                        cache. A configured source that 404s retries the
+//                        built-in catalog once and says so in notes[].
+//                        On ANY other github failure the response falls back to
+//                        the local catalog with fallback:true + a notes[] entry
+//                        — a dead repo must never blank the page.
 //      ?source=local   → catalog from the local payloads dir (the pipeline's
 //                        own source). Previews are included inline for local
 //                        (cheap filesystem reads).
@@ -64,7 +65,7 @@ export async function GET(request) {
       if (source === "github") {
         try {
           list = await githubCatalog();
-          sourceConfig = await resolveSkillsSource();
+          sourceConfig = list.sourceConfig || null;
         } catch (err) {
           // Fail-open: fall back to the local catalog and SAY so. A rate
           // limit, a renamed repo or an offline network shows the local

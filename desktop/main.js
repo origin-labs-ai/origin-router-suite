@@ -7,6 +7,7 @@ const http = require("http");
 const net = require("net");
 const os = require("os");
 const path = require("path");
+const { openConsoleWindow: openLogConsole } = require("./consoleWindow.cjs");
 
 const PORT = 20128;
 const ORIGIN_URL = `http://127.0.0.1:${PORT}`;
@@ -358,36 +359,20 @@ function ensurePandaLog() {
 }
 
 function openConsoleWindow(file, title, dashboardPath) {
-  try {
-    fs.mkdirSync(path.dirname(file), { recursive: true });
-    if (!fs.existsSync(file)) fs.writeFileSync(file, "", "utf8");
-  } catch {}
-
-  const script = [
-    `$Host.UI.RawUI.WindowTitle='${title}';`,
-    `while (-not (Test-Path '${file}')) { Start-Sleep -Seconds 1 }`,
-    `Get-Content '${file}' -Tail 300 -Wait`,
-  ].join(" ");
-
-  const fallback = () => {
-    if (dashboardPath) {
+  // The window itself is created by `cmd /c start` inside consoleWindow.cjs;
+  // a detached PowerShell would run headless and look like a dead menu item.
+  // If the launcher cannot start at all, the dashboard page is the fallback so
+  // a click always has a visible outcome.
+  return openLogConsole({
+    file,
+    title,
+    onFallback: () => {
+      if (!dashboardPath) return;
       try {
         shell.openExternal(`http://127.0.0.1:${PORT}${dashboardPath}`);
       } catch {}
-    }
-  };
-
-  try {
-    const child = spawn(powershellPath(), ["-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", script], {
-      detached: true,
-      stdio: "ignore",
-      windowsHide: false,
-    });
-    child.on("error", fallback);
-    child.unref();
-  } catch {
-    fallback();
-  }
+    },
+  });
 }
 
 // A page of the dashboard in the default browser. The gateway's own output

@@ -53,11 +53,11 @@ function createSpinner(text) {
     },
     succeed(msg) {
       this.stop();
-      console.log(`✅ ${msg}`);
+      console.log(`[ok] ${msg}`);
     },
     fail(msg) {
       this.stop();
-      console.log(`❌ ${msg}`);
+      console.log(`[error] ${msg}`);
     }
   };
 }
@@ -75,7 +75,7 @@ if (args[0] === "xai" && args[1] === "video") {
   run(args.slice(2))
     .then((code) => process.exit(code))
     .catch((err) => {
-      console.error(`❌ ${err?.message || err}`);
+      console.error(`[error] ${err?.message || err}`);
       process.exit(1);
     });
   return;
@@ -89,7 +89,7 @@ if (args[0] === "connect" || args[0] === "show") {
   run(args.slice(1))
     .then((code) => process.exit(code))
     .catch((err) => {
-      console.error(`❌ ${err?.message || err}`);
+      console.error(`[error] ${err?.message || err}`);
       process.exit(1);
     });
   return;
@@ -106,7 +106,7 @@ if (args[0] === "patch") {
       process.exitCode = code;
     })
     .catch((err) => {
-      console.error(`❌ ${err?.message || err}`);
+      console.error(`[error] ${err?.message || err}`);
       process.exitCode = 1;
     });
   return;
@@ -624,7 +624,7 @@ const AUTO_UPDATE_DELAY_MS = 60 * 1000;
 
 async function runInstallerUpdate(release) {
   if (!release) return false;
-  console.log(`\n⬆  Auto-updating ${pkg.version} → ${release.version}\n`);
+  console.log(`\n[update] Auto-updating ${pkg.version} -> ${release.version}\n`);
   updater.logLine(`auto-update ${pkg.version} -> ${release.version}`);
   try {
     // One release, both Inno builds: the server product always, plus the desktop
@@ -746,7 +746,7 @@ function startServer(updatePromise) {
   // Surface real network exposure when bound to all interfaces (default 0.0.0.0).
   if (host === DEFAULT_HOST) {
     const lanIp = getLanIp();
-    if (lanIp) console.log(`\x1b[33m⚠ Network-exposed: reachable at http://${lanIp}:${port} (bound 0.0.0.0). Use --host 127.0.0.1 for local-only.\x1b[0m`);
+    if (lanIp) console.log(`\x1b[33m[warn] Network-exposed: reachable at http://${lanIp}:${port} (bound 0.0.0.0). Use --host 127.0.0.1 for local-only.\x1b[0m`);
   }
 
   let restartCount = 0;
@@ -841,7 +841,7 @@ function startServer(updatePromise) {
         port,
         onQuit: () => {
           isShuttingDown = true;
-          console.log("\n👋 Shutting down from tray...");
+          console.log("\n[tray] Shutting down from tray...");
           cleanup();
           setTimeout(() => process.exit(0), 100);
         },
@@ -858,13 +858,16 @@ function startServer(updatePromise) {
     process.removeAllListeners("SIGHUP");
     process.on("SIGHUP", () => {});
 
-    console.log(`\n🚀 ${pkg.name} v${pkg.version}`);
+    console.log(`\n${pkg.name} v${pkg.version}`);
     console.log(`Server: http://${displayHost}:${port}`);
 
     waitServerReady(port).then(() => {
       initTrayIcon();
-      console.log("\n💡 Router is now running in system tray. Close this terminal if you want.");
-      console.log("   Right-click tray icon to open dashboard or quit.\n");
+      // ASCII only. This line is also captured into the desktop app's log and
+      // tailed by PowerShell; an emoji here arrives as "ðŸ’¡" in a console
+      // whose code page is not UTF-8.
+      console.log("\n[tray] Router is now running in the system tray. Close this terminal if you want.");
+      console.log("       Right-click the tray icon to open the dashboard or quit.\n");
     });
 
     return;
@@ -895,7 +898,7 @@ function startServer(updatePromise) {
             return;
           }
           isShuttingDown = true;
-          console.log(`\n⬆  Update v${pkg.version} → v${latestVersion}\n`);
+          console.log(`\n[update] Update v${pkg.version} -> v${latestVersion}\n`);
           console.log(`Run this after exit:\n`);
           console.log(`   \x1b[33m${INSTALL_CMD_LATEST}\x1b[0m\n`);
           cleanup();
@@ -929,17 +932,17 @@ function startServer(updatePromise) {
             process.removeAllListeners("SIGHUP");
             process.on("SIGHUP", () => {});
 
-            console.log(`\n⏳ Switching to tray mode... (icon already visible in menu bar)`);
-            console.log(`🔔 OriginRouter is running in tray (PID: ${process.pid})`);
+            console.log(`\n[tray] Switching to tray mode... (icon already visible in menu bar)`);
+            console.log(`[tray] OriginRouter is running in tray (PID: ${process.pid})`);
             console.log(`   Server: http://${displayHost}:${port}`);
-            console.log(`\n💡 You can close this terminal. Right-click tray icon to quit.\n`);
+            console.log(`\n[tray] You can close this terminal. Right-click the tray icon to quit.\n`);
 
             // Tray already init'd at startup — just keep event loop alive.
             return;
           }
 
           // Windows/Linux: spawn detached bgProcess (systray works fine in child)
-          console.log(`\n⏳ Starting background process... (tray icon will appear in ~3s)`);
+          console.log(`\n[tray] Starting background process... (tray icon will appear in ~3s)`);
 
           const bgProcess = spawn(process.execPath, ["--dns-result-order=ipv4first", __filename, "--tray", "--skip-update", "-p", port.toString()], {
             detached: true,
@@ -949,9 +952,9 @@ function startServer(updatePromise) {
           });
           bgProcess.unref();
 
-          console.log(`🔔 OriginRouter is now running in background (PID: ${bgProcess.pid})`);
+          console.log(`[tray] OriginRouter is now running in background (PID: ${bgProcess.pid})`);
           console.log(`   Server: http://${displayHost}:${port}`);
-          console.log(`\n💡 You can close this terminal. Right-click tray icon to quit.\n`);
+          console.log(`\n[tray] You can close this terminal. Right-click the tray icon to quit.\n`);
 
           // cleanup() kills server so bgProcess can claim the port fresh
           cleanup();
@@ -992,7 +995,7 @@ function startServer(updatePromise) {
     if (aliveMs >= RESTART_RESET_MS) restartCount = 0;
 
     if (restartCount >= MAX_RESTARTS) {
-      console.error(`\n⚠️  Server crashed ${MAX_RESTARTS} times. Disabling MIT and restarting...`);
+      console.error(`\n[warn] Server crashed ${MAX_RESTARTS} times. Disabling MIT and restarting...`);
       try {
         const dbPath = path.join(os.homedir(), ".or", "db.json");
         if (fs.existsSync(dbPath)) {
@@ -1009,7 +1012,7 @@ function startServer(updatePromise) {
 
     restartCount++;
     const delay = Math.min(1000 * restartCount, 10000);
-    console.error(`\n⚠️  Server exited (code=${code ?? "unknown"}). Restarting in ${delay / 1000}s... (${restartCount}/${MAX_RESTARTS})`);
+    console.error(`\n[warn] Server exited (code=${code ?? "unknown"}). Restarting in ${delay / 1000}s... (${restartCount}/${MAX_RESTARTS})`);
     if (crashLog.length) {
       console.error("\n--- Server crash log ---");
       crashLog.forEach(l => console.error(l));

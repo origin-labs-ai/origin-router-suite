@@ -3,14 +3,16 @@ import { githubPreview, localPreview, clampPreviewLimit } from "@/lib/skillsPipe
 
 // Preview endpoint for the Skills page cards + Read modal.
 //
-// GET /api/skills-pipeline/preview?source=github&path=skills/<dir>/SKILL.md[&limit=N]
+// GET /api/skills-pipeline/preview?source=github&path=payloads/skills/<dir>/SKILL.md[&limit=N]
 // GET /api/skills-pipeline/preview?source=local&name=<dirName>[&limit=N]
-//   → { source, path|name, preview, truncated }
+//   → { source, path|name, preview, card, description, truncated }
 //
 // `preview` is the SKILL.md's own opening text, whitespace-collapsed and cut
 // to `limit` chars (default = the card length, hard cap 4000) with "…"
 // appended when content was cut — never authored, always quoted (see
-// skillsPipeline/preview.js). The Read modal asks with a bigger limit; both
+// skillsPipeline/preview.js). `card` is the same treatment of the frontmatter
+// description when the skill has one, and `description` is that description
+// unclipped for the Read modal. The Read modal asks with a bigger limit; both
 // limits are served from the same 10-minute in-memory cache githubSource
 // keeps per file, so scrolling a card grid costs one raw.githubusercontent.com
 // fetch per actually-seen skill.
@@ -36,8 +38,11 @@ export async function GET(request) {
       if (!path.trim()) {
         return NextResponse.json({ error: "github preview requires ?path=<repo path to SKILL.md>" }, { status: 400 });
       }
-      const { preview, truncated } = await githubPreview({}, path, limit);
-      return NextResponse.json({ source, path, preview, truncated }, { headers: { "Cache-Control": "no-store" } });
+      const { preview, card, description, truncated } = await githubPreview({}, path, limit);
+      return NextResponse.json(
+        { source, path, preview, card, description, truncated },
+        { headers: { "Cache-Control": "no-store" } },
+      );
     }
 
     // local — keyed by the skill's directory name (never a raw path from the
@@ -47,8 +52,11 @@ export async function GET(request) {
     if (!name) {
       return NextResponse.json({ error: "local preview requires ?name=<skill dir name>" }, { status: 400 });
     }
-    const { preview, truncated, path } = await localPreview({}, name, limit);
-    return NextResponse.json({ source, name, path, preview, truncated }, { headers: { "Cache-Control": "no-store" } });
+    const { preview, card, description, truncated, path } = await localPreview({}, name, limit);
+    return NextResponse.json(
+      { source, name, path, preview, card, description, truncated },
+      { headers: { "Cache-Control": "no-store" } },
+    );
   } catch (err) {
     const message = err?.message || String(err);
     // Bad params (invalid name/path) and missing files are client-grade

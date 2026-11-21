@@ -1,0 +1,2860 @@
+{
+  "generatedAt": "2026-11-21T15:08:55.038Z",
+  "source": "open-sse/providers/registry/index.js",
+  "total": 158,
+  "providers": [
+    {
+      "id": "aerolink",
+      "alias": "aerolink",
+      "name": "Aerolink",
+      "icon": "hub",
+      "color": "#D946EF",
+      "textIcon": "A",
+      "website": "https://aerolink.lat",
+      "apiKeyUrl": "",
+      "category": "apikey",
+      "modelCount": 0,
+      "sampleModels": [],
+      "media": []
+    },
+    {
+      "id": "aimlapi",
+      "alias": "aimlapi",
+      "name": "AI/ML API",
+      "icon": "hub",
+      "color": "#0EA5E9",
+      "textIcon": "A",
+      "website": "https://aimlapi.com",
+      "apiKeyUrl": "https://aimlapi.com/app/keys",
+      "category": "apikey",
+      "modelCount": 0,
+      "sampleModels": [],
+      "media": []
+    },
+    {
+      "id": "ai21",
+      "alias": "ai21",
+      "name": "AI21 Labs",
+      "icon": "hub",
+      "color": "#8B5CF6",
+      "textIcon": "AL",
+      "website": "https://www.ai21.com",
+      "apiKeyUrl": "",
+      "category": "apikey",
+      "modelCount": 0,
+      "sampleModels": [],
+      "media": []
+    },
+    {
+      "id": "alicode",
+      "alias": "alicode",
+      "name": "Alibaba",
+      "icon": "cloud",
+      "color": "#FF6A00",
+      "textIcon": "ALi",
+      "website": "https://bailian.console.aliyun.com",
+      "apiKeyUrl": "https://bailian.console.aliyun.com/?apiKey=1",
+      "category": "apikey",
+      "modelCount": 8,
+      "sampleModels": [
+        "Qwen3.5 Plus",
+        "Kimi K2.5",
+        "GLM 5",
+        "MiniMax M2.5",
+        "Qwen3 Max",
+        "Qwen3 Coder Next"
+      ],
+      "media": []
+    },
+    {
+      "id": "alibaba-cloud",
+      "alias": "alibaba-cloud",
+      "name": "Alibaba Cloud ModelStudio",
+      "icon": "hub",
+      "color": "#84CC16",
+      "textIcon": "AC",
+      "website": "https://www.alibabacloud.com/en/product/modelstudio",
+      "apiKeyUrl": "",
+      "category": "apikey",
+      "modelCount": 0,
+      "sampleModels": [],
+      "media": []
+    },
+    {
+      "id": "alicode-intl",
+      "alias": "alicode-intl",
+      "name": "Alibaba Coding",
+      "icon": "cloud",
+      "color": "#FF6A00",
+      "textIcon": "ALi",
+      "website": "https://www.alibabacloud.com/product/coding",
+      "apiKeyUrl": "https://www.alibabacloud.com/product/coding",
+      "category": "apikey",
+      "modelCount": 7,
+      "sampleModels": [
+        "Qwen3.5 Plus",
+        "Kimi K2.5",
+        "GLM 5",
+        "MiniMax M2.5",
+        "Qwen3 Coder Next",
+        "Qwen3 Coder Plus"
+      ],
+      "media": []
+    },
+    {
+      "id": "alims-intl",
+      "alias": "alims-intl",
+      "name": "Alibaba Studio",
+      "icon": "cloud",
+      "color": "#FF6A00",
+      "textIcon": "ALi",
+      "website": "https://modelstudio.console.alibabacloud.com",
+      "apiKeyUrl": "https://modelstudio.console.alibabacloud.com/?apiKey=1",
+      "category": "apikey",
+      "modelCount": 7,
+      "sampleModels": [
+        "Qwen3.5 Plus",
+        "Kimi K2.5",
+        "GLM 5",
+        "MiniMax M2.5",
+        "Qwen3 Coder Next",
+        "Qwen3 Coder Plus"
+      ],
+      "media": []
+    },
+    {
+      "id": "alitp-intl",
+      "alias": "alitp-intl",
+      "name": "Alibaba Token Plan",
+      "icon": "cloud",
+      "color": "#FF6A00",
+      "textIcon": "ATP",
+      "website": "https://www.alibabacloud.com/campaign/ai-landing-page-token",
+      "apiKeyUrl": "https://modelstudio.console.alibabacloud.com/?apiKey=1",
+      "category": "apikey",
+      "modelCount": 6,
+      "sampleModels": [
+        "Qwen3.8 Max Preview",
+        "Qwen3.7 Max",
+        "Qwen3.7 Plus",
+        "Qwen3.6 Flash",
+        "GLM 5.2",
+        "DeepSeek V4 Pro"
+      ],
+      "media": []
+    },
+    {
+      "id": "anthropic",
+      "alias": "anthropic",
+      "name": "Anthropic",
+      "icon": "smart_toy",
+      "color": "#D97757",
+      "textIcon": "AN",
+      "website": "https://console.anthropic.com",
+      "apiKeyUrl": "https://console.anthropic.com/settings/keys",
+      "category": "apikey",
+      "modelCount": 3,
+      "sampleModels": [
+        "Claude Sonnet 4",
+        "Claude Opus 4",
+        "Claude 3.5 Sonnet"
+      ],
+      "media": []
+    },
+    {
+      "id": "api-airforce",
+      "alias": "af",
+      "name": "API.airforce",
+      "icon": "flight",
+      "color": "#0EA5E9",
+      "textIcon": "AF",
+      "website": "https://api.airforce",
+      "apiKeyUrl": "https://api.airforce",
+      "category": "freeTier",
+      "modelCount": 3,
+      "sampleModels": [
+        "GPT-OSS 120B (Free)",
+        "GPT-OSS 20B (Free)",
+        "Kimi K2.7 Code (Free)"
+      ],
+      "media": []
+    },
+    {
+      "id": "assemblyai",
+      "alias": "assemblyai",
+      "name": "AssemblyAI",
+      "icon": "record_voice_over",
+      "color": "#0062FF",
+      "textIcon": "AA",
+      "website": "https://assemblyai.com",
+      "apiKeyUrl": "https://www.assemblyai.com/app/api-keys",
+      "category": "apikey",
+      "modelCount": 4,
+      "sampleModels": [
+        "Universal 3 Pro",
+        "Universal 2",
+        "Best (Nano + Universal)",
+        "Nano (Fast)"
+      ],
+      "media": [
+        "stt"
+      ]
+    },
+    {
+      "id": "atlascloud",
+      "alias": "atlascloud",
+      "name": "Atlas Cloud",
+      "icon": "hub",
+      "color": "#14B8A6",
+      "textIcon": "AC",
+      "website": "https://atlascloud.ai",
+      "apiKeyUrl": "https://cloud.atlascloud.ai",
+      "category": "apikey",
+      "modelCount": 0,
+      "sampleModels": [],
+      "media": []
+    },
+    {
+      "id": "atria",
+      "alias": "atria",
+      "name": "Atria Dawn",
+      "icon": "flare",
+      "color": "#C2410C",
+      "textIcon": "AD",
+      "website": "https://atria-asi.ai",
+      "apiKeyUrl": "https://api.atria-asi.ai/dashboard",
+      "category": "apikey",
+      "modelCount": 1,
+      "sampleModels": [
+        "Atria Dawn Preview"
+      ],
+      "media": []
+    },
+    {
+      "id": "bedrock",
+      "alias": "br",
+      "name": "AWS Bedrock",
+      "icon": "cloud",
+      "color": "#FF9900",
+      "textIcon": "BR",
+      "website": "https://aws.amazon.com/bedrock/",
+      "apiKeyUrl": "https://console.aws.amazon.com/iam/home#/security_credentials",
+      "category": "apikey",
+      "modelCount": 11,
+      "sampleModels": [
+        "Claude Opus 5",
+        "Claude Sonnet 5",
+        "Claude Fable 5",
+        "Claude Opus 4.8",
+        "Claude Opus 4.7",
+        "Claude Sonnet 4.6"
+      ],
+      "media": []
+    },
+    {
+      "id": "bedrock-xai",
+      "alias": "brx",
+      "name": "AWS Bedrock (xAI)",
+      "icon": "cloud",
+      "color": "#FF9900",
+      "textIcon": "BX",
+      "website": "https://aws.amazon.com/bedrock/",
+      "apiKeyUrl": "https://console.aws.amazon.com/iam/home#/security_credentials",
+      "category": "apikey",
+      "modelCount": 2,
+      "sampleModels": [
+        "Grok 4.6",
+        "Grok 4.6 (global)"
+      ],
+      "media": []
+    },
+    {
+      "id": "aws-polly",
+      "alias": "polly",
+      "name": "AWS Polly",
+      "icon": "record_voice_over",
+      "color": "#FF9900",
+      "textIcon": "PL",
+      "website": "https://aws.amazon.com/polly/",
+      "apiKeyUrl": "https://console.aws.amazon.com/iam/home#/security_credentials",
+      "category": "apikey",
+      "modelCount": 0,
+      "sampleModels": [],
+      "media": [
+        "tts"
+      ]
+    },
+    {
+      "id": "azure",
+      "alias": "azure",
+      "name": "Azure OpenAI",
+      "icon": "cloud",
+      "color": "#0078D4",
+      "textIcon": "AZ",
+      "website": "https://azure.microsoft.com/en-us/products/ai-services/openai-service",
+      "apiKeyUrl": "https://portal.azure.com/#view/Microsoft_Azure_ProjectOxford/CognitiveServicesHub/~/OpenAI",
+      "category": "apikey",
+      "modelCount": 0,
+      "sampleModels": [],
+      "media": []
+    },
+    {
+      "id": "bai",
+      "alias": "bai",
+      "name": "B.AI",
+      "icon": "account_balance",
+      "color": "#0369A1",
+      "textIcon": "BA",
+      "website": "https://b.ai",
+      "apiKeyUrl": "https://b.ai",
+      "category": "apikey",
+      "modelCount": 0,
+      "sampleModels": [],
+      "media": []
+    },
+    {
+      "id": "baidu",
+      "alias": "qianfan",
+      "name": "Baidu Qianfan",
+      "icon": "search",
+      "color": "#2932E1",
+      "textIcon": "BD",
+      "website": "https://cloud.baidu.com/product/qianfan.html",
+      "apiKeyUrl": "https://console.bce.baidu.com/qianfan/ais/console/applicationConsole/application",
+      "category": "apikey",
+      "modelCount": 7,
+      "sampleModels": [
+        "DeepSeek V4 Pro",
+        "DeepSeek V4 Flash",
+        "GLM 5.2",
+        "GLM 5.1",
+        "Kimi K2.6",
+        "Qwen 3.5 397B A17B"
+      ],
+      "media": []
+    },
+    {
+      "id": "bazaarlink",
+      "alias": "bzl",
+      "name": "Bazaarlink",
+      "icon": "storefront",
+      "color": "#DC2626",
+      "textIcon": "BZ",
+      "website": "https://bazaarlink.ai",
+      "apiKeyUrl": "https://bazaarlink.ai",
+      "category": "freeTier",
+      "modelCount": 24,
+      "sampleModels": [
+        "Auto Free (Zero Cost)",
+        "Claude Opus 4.7",
+        "Claude Sonnet 4.6",
+        "Claude Haiku 4.5",
+        "GPT-5.5",
+        "GPT-5.4"
+      ],
+      "media": []
+    },
+    {
+      "id": "black-forest-labs",
+      "alias": "black-forest-labs",
+      "name": "Black Forest Labs",
+      "icon": "image",
+      "color": "#111827",
+      "textIcon": "BF",
+      "website": "https://blackforestlabs.ai",
+      "apiKeyUrl": "https://api.bfl.ai",
+      "category": "apikey",
+      "modelCount": 6,
+      "sampleModels": [
+        "FLUX Pro 1.1",
+        "FLUX Pro 1.1 Ultra",
+        "FLUX Pro",
+        "FLUX Dev",
+        "FLUX Kontext Pro (Edit)",
+        "FLUX Kontext Max (Edit)"
+      ],
+      "media": [
+        "image"
+      ]
+    },
+    {
+      "id": "blackbox",
+      "alias": "blackbox",
+      "name": "Blackbox AI",
+      "icon": "smart_toy",
+      "color": "#5B5FEF",
+      "textIcon": "BB",
+      "website": "https://blackbox.ai",
+      "apiKeyUrl": "https://www.blackbox.ai/api-management",
+      "category": "apikey",
+      "modelCount": 10,
+      "sampleModels": [
+        "Claude Fable 5",
+        "Claude Opus 4.8",
+        "Claude Sonnet 4.6",
+        "GPT-5.5",
+        "GPT-5.4 Pro",
+        "GPT-5.4"
+      ],
+      "media": []
+    },
+    {
+      "id": "bluesminds",
+      "alias": "bm",
+      "name": "BluesMinds",
+      "icon": "psychology",
+      "color": "#2563EB",
+      "textIcon": "BM",
+      "website": "https://bluesminds.com",
+      "apiKeyUrl": "https://bluesminds.com",
+      "category": "apikey",
+      "modelCount": 14,
+      "sampleModels": [
+        "GPT-4.1",
+        "GPT-4.1 Mini",
+        "GPT-4.1 Nano",
+        "Claude Sonnet 4.5",
+        "Claude Haiku 4.5",
+        "Gemini 2.0 Flash"
+      ],
+      "media": []
+    },
+    {
+      "id": "brave-search",
+      "alias": "brave",
+      "name": "Brave Search",
+      "icon": "travel_explore",
+      "color": "#FB542B",
+      "textIcon": "BR",
+      "website": "https://brave.com/search/api",
+      "apiKeyUrl": "https://api-dashboard.search.brave.com/app/keys",
+      "category": "apikey",
+      "modelCount": 0,
+      "sampleModels": [],
+      "media": [
+        "search"
+      ]
+    },
+    {
+      "id": "cartesia",
+      "alias": "cartesia",
+      "name": "Cartesia",
+      "icon": "spatial_audio",
+      "color": "#FF4F8B",
+      "textIcon": "CA",
+      "website": "https://cartesia.ai",
+      "apiKeyUrl": "https://play.cartesia.ai/keys",
+      "category": "apikey",
+      "modelCount": 0,
+      "sampleModels": [],
+      "media": [
+        "tts"
+      ]
+    },
+    {
+      "id": "cerebras",
+      "alias": "cerebras",
+      "name": "Cerebras",
+      "icon": "memory",
+      "color": "#FF4F00",
+      "textIcon": "CB",
+      "website": "https://www.cerebras.ai",
+      "apiKeyUrl": "https://cloud.cerebras.ai/platform",
+      "category": "apikey",
+      "modelCount": 6,
+      "sampleModels": [
+        "GPT OSS 120B",
+        "ZAI GLM 4.7",
+        "Llama 3.3 70B",
+        "Llama 4 Scout",
+        "Qwen3 235B A22B",
+        "Qwen3 32B"
+      ],
+      "media": []
+    },
+    {
+      "id": "cheaperinference",
+      "alias": "cheaperinference",
+      "name": "Cheaper Inference",
+      "icon": "hub",
+      "color": "#F97316",
+      "textIcon": "CI",
+      "website": "https://cheaperinference.com",
+      "apiKeyUrl": "",
+      "category": "apikey",
+      "modelCount": 0,
+      "sampleModels": [],
+      "media": []
+    },
+    {
+      "id": "chutes",
+      "alias": "chutes",
+      "name": "Chutes AI",
+      "icon": "water_drop",
+      "color": "#ffffffff",
+      "textIcon": "CH",
+      "website": "https://chutes.ai",
+      "apiKeyUrl": "https://chutes.ai/app/api",
+      "category": "apikey",
+      "modelCount": 0,
+      "sampleModels": [],
+      "media": []
+    },
+    {
+      "id": "clinepass",
+      "alias": "clinepass",
+      "name": "ClinePass",
+      "icon": "vpn_key",
+      "color": "#5B9BD5",
+      "textIcon": "CP",
+      "website": "https://cline.bot",
+      "apiKeyUrl": "",
+      "category": "oauth",
+      "modelCount": 10,
+      "sampleModels": [
+        "GLM-5.2 (ClinePass)",
+        "Kimi K2.7 Code (ClinePass)",
+        "Kimi K2.6 (ClinePass)",
+        "DeepSeek V4 Pro (ClinePass)",
+        "DeepSeek V4 Flash (ClinePass)",
+        "MiMo-V2.5 (ClinePass)"
+      ],
+      "media": []
+    },
+    {
+      "id": "cloudflare-ai",
+      "alias": "cloudflare-ai",
+      "name": "Cloudflare",
+      "icon": "cloud",
+      "color": "#F38020",
+      "textIcon": "CF",
+      "website": "https://developers.cloudflare.com/workers-ai/",
+      "apiKeyUrl": "https://dash.cloudflare.com/profile/api-tokens",
+      "category": "freeTier",
+      "modelCount": 25,
+      "sampleModels": [
+        "Clef Flash",
+        "Llama 3.2 1B Instruct",
+        "Llama 3.2 3B Instruct",
+        "Llama 3.1 8B Instruct FP8 Fast",
+        "Llama 3.1 8B Instruct AWQ",
+        "Mistral Small 3.1 24B Instruct"
+      ],
+      "media": [
+        "image"
+      ]
+    },
+    {
+      "id": "codebuddy-intl",
+      "alias": "cbai",
+      "name": "CodeBuddy",
+      "icon": "smart_toy",
+      "color": "#006EFF",
+      "textIcon": "",
+      "website": "https://www.codebuddy.ai",
+      "apiKeyUrl": "",
+      "category": "oauth",
+      "modelCount": 15,
+      "sampleModels": [
+        "GLM-5.2",
+        "GLM-5.1",
+        "GLM-5.0",
+        "GLM-5.0-Turbo",
+        "GLM-5v-Turbo",
+        "GLM-4.7"
+      ],
+      "media": []
+    },
+    {
+      "id": "codebuddy-cn",
+      "alias": "cbcn",
+      "name": "CodeBuddy CN",
+      "icon": "smart_toy",
+      "color": "#006EFF",
+      "textIcon": "",
+      "website": "https://copilot.tencent.com",
+      "apiKeyUrl": "",
+      "category": "oauth",
+      "modelCount": 11,
+      "sampleModels": [
+        "GLM-5.2",
+        "GLM-5.1",
+        "MiniMax-M3",
+        "Hy3",
+        "Hy4-Preview",
+        "GLM-5.3"
+      ],
+      "media": []
+    },
+    {
+      "id": "codestral",
+      "alias": "codestral",
+      "name": "Codestral",
+      "icon": "hub",
+      "color": "#EF4444",
+      "textIcon": "C",
+      "website": "https://codestral.mistral.ai",
+      "apiKeyUrl": "https://admin.mistral.ai/plateforme/keys",
+      "category": "apikey",
+      "modelCount": 0,
+      "sampleModels": [],
+      "media": []
+    },
+    {
+      "id": "cohere",
+      "alias": "cohere",
+      "name": "Cohere",
+      "icon": "hub",
+      "color": "#39594D",
+      "textIcon": "CO",
+      "website": "https://cohere.com",
+      "apiKeyUrl": "https://dashboard.cohere.com/api-keys",
+      "category": "apikey",
+      "modelCount": 3,
+      "sampleModels": [
+        "Command R+ (Aug 2024)",
+        "Command R (Aug 2024)",
+        "Command A (Mar 2025)"
+      ],
+      "media": []
+    },
+    {
+      "id": "comfyui",
+      "alias": "comfyui",
+      "name": "ComfyUI",
+      "icon": "account_tree",
+      "color": "#4CAF50",
+      "textIcon": "CF",
+      "website": "https://github.com/comfyanonymous/ComfyUI",
+      "apiKeyUrl": "",
+      "category": "apikey",
+      "modelCount": 2,
+      "sampleModels": [
+        "FLUX Dev",
+        "SDXL"
+      ],
+      "media": [
+        "image"
+      ]
+    },
+    {
+      "id": "commandcode",
+      "alias": "commandcode",
+      "name": "Command Code",
+      "icon": "smart_toy",
+      "color": "#000000",
+      "textIcon": "CC",
+      "website": "https://commandcode.ai",
+      "apiKeyUrl": "https://commandcode.ai/studio",
+      "category": "apikey",
+      "modelCount": 23,
+      "sampleModels": [
+        "DeepSeek V4 Pro",
+        "DeepSeek V4 Flash",
+        "Kimi K3.1 Pro",
+        "Kimi K2.7 Code",
+        "Kimi K2.7 Code HighSpeed",
+        "Kimi K2.6"
+      ],
+      "media": []
+    },
+    {
+      "id": "dahl",
+      "alias": "dahl",
+      "name": "Dahl Inference",
+      "icon": "hub",
+      "color": "#1E40AF",
+      "textIcon": "DH",
+      "website": "https://dahl.global",
+      "apiKeyUrl": "https://dahl.global/dashboard",
+      "category": "apikey",
+      "modelCount": 3,
+      "sampleModels": [
+        "GLM-5.3 Flash",
+        "DeepSeek V4 Flash 0731",
+        "MiniMax M2.7"
+      ],
+      "media": []
+    },
+    {
+      "id": "deepgram",
+      "alias": "deepgram",
+      "name": "Deepgram",
+      "icon": "mic",
+      "color": "#13EF93",
+      "textIcon": "DG",
+      "website": "https://deepgram.com",
+      "apiKeyUrl": "https://console.deepgram.com/api-keys",
+      "category": "apikey",
+      "modelCount": 4,
+      "sampleModels": [
+        "Nova 3",
+        "Nova 2",
+        "Whisper Large",
+        "Nova"
+      ],
+      "media": [
+        "stt"
+      ]
+    },
+    {
+      "id": "deepinfra",
+      "alias": "deepinfra",
+      "name": "DeepInfra",
+      "icon": "hub",
+      "color": "#6366F1",
+      "textIcon": "DI",
+      "website": "https://deepinfra.com",
+      "apiKeyUrl": "https://deepinfra.com/dash/keys",
+      "category": "apikey",
+      "modelCount": 0,
+      "sampleModels": [],
+      "media": []
+    },
+    {
+      "id": "deepseek",
+      "alias": "deepseek",
+      "name": "DeepSeek",
+      "icon": "bolt",
+      "color": "#4D6BFE",
+      "textIcon": "DS",
+      "website": "https://deepseek.com",
+      "apiKeyUrl": "https://platform.deepseek.com/api_keys",
+      "category": "apikey",
+      "modelCount": 8,
+      "sampleModels": [
+        "DeepSeek V4 Pro",
+        "DeepSeek V4 Pro Max",
+        "DeepSeek V4 Pro No Thinking",
+        "DeepSeek V4.1 Flash",
+        "DeepSeek V4 Flash",
+        "DeepSeek V4 Flash Vision (Exp)"
+      ],
+      "media": []
+    },
+    {
+      "id": "digitalocean",
+      "alias": "digitalocean",
+      "name": "DigitalOcean GenAI",
+      "icon": "hub",
+      "color": "#10A37F",
+      "textIcon": "D",
+      "website": "https://www.digitalocean.com/products/gen-ai-platform",
+      "apiKeyUrl": "",
+      "category": "apikey",
+      "modelCount": 0,
+      "sampleModels": [],
+      "media": []
+    },
+    {
+      "id": "electronhub",
+      "alias": "electronhub",
+      "name": "ElectronHub",
+      "icon": "hub",
+      "color": "#0EA5E9",
+      "textIcon": "EH",
+      "website": "https://electronhub.top",
+      "apiKeyUrl": "",
+      "category": "apikey",
+      "modelCount": 0,
+      "sampleModels": [],
+      "media": []
+    },
+    {
+      "id": "elevenlabs",
+      "alias": "el",
+      "name": "ElevenLabs",
+      "icon": "record_voice_over",
+      "color": "#6C47FF",
+      "textIcon": "EL",
+      "website": "https://elevenlabs.io",
+      "apiKeyUrl": "https://elevenlabs.io/app/settings/api-keys",
+      "category": "apikey",
+      "modelCount": 2,
+      "sampleModels": [
+        "Scribe v1",
+        "Scribe v2"
+      ],
+      "media": [
+        "tts",
+        "stt"
+      ]
+    },
+    {
+      "id": "exa",
+      "alias": "exa",
+      "name": "Exa",
+      "icon": "manage_search",
+      "color": "#2563EB",
+      "textIcon": "EX",
+      "website": "https://exa.ai",
+      "apiKeyUrl": "https://dashboard.exa.ai/api-keys",
+      "category": "apikey",
+      "modelCount": 0,
+      "sampleModels": [],
+      "media": [
+        "search"
+      ]
+    },
+    {
+      "id": "experiential",
+      "alias": "experiential",
+      "name": "Experiential Labs",
+      "icon": "hub",
+      "color": "#06B6D4",
+      "textIcon": "EL",
+      "website": "https://experientiallabs.ai",
+      "apiKeyUrl": "",
+      "category": "apikey",
+      "modelCount": 0,
+      "sampleModels": [],
+      "media": []
+    },
+    {
+      "id": "fal-ai",
+      "alias": "fal-ai",
+      "name": "Fal.ai",
+      "icon": "image",
+      "color": "#2563EB",
+      "textIcon": "FL",
+      "website": "https://fal.ai",
+      "apiKeyUrl": "https://fal.ai/dashboard/keys",
+      "category": "apikey",
+      "modelCount": 7,
+      "sampleModels": [
+        "FLUX Schnell",
+        "FLUX Dev",
+        "FLUX Pro v1.1",
+        "FLUX Pro v1.1 Ultra",
+        "Recraft V3",
+        "Ideogram V2"
+      ],
+      "media": [
+        "image"
+      ]
+    },
+    {
+      "id": "featherless",
+      "alias": "featherless",
+      "name": "Featherless",
+      "icon": "flutter_dash",
+      "color": "#111827",
+      "textIcon": "FL",
+      "website": "https://featherless.ai",
+      "apiKeyUrl": "https://featherless.ai/account/api-keys",
+      "category": "apikey",
+      "modelCount": 7,
+      "sampleModels": [
+        "DeepSeek V4 Pro",
+        "DeepSeek V4 Flash",
+        "GLM 5.2",
+        "GLM 5.1",
+        "Kimi K2.7 Code",
+        "Kimi K2.6"
+      ],
+      "media": []
+    },
+    {
+      "id": "firecrawl",
+      "alias": "firecrawl",
+      "name": "Firecrawl",
+      "icon": "local_fire_department",
+      "color": "#F59E0B",
+      "textIcon": "FC",
+      "website": "https://firecrawl.dev",
+      "apiKeyUrl": "https://www.firecrawl.dev/app/api-keys",
+      "category": "apikey",
+      "modelCount": 0,
+      "sampleModels": [],
+      "media": []
+    },
+    {
+      "id": "fireworks",
+      "alias": "fireworks",
+      "name": "Fireworks AI",
+      "icon": "local_fire_department",
+      "color": "#7B2EF2",
+      "textIcon": "FW",
+      "website": "https://fireworks.ai",
+      "apiKeyUrl": "https://fireworks.ai/account/api-keys",
+      "category": "apikey",
+      "modelCount": 4,
+      "sampleModels": [
+        "DeepSeek V3.1",
+        "Llama 3.3 70B",
+        "Qwen3 235B",
+        "Nomic Embed Text v1.5"
+      ],
+      "media": [
+        "embedding"
+      ]
+    },
+    {
+      "id": "fish-audio",
+      "alias": "fish",
+      "name": "Fish Audio",
+      "icon": "record_voice_over",
+      "color": "#1E9BF0",
+      "textIcon": "FA",
+      "website": "https://fish.audio",
+      "apiKeyUrl": "https://fish.audio/app/api-keys/",
+      "category": "apikey",
+      "modelCount": 0,
+      "sampleModels": [],
+      "media": [
+        "tts"
+      ]
+    },
+    {
+      "id": "friendliai",
+      "alias": "friendliai",
+      "name": "FriendliAI",
+      "icon": "hub",
+      "color": "#D946EF",
+      "textIcon": "F",
+      "website": "https://friendli.ai",
+      "apiKeyUrl": "https://friendli.ai/suite/personal-tasks",
+      "category": "apikey",
+      "modelCount": 0,
+      "sampleModels": [],
+      "media": []
+    },
+    {
+      "id": "g0i",
+      "alias": "g0i",
+      "name": "G0I",
+      "icon": "hub",
+      "color": "#10A37F",
+      "textIcon": "G",
+      "website": "https://g0i.ai",
+      "apiKeyUrl": "",
+      "category": "apikey",
+      "modelCount": 0,
+      "sampleModels": [],
+      "media": []
+    },
+    {
+      "id": "gemini",
+      "alias": "gemini",
+      "name": "Gemini",
+      "icon": "diamond",
+      "color": "#4285F4",
+      "textIcon": "GE",
+      "website": "https://ai.google.dev",
+      "apiKeyUrl": "https://aistudio.google.com/app/apikey",
+      "category": "freeTier",
+      "modelCount": 28,
+      "sampleModels": [
+        "Gemini 4 Argon",
+        "Gemini 3.8 Flash",
+        "Gemini 3.7 Flash",
+        "Gemini 3.6 Flash",
+        "Gemini 3.5 Flash Lite",
+        "Gemini 3.1 Pro Preview"
+      ],
+      "media": [
+        "embedding",
+        "tts",
+        "stt",
+        "image",
+        "search"
+      ]
+    },
+    {
+      "id": "glm-cn",
+      "alias": "glm-cn",
+      "name": "GLM (China)",
+      "icon": "code",
+      "color": "#DC2626",
+      "textIcon": "GC",
+      "website": "https://open.bigmodel.cn",
+      "apiKeyUrl": "https://open.bigmodel.cn/usercenter/apikeys",
+      "category": "apikey",
+      "modelCount": 10,
+      "sampleModels": [
+        "GLM 5.3",
+        "GLM 5.3 Flash (Vision)",
+        "GLM 5.2",
+        "GLM 5.1",
+        "GLM 5 Turbo",
+        "GLM 5"
+      ],
+      "media": []
+    },
+    {
+      "id": "google-pse",
+      "alias": "gpse",
+      "name": "Google PSE",
+      "icon": "search",
+      "color": "#4285F4",
+      "textIcon": "GP",
+      "website": "https://programmablesearchengine.google.com",
+      "apiKeyUrl": "https://programmablesearchengine.google.com/controlpanel/create",
+      "category": "apikey",
+      "modelCount": 0,
+      "sampleModels": [],
+      "media": [
+        "search"
+      ]
+    },
+    {
+      "id": "groq",
+      "alias": "groq",
+      "name": "Groq",
+      "icon": "speed",
+      "color": "#F55036",
+      "textIcon": "GQ",
+      "website": "https://groq.com",
+      "apiKeyUrl": "https://console.groq.com/keys",
+      "category": "apikey",
+      "modelCount": 7,
+      "sampleModels": [
+        "Llama 3.3 70B",
+        "Llama 4 Maverick",
+        "Qwen3 32B",
+        "GPT-OSS 120B",
+        "Whisper Large v3",
+        "Whisper Large v3 Turbo"
+      ],
+      "media": [
+        "stt"
+      ]
+    },
+    {
+      "id": "huggingface",
+      "alias": "huggingface",
+      "name": "HuggingFace",
+      "icon": "face",
+      "color": "#FFD21E",
+      "textIcon": "HF",
+      "website": "https://huggingface.co",
+      "apiKeyUrl": "https://huggingface.co/settings/tokens",
+      "category": "apikey",
+      "modelCount": 25,
+      "sampleModels": [
+        "FLUX.1 Schnell",
+        "FLUX.1 Dev",
+        "FLUX.1 Krea",
+        "FLUX.1 Kontext",
+        "FLUX.2 Dev",
+        "FLUX.2 Klein 9B"
+      ],
+      "media": [
+        "stt",
+        "image"
+      ]
+    },
+    {
+      "id": "hyperbolic",
+      "alias": "hyperbolic",
+      "name": "Hyperbolic",
+      "icon": "bolt",
+      "color": "#00D4FF",
+      "textIcon": "HY",
+      "website": "https://hyperbolic.xyz",
+      "apiKeyUrl": "https://app.hyperbolic.xyz/settings",
+      "category": "apikey",
+      "modelCount": 8,
+      "sampleModels": [
+        "QwQ 32B",
+        "DeepSeek R1",
+        "DeepSeek V3",
+        "Llama 3.3 70B",
+        "Llama 3.2 3B",
+        "Qwen 2.5 72B"
+      ],
+      "media": []
+    },
+    {
+      "id": "sparkdesk",
+      "alias": "sparkdesk",
+      "name": "iFlyTek Spark",
+      "icon": "hub",
+      "color": "#F59E0B",
+      "textIcon": "IF",
+      "website": "https://www.xfyun.cn",
+      "apiKeyUrl": "",
+      "category": "apikey",
+      "modelCount": 0,
+      "sampleModels": [],
+      "media": []
+    },
+    {
+      "id": "inference-net",
+      "alias": "inference-net",
+      "name": "Inference.net",
+      "icon": "hub",
+      "color": "#8B5CF6",
+      "textIcon": "I",
+      "website": "https://inference.net",
+      "apiKeyUrl": "",
+      "category": "apikey",
+      "modelCount": 0,
+      "sampleModels": [],
+      "media": []
+    },
+    {
+      "id": "interfaceai",
+      "alias": "interfaceai",
+      "name": "InterfaceAI",
+      "icon": "hub",
+      "color": "#EF4444",
+      "textIcon": "I",
+      "website": "https://jiekou.ai",
+      "apiKeyUrl": "",
+      "category": "apikey",
+      "modelCount": 0,
+      "sampleModels": [],
+      "media": []
+    },
+    {
+      "id": "inworld",
+      "alias": "inworld",
+      "name": "Inworld TTS",
+      "icon": "record_voice_over",
+      "color": "#FF6B6B",
+      "textIcon": "IW",
+      "website": "https://inworld.ai",
+      "apiKeyUrl": "https://platform.inworld.ai/api-keys",
+      "category": "apikey",
+      "modelCount": 0,
+      "sampleModels": [],
+      "media": [
+        "tts"
+      ]
+    },
+    {
+      "id": "jina-ai",
+      "alias": "jina",
+      "name": "Jina AI",
+      "icon": "blur_on",
+      "color": "#2563EB",
+      "textIcon": "JA",
+      "website": "https://jina.ai",
+      "apiKeyUrl": "https://jina.ai/?sui=apikey",
+      "category": "apikey",
+      "modelCount": 0,
+      "sampleModels": [],
+      "media": [
+        "embedding"
+      ]
+    },
+    {
+      "id": "jina-reader",
+      "alias": "jina-reader",
+      "name": "Jina Reader",
+      "icon": "menu_book",
+      "color": "#000000",
+      "textIcon": "JR",
+      "website": "https://jina.ai/reader",
+      "apiKeyUrl": "https://jina.ai/?sui=apikey",
+      "category": "apikey",
+      "modelCount": 0,
+      "sampleModels": [],
+      "media": []
+    },
+    {
+      "id": "kie",
+      "alias": "kie",
+      "name": "Kie",
+      "icon": "hub",
+      "color": "#EC4899",
+      "textIcon": "K",
+      "website": "https://kie.ai",
+      "apiKeyUrl": "",
+      "category": "apikey",
+      "modelCount": 0,
+      "sampleModels": [],
+      "media": []
+    },
+    {
+      "id": "kilo-gateway",
+      "alias": "kgw",
+      "name": "Kilo Gateway",
+      "icon": "login",
+      "color": "#8B5CF6",
+      "textIcon": "KG",
+      "website": "https://kilo.ai",
+      "apiKeyUrl": "https://kilo.ai/dashboard?tab=apiKeys",
+      "category": "freeTier",
+      "modelCount": 6,
+      "sampleModels": [
+        "Kilo Auto Free",
+        "Nemotron 3 Super 120B (Free)",
+        "Nemotron 3 Ultra 550B (Free)",
+        "Kat Coder Pro v2.5 (Free)",
+        "Kilo Auto Frontier",
+        "Kilo Auto Balanced"
+      ],
+      "media": []
+    },
+    {
+      "id": "kimchi",
+      "alias": "kimchi",
+      "name": "Kimchi",
+      "icon": "restaurant",
+      "color": "#FF521D",
+      "textIcon": "KC",
+      "website": "https://kimchi.dev",
+      "apiKeyUrl": "",
+      "category": "freeTier",
+      "modelCount": 8,
+      "sampleModels": [
+        "MiniMax-M3",
+        "Kimi-K2.7",
+        "Kimi-K2.6",
+        "Kimi-K2.5",
+        "Nemotron 3 Ultra FP4",
+        "MiniMax-M2.7"
+      ],
+      "media": []
+    },
+    {
+      "id": "kimi",
+      "alias": "kimi",
+      "name": "Kimi",
+      "icon": "psychology",
+      "color": "#1E3A8A",
+      "textIcon": "KM",
+      "website": "https://kimi.moonshot.cn",
+      "apiKeyUrl": "https://platform.moonshot.ai/console/api-keys",
+      "category": "oauth",
+      "modelCount": 10,
+      "sampleModels": [
+        "Kimi K3",
+        "Kimi K3 (Code)",
+        "Kimi for Coding",
+        "Kimi for Coding Highspeed",
+        "Kimi K2.7 Code",
+        "Kimi K2.7 Code Highspeed"
+      ],
+      "media": [
+        "search"
+      ]
+    },
+    {
+      "id": "kimi-code",
+      "alias": "kimi-code",
+      "name": "Kimi Code",
+      "icon": "hub",
+      "color": "#A855F7",
+      "textIcon": "KC",
+      "website": "https://www.kimi.com",
+      "apiKeyUrl": "",
+      "category": "apikey",
+      "modelCount": 0,
+      "sampleModels": [],
+      "media": []
+    },
+    {
+      "id": "lambda-ai",
+      "alias": "lambda-ai",
+      "name": "Lambda",
+      "icon": "hub",
+      "color": "#10A37F",
+      "textIcon": "L",
+      "website": "https://lambda.ai",
+      "apiKeyUrl": "https://cloud.lambda.ai",
+      "category": "apikey",
+      "modelCount": 0,
+      "sampleModels": [],
+      "media": []
+    },
+    {
+      "id": "lightning",
+      "alias": "lightning",
+      "name": "Lightning AI",
+      "icon": "hub",
+      "color": "#A855F7",
+      "textIcon": "L",
+      "website": "https://lightning.ai",
+      "apiKeyUrl": "",
+      "category": "apikey",
+      "modelCount": 0,
+      "sampleModels": [],
+      "media": []
+    },
+    {
+      "id": "linkup",
+      "alias": "linkup",
+      "name": "Linkup",
+      "icon": "link",
+      "color": "#0EA5E9",
+      "textIcon": "LK",
+      "website": "https://linkup.so",
+      "apiKeyUrl": "https://app.linkup.so/api-keys",
+      "category": "apikey",
+      "modelCount": 0,
+      "sampleModels": [],
+      "media": [
+        "search"
+      ]
+    },
+    {
+      "id": "llmgateway",
+      "alias": "llmgateway",
+      "name": "LLM Gateway",
+      "icon": "hub",
+      "color": "#F97316",
+      "textIcon": "LG",
+      "website": "https://llmgateway.io",
+      "apiKeyUrl": "https://llmgateway.io/dashboard/keys",
+      "category": "apikey",
+      "modelCount": 0,
+      "sampleModels": [],
+      "media": []
+    },
+    {
+      "id": "llm7",
+      "alias": "llm7",
+      "name": "LLM7",
+      "icon": "pool",
+      "color": "#7C3AED",
+      "textIcon": "L7",
+      "website": "https://llm7.io",
+      "apiKeyUrl": "https://llm7.io",
+      "category": "apikey",
+      "modelCount": 5,
+      "sampleModels": [
+        "GPT-5.5 (LLM7)",
+        "Claude Opus 5 (LLM7)",
+        "DeepSeek V4 Flash (LLM7)",
+        "Grok 4.5 (LLM7)",
+        "Kimi K3 (LLM7)"
+      ],
+      "media": []
+    },
+    {
+      "id": "minimax-cn",
+      "alias": "minimax-cn",
+      "name": "Minimax (China)",
+      "icon": "memory",
+      "color": "#DC2626",
+      "textIcon": "MC",
+      "website": "https://www.minimaxi.com",
+      "apiKeyUrl": "https://platform.minimaxi.com/user-center/basic-information/interface-key",
+      "category": "apikey",
+      "modelCount": 12,
+      "sampleModels": [
+        "MiniMax M3",
+        "MiniMax M2.7",
+        "MiniMax M2.5",
+        "MiniMax M2.1",
+        "Speech 2.8 HD",
+        "Speech 2.8 Turbo"
+      ],
+      "media": [
+        "tts"
+      ]
+    },
+    {
+      "id": "minimax",
+      "alias": "minimax",
+      "name": "Minimax Coding",
+      "icon": "memory",
+      "color": "#7C3AED",
+      "textIcon": "MM",
+      "website": "https://www.minimaxi.com",
+      "apiKeyUrl": "https://platform.minimaxi.com/user-center/basic-information/interface-key",
+      "category": "apikey",
+      "modelCount": 13,
+      "sampleModels": [
+        "MiniMax M3",
+        "MiniMax M2.7",
+        "MiniMax M2.5",
+        "MiniMax M2.1",
+        "MiniMax Image 01",
+        "Speech 2.8 HD"
+      ],
+      "media": [
+        "tts",
+        "image",
+        "search"
+      ]
+    },
+    {
+      "id": "mistral",
+      "alias": "mistral",
+      "name": "Mistral",
+      "icon": "air",
+      "color": "#FF7000",
+      "textIcon": "MI",
+      "website": "https://mistral.ai",
+      "apiKeyUrl": "https://console.mistral.ai/api-keys",
+      "category": "apikey",
+      "modelCount": 4,
+      "sampleModels": [
+        "Mistral Large 3",
+        "Codestral",
+        "Mistral Medium 3",
+        "Mistral Embed"
+      ],
+      "media": [
+        "embedding"
+      ]
+    },
+    {
+      "id": "mmf",
+      "alias": "mmf",
+      "name": "MMF",
+      "icon": "hub",
+      "color": "#6366F1",
+      "textIcon": "MF",
+      "website": "",
+      "apiKeyUrl": "",
+      "category": "apikey",
+      "modelCount": 1,
+      "sampleModels": [
+        "MiMo Auto"
+      ],
+      "media": []
+    },
+    {
+      "id": "modal",
+      "alias": "modal",
+      "name": "Modal Research",
+      "icon": "hub",
+      "color": "#8B5CF6",
+      "textIcon": "MR",
+      "website": "https://modal.com",
+      "apiKeyUrl": "",
+      "category": "apikey",
+      "modelCount": 0,
+      "sampleModels": [],
+      "media": []
+    },
+    {
+      "id": "modelscope",
+      "alias": "modelscope",
+      "name": "ModelScope API-Inference",
+      "icon": "hub",
+      "color": "#8B5CF6",
+      "textIcon": "M",
+      "website": "https://modelscope.cn",
+      "apiKeyUrl": "https://modelscope.cn/my/myaccesstoken",
+      "category": "apikey",
+      "modelCount": 0,
+      "sampleModels": [],
+      "media": []
+    },
+    {
+      "id": "monsterapi",
+      "alias": "monsterapi",
+      "name": "Monster API",
+      "icon": "hub",
+      "color": "#A855F7",
+      "textIcon": "M",
+      "website": "https://monsterapi.ai",
+      "apiKeyUrl": "",
+      "category": "apikey",
+      "modelCount": 0,
+      "sampleModels": [],
+      "media": []
+    },
+    {
+      "id": "morph",
+      "alias": "morph",
+      "name": "Morph",
+      "icon": "change_history",
+      "color": "#14B8A6",
+      "textIcon": "MP",
+      "website": "https://morphllm.com",
+      "apiKeyUrl": "https://morphllm.com",
+      "category": "apikey",
+      "modelCount": 6,
+      "sampleModels": [
+        "Morph v3 Large",
+        "Morph v3 Fast",
+        "Qwen 3.5 397B (Morph)",
+        "MiniMax M2.7 (Morph)",
+        "Qwen 3.6 27B (Morph)",
+        "DeepSeek V4 Flash (Morph)"
+      ],
+      "media": []
+    },
+    {
+      "id": "muse",
+      "alias": "muse",
+      "name": "Muse (Meta Model API)",
+      "icon": "auto_awesome",
+      "color": "#0866FF",
+      "textIcon": "MU",
+      "website": "https://muse.ai",
+      "apiKeyUrl": "https://dev.meta.ai",
+      "category": "oauth",
+      "modelCount": 5,
+      "sampleModels": [
+        "Muse Spark 1.3",
+        "Muse Spark 1.2",
+        "Muse Spark 1.1",
+        "Muse Spark 1.3 Contributor",
+        "Muse Spark 1.2 Contributor"
+      ],
+      "media": []
+    },
+    {
+      "id": "nace",
+      "alias": "nace",
+      "name": "Nace Drex",
+      "icon": "psychology",
+      "color": "#1D1D16",
+      "textIcon": "DX",
+      "website": "https://console.nace.ai",
+      "apiKeyUrl": "https://console.nace.ai/dashboard/api-keys",
+      "category": "apikey",
+      "modelCount": 2,
+      "sampleModels": [
+        "Drex Max",
+        "Drex 2.0"
+      ],
+      "media": []
+    },
+    {
+      "id": "naga",
+      "alias": "naga",
+      "name": "NagaAI",
+      "icon": "hub",
+      "color": "#EC4899",
+      "textIcon": "N",
+      "website": "https://naga.ac",
+      "apiKeyUrl": "",
+      "category": "apikey",
+      "modelCount": 0,
+      "sampleModels": [],
+      "media": []
+    },
+    {
+      "id": "nanobanana",
+      "alias": "nanobanana",
+      "name": "NanoBanana API",
+      "icon": "extension",
+      "color": "#FFD700",
+      "textIcon": "🍌",
+      "website": "https://nanobananaapi.ai",
+      "apiKeyUrl": "https://nanobananaapi.ai/dashboard",
+      "category": "apikey",
+      "modelCount": 2,
+      "sampleModels": [
+        "NanoBanana Flash",
+        "NanoBanana Pro"
+      ],
+      "media": [
+        "image"
+      ]
+    },
+    {
+      "id": "nanogpt",
+      "alias": "nanogpt",
+      "name": "NanoGPT",
+      "icon": "hub",
+      "color": "#EC4899",
+      "textIcon": "N",
+      "website": "https://nano-gpt.com",
+      "apiKeyUrl": "https://nano-gpt.com/api",
+      "category": "apikey",
+      "modelCount": 0,
+      "sampleModels": [],
+      "media": []
+    },
+    {
+      "id": "nararoute",
+      "alias": "nararoute",
+      "name": "NaraRoute",
+      "icon": "hub",
+      "color": "#8B5CF6",
+      "textIcon": "NR",
+      "website": "https://bynara.id",
+      "apiKeyUrl": "",
+      "category": "apikey",
+      "modelCount": 0,
+      "sampleModels": [],
+      "media": []
+    },
+    {
+      "id": "nebius",
+      "alias": "nebius",
+      "name": "Nebius AI",
+      "icon": "cloud",
+      "color": "#6C5CE7",
+      "textIcon": "NB",
+      "website": "https://nebius.com",
+      "apiKeyUrl": "https://studio.nebius.com/settings/api-keys",
+      "category": "apikey",
+      "modelCount": 2,
+      "sampleModels": [
+        "Llama 3.3 70B Instruct",
+        "Qwen3 Embedding 8B"
+      ],
+      "media": [
+        "embedding"
+      ]
+    },
+    {
+      "id": "nous",
+      "alias": "nous",
+      "name": "Nous Research",
+      "icon": "psychology",
+      "color": "#7C3AED",
+      "textIcon": "NR",
+      "website": "https://nousresearch.com",
+      "apiKeyUrl": "https://portal.nousresearch.com/api-keys",
+      "category": "freeTier",
+      "modelCount": 8,
+      "sampleModels": [
+        "Meituan: LongCat 2.0",
+        "Meituan: LongCat 2.5 Preview",
+        "StepFun: Step 5 Preview",
+        "Upstage: Solar Mini 4",
+        "StepFun: Step 3.7 Flash",
+        "Poolside: Laguna S 2.1"
+      ],
+      "media": []
+    },
+    {
+      "id": "novita",
+      "alias": "novita",
+      "name": "Novita AI",
+      "icon": "hub",
+      "color": "#22C55E",
+      "textIcon": "N",
+      "website": "https://novita.ai",
+      "apiKeyUrl": "https://novita.ai/dashboard/llm-api-key",
+      "category": "apikey",
+      "modelCount": 0,
+      "sampleModels": [],
+      "media": []
+    },
+    {
+      "id": "nscale",
+      "alias": "nscale",
+      "name": "Nscale",
+      "icon": "hub",
+      "color": "#A855F7",
+      "textIcon": "N",
+      "website": "https://nscale.com",
+      "apiKeyUrl": "",
+      "category": "apikey",
+      "modelCount": 0,
+      "sampleModels": [],
+      "media": []
+    },
+    {
+      "id": "nvidia",
+      "alias": "nvidia",
+      "name": "NVIDIA NIM",
+      "icon": "developer_board",
+      "color": "#76B900",
+      "textIcon": "NV",
+      "website": "https://developer.nvidia.com/nim",
+      "apiKeyUrl": "https://build.nvidia.com/settings/api-keys",
+      "category": "freeTier",
+      "modelCount": 11,
+      "sampleModels": [
+        "MiniMax M2.7",
+        "MiniMax M3",
+        "GLM 5.2",
+        "DeepSeek V4 Pro",
+        "DeepSeek V4 Flash",
+        "Kimi K2.6"
+      ],
+      "media": [
+        "embedding",
+        "tts",
+        "stt"
+      ]
+    },
+    {
+      "id": "ollama",
+      "alias": "ollama",
+      "name": "Ollama Cloud",
+      "icon": "cloud",
+      "color": "#ffffffff",
+      "textIcon": "OL",
+      "website": "https://ollama.com",
+      "apiKeyUrl": "https://ollama.com/settings/keys",
+      "category": "freeTier",
+      "modelCount": 11,
+      "sampleModels": [
+        "GPT OSS 120B",
+        "Kimi K2.5",
+        "GLM 5",
+        "MiniMax M2.5",
+        "GLM 4.7 Flash",
+        "Qwen3.5"
+      ],
+      "media": []
+    },
+    {
+      "id": "ollama-cloud",
+      "alias": "ollama-cloud",
+      "name": "Ollama Cloud",
+      "icon": "hub",
+      "color": "#06B6D4",
+      "textIcon": "OC",
+      "website": "https://ollama.com",
+      "apiKeyUrl": "https://ollama.com/settings/keys",
+      "category": "apikey",
+      "modelCount": 0,
+      "sampleModels": [],
+      "media": []
+    },
+    {
+      "id": "ollama-local",
+      "alias": "ollama-local",
+      "name": "Ollama Local",
+      "icon": "cloud",
+      "color": "#ffffffff",
+      "textIcon": "OL",
+      "website": "https://ollama.com",
+      "apiKeyUrl": "",
+      "category": "apikey",
+      "modelCount": 114,
+      "sampleModels": [
+        "Clef",
+        "Clef Flash",
+        "Phonon (Latest)",
+        "Phonon",
+        "Phonon Multilingual",
+        "Phonon 40M Multilingual"
+      ],
+      "media": [
+        "embedding",
+        "tts"
+      ]
+    },
+    {
+      "id": "ollama-search",
+      "alias": "ollama-search",
+      "name": "Ollama Search",
+      "icon": "cloud",
+      "color": "#ffffff",
+      "textIcon": "OL",
+      "website": "https://ollama.com",
+      "apiKeyUrl": "https://ollama.com/settings/keys",
+      "category": "apikey",
+      "modelCount": 0,
+      "sampleModels": [],
+      "media": [
+        "search"
+      ]
+    },
+    {
+      "id": "openai",
+      "alias": "openai",
+      "name": "OpenAI",
+      "icon": "auto_awesome",
+      "color": "#10A37F",
+      "textIcon": "OA",
+      "website": "https://platform.openai.com",
+      "apiKeyUrl": "https://platform.openai.com/api-keys",
+      "category": "apikey",
+      "modelCount": 36,
+      "sampleModels": [
+        "GPT-5.5",
+        "GPT-5.4",
+        "GPT-5.4 Mini",
+        "GPT-5.4 Nano",
+        "GPT-5.2",
+        "GPT-5.1"
+      ],
+      "media": [
+        "embedding",
+        "tts",
+        "stt",
+        "image",
+        "search"
+      ]
+    },
+    {
+      "id": "opencode-go",
+      "alias": "opencode-go",
+      "name": "OpenCode Go",
+      "icon": "terminal",
+      "color": "#E87040",
+      "textIcon": "OC",
+      "website": "https://opencode.ai/auth",
+      "apiKeyUrl": "https://opencode.ai/auth",
+      "category": "apikey",
+      "modelCount": 44,
+      "sampleModels": [
+        "DeepSeek Flash",
+        "GLM 5.3 Flash (Vision)",
+        "GLM 5.3",
+        "GLM 5.2",
+        "GLM 5.1",
+        "GLM 5"
+      ],
+      "media": []
+    },
+    {
+      "id": "opencode-zen",
+      "alias": "ocz",
+      "name": "OpenCode Zen",
+      "icon": "terminal",
+      "color": "#E87040",
+      "textIcon": "OZ",
+      "website": "https://opencode.ai/auth",
+      "apiKeyUrl": "https://opencode.ai/auth",
+      "category": "apikey",
+      "modelCount": 74,
+      "sampleModels": [
+        "Claude Fable 5",
+        "Claude Fable 5.1",
+        "Claude Opus 5",
+        "Claude Opus 4.8",
+        "Claude Opus 4.7",
+        "Claude Opus 4.6"
+      ],
+      "media": []
+    },
+    {
+      "id": "openrouter",
+      "alias": "openrouter",
+      "name": "OpenRouter",
+      "icon": "router",
+      "color": "#F97316",
+      "textIcon": "OR",
+      "website": "https://openrouter.ai",
+      "apiKeyUrl": "https://openrouter.ai/settings/keys",
+      "category": "freeTier",
+      "modelCount": 18,
+      "sampleModels": [
+        "OpenAI Text Embedding 3 Large",
+        "OpenAI Text Embedding 3 Small",
+        "OpenAI Text Embedding Ada 002",
+        "Qwen3 Embedding 8B",
+        "Perplexity Embed V1 4B",
+        "Perplexity Embed V1 0.6B"
+      ],
+      "media": [
+        "embedding",
+        "tts",
+        "image",
+        "video"
+      ]
+    },
+    {
+      "id": "opper",
+      "alias": "opper",
+      "name": "Opper",
+      "icon": "hub",
+      "color": "#E11D48",
+      "textIcon": "O",
+      "website": "https://www.opper.ai",
+      "apiKeyUrl": "",
+      "category": "apikey",
+      "modelCount": 0,
+      "sampleModels": [],
+      "media": []
+    },
+    {
+      "id": "orcarouter",
+      "alias": "orcarouter",
+      "name": "OrcaRouter",
+      "icon": "hub",
+      "color": "#6366F1",
+      "textIcon": "OR",
+      "website": "https://orcarouter.ai",
+      "apiKeyUrl": "",
+      "category": "apikey",
+      "modelCount": 0,
+      "sampleModels": [],
+      "media": []
+    },
+    {
+      "id": "ovhcloud",
+      "alias": "ovhcloud",
+      "name": "OVHcloud AI Endpoints",
+      "icon": "hub",
+      "color": "#10A37F",
+      "textIcon": "O",
+      "website": "https://endpoints.ke.ai.ovh.net",
+      "apiKeyUrl": "",
+      "category": "apikey",
+      "modelCount": 0,
+      "sampleModels": [],
+      "media": []
+    },
+    {
+      "id": "perplexity",
+      "alias": "perplexity",
+      "name": "Perplexity",
+      "icon": "search",
+      "color": "#20808D",
+      "textIcon": "PP",
+      "website": "https://www.perplexity.ai",
+      "apiKeyUrl": "https://www.perplexity.ai/settings/api",
+      "category": "apikey",
+      "modelCount": 2,
+      "sampleModels": [
+        "Sonar Pro",
+        "Sonar"
+      ],
+      "media": [
+        "search"
+      ]
+    },
+    {
+      "id": "perplexity-agent",
+      "alias": "perplexity-agent",
+      "name": "Perplexity Agent",
+      "icon": "travel_explore",
+      "color": "#20808D",
+      "textIcon": "PA",
+      "website": "https://www.perplexity.ai",
+      "apiKeyUrl": "https://www.perplexity.ai/settings/api",
+      "category": "apikey",
+      "modelCount": 11,
+      "sampleModels": [
+        "Perplexity Sonar",
+        "GPT-5.5",
+        "GPT-5.4",
+        "GPT-5.4 Mini",
+        "Claude Sonnet 4.6",
+        "Claude Opus 4.8"
+      ],
+      "media": [
+        "search"
+      ]
+    },
+    {
+      "id": "playht",
+      "alias": "playht",
+      "name": "PlayHT",
+      "icon": "play_circle",
+      "color": "#00B4D8",
+      "textIcon": "PH",
+      "website": "https://play.ht",
+      "apiKeyUrl": "https://play.ht/studio/api-access",
+      "category": "apikey",
+      "modelCount": 0,
+      "sampleModels": [],
+      "media": [
+        "tts"
+      ]
+    },
+    {
+      "id": "poolside",
+      "alias": "poolside",
+      "name": "Poolside",
+      "icon": "water_drop",
+      "color": "#0EA5E9",
+      "textIcon": "PS",
+      "website": "https://poolside.ai",
+      "apiKeyUrl": "https://platform.poolside.ai/api-keys",
+      "category": "freeTier",
+      "modelCount": 2,
+      "sampleModels": [
+        "Laguna S 2.1",
+        "Laguna XS 2.1"
+      ],
+      "media": []
+    },
+    {
+      "id": "qianfan",
+      "alias": "qianfan",
+      "name": "Qianfan",
+      "icon": "hub",
+      "color": "#6366F1",
+      "textIcon": "Q",
+      "website": "https://qianfan.baidubce.com",
+      "apiKeyUrl": "",
+      "category": "apikey",
+      "modelCount": 0,
+      "sampleModels": [],
+      "media": []
+    },
+    {
+      "id": "qoder",
+      "alias": "qd",
+      "name": "Qoder",
+      "icon": "water_drop",
+      "color": "#EC4899",
+      "textIcon": "",
+      "website": "https://qoder.com",
+      "apiKeyUrl": "",
+      "category": "oauth",
+      "modelCount": 18,
+      "sampleModels": [
+        "Ultimate",
+        "Auto",
+        "Performance",
+        "Efficient",
+        "Lite",
+        "Qwen3.8-Max"
+      ],
+      "media": []
+    },
+    {
+      "id": "qoder-cn",
+      "alias": "qdcn",
+      "name": "Qoder CN",
+      "icon": "water_drop",
+      "color": "#EC4899",
+      "textIcon": "",
+      "website": "https://qoder.com.cn",
+      "apiKeyUrl": "",
+      "category": "oauth",
+      "modelCount": 16,
+      "sampleModels": [
+        "Ultimate",
+        "Auto",
+        "Performance",
+        "Efficient",
+        "Lite",
+        "Qwen3.8-Max"
+      ],
+      "media": []
+    },
+    {
+      "id": "qwencloud-coding",
+      "alias": "qwencloud-coding",
+      "name": "QwenCloud Coding Plan",
+      "icon": "hub",
+      "color": "#2B7FFF",
+      "textIcon": "QC",
+      "website": "https://www.alibabacloud.com/en/product/modelstudio",
+      "apiKeyUrl": "",
+      "category": "apikey",
+      "modelCount": 0,
+      "sampleModels": [],
+      "media": []
+    },
+    {
+      "id": "qwencloud",
+      "alias": "qwencloud",
+      "name": "QwenCloud Token Plan",
+      "icon": "hub",
+      "color": "#F59E0B",
+      "textIcon": "QC",
+      "website": "https://www.alibabacloud.com/en/product/modelstudio",
+      "apiKeyUrl": "",
+      "category": "apikey",
+      "modelCount": 0,
+      "sampleModels": [],
+      "media": []
+    },
+    {
+      "id": "recraft",
+      "alias": "recraft",
+      "name": "Recraft",
+      "icon": "image",
+      "color": "#EC4899",
+      "textIcon": "RC",
+      "website": "https://recraft.ai",
+      "apiKeyUrl": "https://www.recraft.ai/profile/api",
+      "category": "apikey",
+      "modelCount": 2,
+      "sampleModels": [
+        "Recraft V3",
+        "Recraft V2"
+      ],
+      "media": [
+        "image"
+      ]
+    },
+    {
+      "id": "requesty",
+      "alias": "requesty",
+      "name": "Requesty",
+      "icon": "hub",
+      "color": "#10A37F",
+      "textIcon": "R",
+      "website": "https://requesty.ai",
+      "apiKeyUrl": "https://app.requesty.ai/keys",
+      "category": "apikey",
+      "modelCount": 0,
+      "sampleModels": [],
+      "media": []
+    },
+    {
+      "id": "runcrate",
+      "alias": "runcrate",
+      "name": "Runcrate",
+      "icon": "terminal",
+      "color": "#1A2B79",
+      "textIcon": "RC",
+      "website": "https://www.runcrate.ai/inference/free?utm_source=originrouter&utm_medium=directory&utm_campaign=gpu_pricing",
+      "apiKeyUrl": "https://www.runcrate.ai/dashboard/api-keys",
+      "category": "apikey",
+      "modelCount": 6,
+      "sampleModels": [
+        "DeepSeek V4.1 Flash",
+        "DeepSeek V4.1 Flash 1017",
+        "GLM 5.3",
+        "GLM 5.3 Flash",
+        "Qwen3.8 Flash",
+        "gpt-oss 120B"
+      ],
+      "media": []
+    },
+    {
+      "id": "runwayml",
+      "alias": "runwayml",
+      "name": "Runway ML",
+      "icon": "movie",
+      "color": "#000000",
+      "textIcon": "RW",
+      "website": "https://runwayml.com",
+      "apiKeyUrl": "https://dev.runwayml.com",
+      "category": "apikey",
+      "modelCount": 4,
+      "sampleModels": [
+        "Gen-4 Image",
+        "Gen-4 Image Turbo",
+        "Gen-4 Turbo",
+        "Gen-3 Alpha Turbo"
+      ],
+      "media": [
+        "image",
+        "video"
+      ]
+    },
+    {
+      "id": "sambanova",
+      "alias": "samba",
+      "name": "SambaNova",
+      "icon": "memory",
+      "color": "#F97316",
+      "textIcon": "SN",
+      "website": "https://sambanova.ai",
+      "apiKeyUrl": "https://cloud.sambanova.ai/apis",
+      "category": "apikey",
+      "modelCount": 1,
+      "sampleModels": [
+        "MiniMax M2.7"
+      ],
+      "media": []
+    },
+    {
+      "id": "sarvam",
+      "alias": "sarvam",
+      "name": "Sarvam AI",
+      "icon": "hub",
+      "color": "#84CC16",
+      "textIcon": "S",
+      "website": "https://www.sarvam.ai",
+      "apiKeyUrl": "",
+      "category": "apikey",
+      "modelCount": 0,
+      "sampleModels": [],
+      "media": []
+    },
+    {
+      "id": "sdwebui",
+      "alias": "sdwebui",
+      "name": "SD WebUI",
+      "icon": "brush",
+      "color": "#FF7043",
+      "textIcon": "SD",
+      "website": "https://github.com/AUTOMATIC1111/stable-diffusion-webui",
+      "apiKeyUrl": "",
+      "category": "apikey",
+      "modelCount": 2,
+      "sampleModels": [
+        "Stable Diffusion v1.5",
+        "SDXL Base 1.0"
+      ],
+      "media": [
+        "image"
+      ]
+    },
+    {
+      "id": "sealion",
+      "alias": "sealion",
+      "name": "SEA Lion",
+      "icon": "hub",
+      "color": "#F97316",
+      "textIcon": "SL",
+      "website": "https://sea-lion.ai",
+      "apiKeyUrl": "",
+      "category": "apikey",
+      "modelCount": 0,
+      "sampleModels": [],
+      "media": []
+    },
+    {
+      "id": "searchapi",
+      "alias": "searchapi",
+      "name": "SearchAPI",
+      "icon": "search",
+      "color": "#0EA5A4",
+      "textIcon": "SA",
+      "website": "https://www.searchapi.io",
+      "apiKeyUrl": "https://www.searchapi.io/dashboard",
+      "category": "apikey",
+      "modelCount": 0,
+      "sampleModels": [],
+      "media": [
+        "search"
+      ]
+    },
+    {
+      "id": "segmind",
+      "alias": "segmind",
+      "name": "Segmind",
+      "icon": "hub",
+      "color": "#EF4444",
+      "textIcon": "S",
+      "website": "https://www.segmind.com",
+      "apiKeyUrl": "",
+      "category": "apikey",
+      "modelCount": 0,
+      "sampleModels": [],
+      "media": []
+    },
+    {
+      "id": "selfhosted-embedding",
+      "alias": "selfhosted-embedding",
+      "name": "Self-hosted Embedding",
+      "icon": "cloud",
+      "color": "#ffffffff",
+      "textIcon": "SE",
+      "website": "https://github.com/ggml-org/llama.cpp",
+      "apiKeyUrl": "",
+      "category": "apikey",
+      "modelCount": 1,
+      "sampleModels": [
+        "Self-hosted embedding model"
+      ],
+      "media": [
+        "embedding"
+      ]
+    },
+    {
+      "id": "selfhosted-stt",
+      "alias": "selfhosted-stt",
+      "name": "Self-hosted STT",
+      "icon": "cloud",
+      "color": "#ffffffff",
+      "textIcon": "ST",
+      "website": "https://github.com/ggml-org/whisper.cpp",
+      "apiKeyUrl": "",
+      "category": "apikey",
+      "modelCount": 1,
+      "sampleModels": [
+        "Whisper (self-hosted)"
+      ],
+      "media": [
+        "stt"
+      ]
+    },
+    {
+      "id": "selfhosted-tts",
+      "alias": "selfhosted-tts",
+      "name": "Self-hosted TTS",
+      "icon": "cloud",
+      "color": "#ffffffff",
+      "textIcon": "TT",
+      "website": "https://github.com/remsky/Kokoro-FastAPI",
+      "apiKeyUrl": "",
+      "category": "apikey",
+      "modelCount": 1,
+      "sampleModels": [
+        "Kokoro (self-hosted)"
+      ],
+      "media": [
+        "tts"
+      ]
+    },
+    {
+      "id": "sensenova",
+      "alias": "sensenova",
+      "name": "SenseNova",
+      "icon": "auto_awesome",
+      "color": "#5B5CE2",
+      "textIcon": "SN",
+      "website": "https://token.sensenova.cn",
+      "apiKeyUrl": "https://token.sensenova.cn",
+      "category": "apikey",
+      "modelCount": 7,
+      "sampleModels": [
+        "SenseNova 6.8 Flash Lite",
+        "SenseNova U1.5 Lite",
+        "SenseNova U1.5 Fast",
+        "DeepSeek V4 Flash",
+        "DeepSeek V4.1 Flash",
+        "GLM-5.2"
+      ],
+      "media": [
+        "image"
+      ]
+    },
+    {
+      "id": "serper",
+      "alias": "serper",
+      "name": "Serper",
+      "icon": "search",
+      "color": "#4F46E5",
+      "textIcon": "SP",
+      "website": "https://serper.dev",
+      "apiKeyUrl": "https://serper.dev/api-key",
+      "category": "apikey",
+      "modelCount": 0,
+      "sampleModels": [],
+      "media": [
+        "search"
+      ]
+    },
+    {
+      "id": "siliconflow",
+      "alias": "siliconflow",
+      "name": "SiliconFlow",
+      "icon": "cloud_queue",
+      "color": "#5B6EF5",
+      "textIcon": "SF",
+      "website": "https://cloud.siliconflow.com",
+      "apiKeyUrl": "https://cloud.siliconflow.com/account/ak",
+      "category": "apikey",
+      "modelCount": 16,
+      "sampleModels": [
+        "DeepSeek V4 Pro",
+        "DeepSeek V4 Flash",
+        "DeepSeek V3.2",
+        "DeepSeek V3.2 Exp",
+        "DeepSeek V3.1",
+        "DeepSeek V3.1 Terminus"
+      ],
+      "media": []
+    },
+    {
+      "id": "stability-ai",
+      "alias": "stability-ai",
+      "name": "Stability AI",
+      "icon": "image",
+      "color": "#8B5CF6",
+      "textIcon": "SA",
+      "website": "https://stability.ai",
+      "apiKeyUrl": "https://platform.stability.ai/account/keys",
+      "category": "apikey",
+      "modelCount": 5,
+      "sampleModels": [
+        "Stable Image Ultra",
+        "Stable Image Core",
+        "Stable Diffusion 3.5 Large",
+        "Stable Diffusion 3.5 Large Turbo",
+        "Stable Diffusion 3.5 Medium"
+      ],
+      "media": [
+        "image"
+      ]
+    },
+    {
+      "id": "tavily",
+      "alias": "tavily",
+      "name": "Tavily",
+      "icon": "search",
+      "color": "#5B21B6",
+      "textIcon": "TV",
+      "website": "https://tavily.com",
+      "apiKeyUrl": "https://app.tavily.com/home",
+      "category": "apikey",
+      "modelCount": 0,
+      "sampleModels": [],
+      "media": [
+        "search"
+      ]
+    },
+    {
+      "id": "tencent",
+      "alias": "hunyuan",
+      "name": "Tencent Hunyuan",
+      "icon": "cloud",
+      "color": "#0052D9",
+      "textIcon": "HY",
+      "website": "https://cloud.tencent.com/product/hunyuan",
+      "apiKeyUrl": "https://console.cloud.tencent.com/hunyuan/api-key",
+      "category": "apikey",
+      "modelCount": 2,
+      "sampleModels": [
+        "Hunyuan TurboS Latest",
+        "Hunyuan T1 Latest"
+      ],
+      "media": []
+    },
+    {
+      "id": "tinyfish",
+      "alias": "tinyfish",
+      "name": "TinyFish",
+      "icon": "api",
+      "color": "#FF6700",
+      "textIcon": "TF",
+      "website": "https://www.tinyfish.ai/",
+      "apiKeyUrl": "https://agent.tinyfish.ai/api-keys",
+      "category": "apikey",
+      "modelCount": 0,
+      "sampleModels": [],
+      "media": [
+        "search"
+      ]
+    },
+    {
+      "id": "together",
+      "alias": "together",
+      "name": "Together AI",
+      "icon": "group_work",
+      "color": "#0F6FFF",
+      "textIcon": "TG",
+      "website": "https://www.together.ai",
+      "apiKeyUrl": "https://api.together.xyz/settings/api-keys",
+      "category": "apikey",
+      "modelCount": 6,
+      "sampleModels": [
+        "Llama 3.3 70B Turbo",
+        "DeepSeek R1",
+        "Qwen3 235B",
+        "Llama 4 Maverick",
+        "BGE Large EN v1.5",
+        "M2 BERT 80M 8K"
+      ],
+      "media": [
+        "embedding"
+      ]
+    },
+    {
+      "id": "tokenharbor",
+      "alias": "tokenharbor",
+      "name": "Token Harbor",
+      "icon": "anchor",
+      "color": "#0F766E",
+      "textIcon": "TH",
+      "website": "https://tokenharbor.ai",
+      "apiKeyUrl": "https://tokenharbor.ai/dashboard",
+      "category": "apikey",
+      "modelCount": 6,
+      "sampleModels": [
+        "Claude Opus 5.5",
+        "Claude Sonnet 5",
+        "GPT-6 Astra",
+        "GPT-6 Sol",
+        "DeepSeek V4.1 Flash (Free)",
+        "Grok 4.7"
+      ],
+      "media": []
+    },
+    {
+      "id": "tokenrouter",
+      "alias": "tokenrouter",
+      "name": "TokenRouter",
+      "icon": "hub",
+      "color": "#0EA5E9",
+      "textIcon": "TR",
+      "website": "https://www.tokenrouter.com",
+      "apiKeyUrl": "https://www.tokenrouter.com",
+      "category": "apikey",
+      "modelCount": 22,
+      "sampleModels": [
+        "Claude Haiku 4.5",
+        "Claude Sonnet 4.6",
+        "Claude Opus 4.8",
+        "Claude Opus 4.8 Fast",
+        "Gpt 5.4",
+        "Gpt 5.4 Mini"
+      ],
+      "media": [
+        "embedding",
+        "image"
+      ]
+    },
+    {
+      "id": "topaz",
+      "alias": "topaz",
+      "name": "Topaz",
+      "icon": "image",
+      "color": "#059669",
+      "textIcon": "TP",
+      "website": "https://topazlabs.com",
+      "apiKeyUrl": "https://topazlabs.com/account",
+      "category": "apikey",
+      "modelCount": 0,
+      "sampleModels": [],
+      "media": []
+    },
+    {
+      "id": "typhoon",
+      "alias": "typhoon",
+      "name": "Typhoon",
+      "icon": "hub",
+      "color": "#0EA5E9",
+      "textIcon": "T",
+      "website": "https://opentyphoon.ai",
+      "apiKeyUrl": "",
+      "category": "apikey",
+      "modelCount": 0,
+      "sampleModels": [],
+      "media": []
+    },
+    {
+      "id": "upstage",
+      "alias": "upstage",
+      "name": "Upstage Solar",
+      "icon": "hub",
+      "color": "#8B5CF6",
+      "textIcon": "US",
+      "website": "https://www.upstage.ai",
+      "apiKeyUrl": "",
+      "category": "apikey",
+      "modelCount": 0,
+      "sampleModels": [],
+      "media": []
+    },
+    {
+      "id": "v1m",
+      "alias": "v1m",
+      "name": "v1m (System One)",
+      "icon": "psychology",
+      "color": "#6366F1",
+      "textIcon": "V1",
+      "website": "https://v1m.ir",
+      "apiKeyUrl": "https://v1m.ir",
+      "category": "apikey",
+      "modelCount": 2,
+      "sampleModels": [
+        "v1m Rev Latest (Calibrated)",
+        "v1m Decision Engine"
+      ],
+      "media": []
+    },
+    {
+      "id": "venice",
+      "alias": "venice",
+      "name": "Venice AI",
+      "icon": "shield",
+      "color": "#DC2626",
+      "textIcon": "VE",
+      "website": "https://venice.ai",
+      "apiKeyUrl": "https://venice.ai/settings/api",
+      "category": "apikey",
+      "modelCount": 15,
+      "sampleModels": [
+        "Venice Uncensored 1.2",
+        "GLM-5",
+        "Qwen3 235B A22B Instruct",
+        "Qwen3 Coder 480B A35B Turbo",
+        "Qwen3 VL 235B A22B",
+        "DeepSeek V4 Pro"
+      ],
+      "media": [
+        "embedding",
+        "image"
+      ]
+    },
+    {
+      "id": "veoaifree-web",
+      "alias": "veo-free",
+      "name": "Veo AI Free Web",
+      "icon": "movie",
+      "color": "#EA4335",
+      "textIcon": "VF",
+      "website": "https://veoaifree.com",
+      "apiKeyUrl": "",
+      "category": "apikey",
+      "modelCount": 3,
+      "sampleModels": [
+        "VEO 3.1 (Free)",
+        "Seedance (Free)",
+        "Nano Banana (Free)"
+      ],
+      "media": [
+        "image",
+        "video"
+      ]
+    },
+    {
+      "id": "vercel-ai-gateway",
+      "alias": "vercel-ai-gateway",
+      "name": "Vercel AI Gateway",
+      "icon": "deployed_code",
+      "color": "#111827",
+      "textIcon": "VG",
+      "website": "https://vercel.com/ai-gateway",
+      "apiKeyUrl": "https://vercel.com/dashboard/~/ai-gateway",
+      "category": "apikey",
+      "modelCount": 0,
+      "sampleModels": [],
+      "media": [
+        "embedding",
+        "image",
+        "search"
+      ]
+    },
+    {
+      "id": "vertex-partner",
+      "alias": "vertex-partner",
+      "name": "Vertex Partner",
+      "icon": "cloud",
+      "color": "#34A853",
+      "textIcon": "VP",
+      "website": "https://cloud.google.com/vertex-ai/generative-ai/docs/partner-models/use-partner-models",
+      "apiKeyUrl": "https://console.cloud.google.com/iam-admin/serviceaccounts",
+      "category": "apikey",
+      "modelCount": 4,
+      "sampleModels": [
+        "DeepSeek V3.2 (Vertex)",
+        "Qwen3 Next 80B Thinking (Vertex)",
+        "Qwen3 Next 80B Instruct (Vertex)",
+        "GLM-5 (Vertex)"
+      ],
+      "media": []
+    },
+    {
+      "id": "volcengine-ark",
+      "alias": "volcengine-ark",
+      "name": "Volcengine Ark",
+      "icon": "cloud",
+      "color": "#1677FF",
+      "textIcon": "ARK",
+      "website": "https://ark.cn-beijing.volces.com",
+      "apiKeyUrl": "https://console.volcengine.com/ark/region:ark+cn-beijing/apiKey",
+      "category": "apikey",
+      "modelCount": 9,
+      "sampleModels": [
+        "Doubao-Seed-2.0-Code",
+        "Doubao-Seed-2.0-pro",
+        "Doubao-Seed-2.0-lite",
+        "Doubao-Seed-Code",
+        "DeepSeek-V4-Flash",
+        "DeepSeek-V4-Pro"
+      ],
+      "media": []
+    },
+    {
+      "id": "voyage-ai",
+      "alias": "voyage-ai",
+      "name": "Voyage AI",
+      "icon": "data_array",
+      "color": "#0EA5E9",
+      "textIcon": "VG",
+      "website": "https://www.voyageai.com",
+      "apiKeyUrl": "https://dash.voyageai.com/api-keys",
+      "category": "apikey",
+      "modelCount": 7,
+      "sampleModels": [
+        "Voyage 3 Large",
+        "Voyage 3.5",
+        "Voyage 3.5 Lite",
+        "Voyage Code 3",
+        "Voyage Finance 2",
+        "Voyage Law 2"
+      ],
+      "media": [
+        "embedding"
+      ]
+    },
+    {
+      "id": "wandb",
+      "alias": "wandb",
+      "name": "W&B Inference",
+      "icon": "hub",
+      "color": "#E11D48",
+      "textIcon": "WI",
+      "website": "https://wandb.ai",
+      "apiKeyUrl": "https://wandb.ai/authorize",
+      "category": "apikey",
+      "modelCount": 0,
+      "sampleModels": [],
+      "media": []
+    },
+    {
+      "id": "windsurf",
+      "alias": "ws",
+      "name": "Windsurf",
+      "icon": "surfing",
+      "color": "#14B8A6",
+      "textIcon": "",
+      "website": "https://windsurf.com",
+      "apiKeyUrl": "",
+      "category": "oauth",
+      "modelCount": 75,
+      "sampleModels": [
+        "SWE-1.6 Fast",
+        "SWE-1.6",
+        "SWE-1.5 Fast",
+        "SWE-1.5",
+        "Claude Opus 4.7 Max",
+        "Claude Opus 4.7 XHigh"
+      ],
+      "media": []
+    },
+    {
+      "id": "writer",
+      "alias": "writer",
+      "name": "Writer",
+      "icon": "hub",
+      "color": "#F97316",
+      "textIcon": "W",
+      "website": "https://writer.com",
+      "apiKeyUrl": "",
+      "category": "apikey",
+      "modelCount": 0,
+      "sampleModels": [],
+      "media": []
+    },
+    {
+      "id": "xai",
+      "alias": "xai",
+      "name": "xAI (Grok)",
+      "icon": "auto_awesome",
+      "color": "#1DA1F2",
+      "textIcon": "XA",
+      "website": "https://x.ai",
+      "apiKeyUrl": "https://console.x.ai",
+      "category": "oauth",
+      "modelCount": 9,
+      "sampleModels": [
+        "Grok 4.7",
+        "Grok 4.6",
+        "Grok 4.5",
+        "Grok 4",
+        "Grok 4 Fast Reasoning",
+        "Grok Code Fast"
+      ],
+      "media": [
+        "image",
+        "video",
+        "search"
+      ]
+    },
+    {
+      "id": "xiaomi-mimo",
+      "alias": "xiaomi-mimo",
+      "name": "Xiaomi MiMo",
+      "icon": "smart_toy",
+      "color": "#FF6900",
+      "textIcon": "XM",
+      "website": "https://xiaomimimo.com",
+      "apiKeyUrl": "https://platform.xiaomimimo.com/console/api-keys",
+      "category": "oauth",
+      "modelCount": 8,
+      "sampleModels": [
+        "MiMo V2.6 Pro",
+        "MiMo V2.6 Flash",
+        "MiMo V2.6 Pro UltraSpeed",
+        "MiMo V2.5 Pro",
+        "MiMo V2.5",
+        "MiMo V2 Omni"
+      ],
+      "media": [
+        "tts"
+      ]
+    },
+    {
+      "id": "xiaomi-tokenplan",
+      "alias": "xiaomi-tokenplan",
+      "name": "Xiaomi MiMo (Token Plan)",
+      "icon": "smart_toy",
+      "color": "#FF6700",
+      "textIcon": "XT",
+      "website": "https://mimo.xiaomi.com",
+      "apiKeyUrl": "https://mimo.xiaomi.com",
+      "category": "apikey",
+      "modelCount": 9,
+      "sampleModels": [
+        "MiMo V2.5 Pro",
+        "MiMo V2.5 Pro (Claude Native)",
+        "MiMo V2.5",
+        "MiMo V2 Pro",
+        "MiMo V2 Omni",
+        "MiMo V2 TTS"
+      ],
+      "media": []
+    },
+    {
+      "id": "xkiro",
+      "alias": "xkiro",
+      "name": "xKiro",
+      "icon": "hub",
+      "color": "#2B7FFF",
+      "textIcon": "XK",
+      "website": "https://xkiro.com",
+      "apiKeyUrl": "",
+      "category": "apikey",
+      "modelCount": 0,
+      "sampleModels": [],
+      "media": []
+    },
+    {
+      "id": "xquik",
+      "alias": "xquik",
+      "name": "Xquik",
+      "icon": "tag",
+      "color": "#5C3327",
+      "textIcon": "XQ",
+      "website": "https://docs.xquik.com/api-reference/x/search-tweets",
+      "apiKeyUrl": "https://xquik.com",
+      "category": "apikey",
+      "modelCount": 0,
+      "sampleModels": [],
+      "media": [
+        "search"
+      ]
+    },
+    {
+      "id": "youcom",
+      "alias": "youcom",
+      "name": "You.com Search",
+      "icon": "search",
+      "color": "#7C3AED",
+      "textIcon": "YC",
+      "website": "https://you.com",
+      "apiKeyUrl": "https://api.you.com",
+      "category": "apikey",
+      "modelCount": 0,
+      "sampleModels": [],
+      "media": [
+        "search"
+      ]
+    },
+    {
+      "id": "zai",
+      "alias": "zai",
+      "name": "Z.ai",
+      "icon": "hub",
+      "color": "#E11D48",
+      "textIcon": "Z",
+      "website": "https://z.ai",
+      "apiKeyUrl": "https://z.ai/manage-api-key/apikey-list",
+      "category": "apikey",
+      "modelCount": 0,
+      "sampleModels": [],
+      "media": []
+    },
+    {
+      "id": "glm",
+      "alias": "glm",
+      "name": "Zai GLM Coding",
+      "icon": "code",
+      "color": "#2563EB",
+      "textIcon": "GL",
+      "website": "https://open.bigmodel.cn",
+      "apiKeyUrl": "https://open.bigmodel.cn/usercenter/apikeys",
+      "category": "oauth",
+      "modelCount": 8,
+      "sampleModels": [
+        "GLM 5.3",
+        "GLM 5.3 Flash (Vision)",
+        "GLM 5.2",
+        "GLM 5.1",
+        "GLM 5 Turbo",
+        "GLM 5"
+      ],
+      "media": [
+        "search"
+      ]
+    },
+    {
+      "id": "zenmux",
+      "alias": "zenmux",
+      "name": "ZenMux",
+      "icon": "hub",
+      "color": "#2B7FFF",
+      "textIcon": "ZM",
+      "website": "https://zenmux.ai",
+      "apiKeyUrl": "",
+      "category": "apikey",
+      "modelCount": 0,
+      "sampleModels": [],
+      "media": []
+    }
+  ]
+}

@@ -393,7 +393,7 @@
         await writer.write(text);
         await writer.close();
       }
-      alertBox(`Wrote data-location.json, originrouter.env and byok-import.json into “${state.folderHandle.name}”.`, true);
+      alertBox(`Wrote the three setup files into “${state.folderHandle.name}”. Copy originrouter.env to the app folder as .env (it already sets DATA_DIR), or copy data-location.json to ~/.or/ if you are not using an env file.`, true);
     } catch (err) {
       alertBox(`Could not write files: ${err.message}`);
     }

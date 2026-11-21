@@ -1,4 +1,4 @@
-# v0.7.000 (unreleased)
+# 0.7 (unreleased)
 
 ## Fixed
 - **The three tray console items did nothing.** "Open Gateway Console", "Open Panda Orchestrator Console" and "Restart Panda Orchestrator" all launched PowerShell with `detached: true`, which on Windows means `DETACHED_PROCESS`: no console is ever created and the child exits 0, so every click looked dead. The launcher now goes through `cmd /c start <title> powershell -File <helper.ps1>` (`desktop/consoleWindow.cjs`), so a real, visible console opens and tails the log. The helper waits for a missing log instead of closing in the user's face, and the dashboard remains the fallback when it cannot start at all.
